@@ -16,7 +16,13 @@ import { basename } from "node:path";
 
 const entrada = JSON.parse(readFileSync(0, "utf8"));
 const arquivo = entrada.tool_response?.filePath ?? entrada.tool_input?.file_path ?? "";
-if (basename(arquivo) !== "supabase-setup.sql") process.exit(0);
+/* O SQL não vive mais só no arquivo de instalação: `supabase/migrations/` tem
+   as migrações que ainda não rodaram, e uma tabela nova sem policy lá é tão
+   perigosa quanto uma lá. Toda tabela nova precisa dos quatro blocos, esteja
+   onde estiver. */
+const ehSqlDoProjeto = basename(arquivo) === "supabase-setup.sql"
+  || /\/supabase\/(migrations\/)?[\w.-]+\.sql$/.test(arquivo.replaceAll("\\", "/"));
+if (!ehSqlDoProjeto) process.exit(0);
 
 let sql;
 try {
@@ -75,9 +81,15 @@ const criadaEm = new Map();
 for (const m of codigo.matchAll(/create table if not exists public\.(\w+)/g)) {
   if (!criadaEm.has(m[1])) criadaEm.set(m[1], m.index);
 }
+/* Tabela da V1 que uma migração pode referenciar sem recriar. O arquivo de
+   instalação é quem as cria; aqui elas contam como já existentes. */
+const DA_V1 = new Set(["dividas", "fixas", "fixas_mes", "credores", "receitas",
+  "pagamentos", "config", "ping"]);
+
 for (const m of codigo.matchAll(/references\s+public\.(\w+)\s*\(/g)) {
   const alvo = m[1], nasce = criadaEm.get(alvo);
   if (nasce === undefined) {
+    if (DA_V1.has(alvo)) continue;
     problemas.push(`Há uma referência a public.${alvo}, mas não existe `
       + `'create table if not exists public.${alvo}' neste arquivo.`);
   } else if (nasce > m.index) {
@@ -99,7 +111,7 @@ if (/\braise exception\b/i.test(codigo)) {
 if (problemas.length) {
   process.stdout.write(JSON.stringify({
     decision: "block",
-    reason: "supabase-setup.sql quebrou uma invariante de segurança:\n\n"
+    reason: basename(arquivo) + " quebrou uma invariante de segurança:\n\n"
       + problemas.map((p) => "• " + p).join("\n\n"),
   }));
 }

@@ -198,7 +198,11 @@ function varreArquivo(rel, baseline) {
           /* 1/1 é pagamento à vista: aparece em qualquer fixture e não
              identifica nada. Combinação trivial não entra. */
           if (!a || !b || (a === "1" && b === "1")) continue;
-          if (new RegExp("\\b" + a + "\\s*,\\s*" + b + "\\b").test(linha))
+          /* O par só conta como parcela/total quando vem na FORMA de uma linha
+             de dado, seguido do mês. Sem isso, "2, 3 e 4" numa frase de
+             comentário era acusado como se fosse a parcela 2 de 3 -- foi o que
+             aconteceu com um cabeçalho de seção deste próprio repositório. */
+          if (new RegExp("\\b" + a + "\\s*,\\s*" + b + "\\s*,\\s*[\"']20\\d\\d-\\d\\d").test(linha))
             anota("critico", "combinação do baseline privado", rel, i + 1, linha);
         }
       }
