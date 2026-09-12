@@ -6,7 +6,7 @@ total_tokens: 98000
 
 # Mapa do código
 
-Quitação é um organizador financeiro pessoal de um usuário só. Site estático no
+Lágrimas do CLT é um organizador financeiro pessoal de um usuário só. Site estático no
 GitHub Pages, dados no Supabase. Tudo em português do Brasil: interface, banco,
 comentários, commits.
 

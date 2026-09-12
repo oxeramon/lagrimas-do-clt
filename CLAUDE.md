@@ -1,4 +1,4 @@
-# Quitação
+# Lágrimas do CLT
 
 Organizador financeiro pessoal de um usuário só. Site estático no GitHub Pages,
 dados no Supabase. Português do Brasil em tudo: interface, banco, comentários,
@@ -150,8 +150,8 @@ tem a tabela o erro passa despercebido e só aparece numa instalação nova.
   rolagem lateral em 320, 360 e 390 px. `1fr` de grid cresce até o filho mais
   largo, e o defeito não aparece no monitor.
 - Dinheiro por `money()` — ele já traz o "R$", não ponha outro na frente.
-  Porcentagem por `pct()`, mês por `label()` / `labelLong()`. Números em
-  `IBM Plex Mono` com `tabular-nums`.
+  Porcentagem por `pct()`, mês por `label()` / `labelLong()`. Número que
+  alinha em coluna leva `tabular-nums`; a única família carregada é a Inter.
 - Excluir é sempre em dois cliques no mesmo botão ("Excluir" → "Confirmar
   exclusão", volta sozinho em 4s). Não use `confirm()`.
 - Escrita: frase curta, sem jargão, sem exclamação. "Não deu para salvar", não
@@ -160,15 +160,15 @@ tem a tabela o erro passa despercebido e só aparece numa instalação nova.
 - **Nome de número importa tanto quanto o número.** Três defeitos de 12/09/2026
   foram só de rótulo: "Saldo devedor" que era total a pagar, uma contagem de
   parcelas pagas lida como o número da parcela atual, e um filtro comparando
-  com o eixo errado. Nenhum
-  teste pega isso — a expressão está certa e responde outra pergunta.
+  com o eixo errado. Nenhum teste pega isso: a expressão está certa e responde
+  outra pergunta.
 
 ## Comandos
 
 ```bash
 node testes/regras.mjs
 ```
-34 casos recortados do próprio `index.html`, sobre uma fixture sintética. Inclui
+52 casos recortados do próprio `index.html`, sobre uma fixture sintética. Inclui
 a regressão que amarra `saldoAberto()` ao valor de conferência do SQL, lido do
 próprio `supabase-setup.sql`: se a carga de exemplo mudar e a fixture não
 acompanhar, o teste acusa. **Rode depois de mexer em

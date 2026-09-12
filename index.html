@@ -5,9 +5,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" id="metaTema" content="#FFFFFF">
 <meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-title" content="Quitação">
+<meta name="apple-mobile-web-app-title" content="Lágrimas do CLT">
 <meta name="robots" content="noindex, nofollow">
-<title>Quitação</title>
+<title>Lágrimas do CLT</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,400;14..32,500;14..32,600;14..32,700&display=swap">
@@ -788,7 +788,7 @@ label.btn{display:inline-flex; align-items:center}
 <!-- ==================== LOGIN ==================== -->
 <div id="login" hidden>
   <form class="loginbox" id="formLogin">
-    <h1>Quitação</h1>
+    <h1>Lágrimas do CLT</h1>
     <p class="sub">Controle de parcelas e contas fixas.</p>
     <div class="field">
       <label for="email">E-mail</label>
@@ -806,7 +806,7 @@ label.btn{display:inline-flex; align-items:center}
 <!-- ==================== APP ==================== -->
 <div id="app" class="app" hidden>
     <aside class="lateral">
-      <div class="marca"><span class="dot" aria-hidden="true">Q</span><h1>Quitação</h1></div>
+      <div class="marca"><span class="dot" aria-hidden="true">L</span><h1>Lágrimas do CLT</h1></div>
       <nav role="tablist" aria-label="Seções">
         <button class="navitem" id="nav-painel" role="tab" aria-selected="true" aria-controls="p-painel"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 3h7v8H3zM14 3h7v5h-7zM14 12h7v9h-7zM3 15h7v6H3z"/></svg><span>Painel</span></button>
         <button class="navitem" id="nav-mes" role="tab" aria-selected="false" aria-controls="p-mes"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="17" rx="2"/><path d="M3 9h18M8 2v4M16 2v4"/></svg><span>Mês</span></button>
@@ -824,7 +824,7 @@ label.btn{display:inline-flex; align-items:center}
     </aside>
     <div>
       <header class="topo-movel">
-        <span class="dot" aria-hidden="true">Q</span><h1>Quitação</h1>
+        <span class="dot" aria-hidden="true">L</span><h1>Lágrimas do CLT</h1>
         <span class="sep"></span>
         <button class="btn ghost sm" id="btnAtualizarM" aria-label="Recarregar os dados"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M21 12a9 9 0 11-3-6.7"/><path d="M21 3v6h-6"/></svg></button>
         <button class="btn ghost sm" id="btnTemaM" aria-label="Tema"><svg id="icoTemaM" viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="8.6"/><path fill="currentColor" stroke="none" d="M12 3.4a8.6 8.6 0 000 17.2z"/></svg></button>
@@ -4567,7 +4567,7 @@ $("exportBtn").addEventListener("click", () => {
   const blob = new Blob(["﻿" + linhas.join("\r\n")], { type: "text/csv;charset=utf-8" });
   const a = document.createElement("a");
   a.href = URL.createObjectURL(blob);
-  a.download = "quitacao-" + S.mes + ".csv";
+  a.download = "lagrimas-do-clt-" + S.mes + ".csv";
   document.body.appendChild(a); a.click(); a.remove();
   setTimeout(() => URL.revokeObjectURL(a.href), 4000);
 });

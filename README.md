@@ -1,4 +1,4 @@
-# Quitação
+# Lágrimas do CLT
 
 Organizador financeiro pessoal: o que entra, o que sai e quando acaba. Site
 estático no GitHub Pages, dados no Supabase, login por e-mail e senha. Sem custo
@@ -99,11 +99,11 @@ const SUPABASE_ANON_KEY = "eyJhbGciOi...";
 
 ### 6. Publicar no GitHub
 
-1. Crie um repositório **público** chamado `quitacao`.
+1. Crie um repositório **público** chamado `lagrimas-do-clt`.
 2. Suba os três arquivos mantendo a estrutura:
 
 ```
-quitacao/
+lagrimas-do-clt/
 ├── index.html            o site inteiro: tela, lógica e estilo
 ├── supabase-setup.sql    tabelas, segurança e migrações
 ├── README.md
@@ -119,11 +119,11 @@ quitacao/
 ```
 
 3. Em **Settings → Pages → Build and deployment**, escolha **Deploy from a branch**, branch `main`, pasta `/ (root)`, e salve.
-4. Em 1 a 2 minutos o site fica no ar em `https://SEU-USUARIO.github.io/quitacao/`.
+4. Em 1 a 2 minutos o site fica no ar em `https://SEU-USUARIO.github.io/lagrimas-do-clt/`.
 
 ### 7. Liberar o endereço no Supabase
 
-Em **Authentication → URL Configuration**, adicione `https://SEU-USUARIO.github.io/quitacao/` em **Site URL** e em **Redirect URLs**.
+Em **Authentication → URL Configuration**, adicione `https://SEU-USUARIO.github.io/lagrimas-do-clt/` em **Site URL** e em **Redirect URLs**.
 
 ### 8. Ligar o ping diário
 
