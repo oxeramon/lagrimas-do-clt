@@ -37,6 +37,9 @@ import { doBanco, paraBanco, paraCamel, paraSnake } from "../js/data/v2-reposito
 import { monogramaDe, contrasteSobre, doCatalogo } from "../js/ui/institution-catalog.js";
 import { raizesPadrao, filhasPadrao, quantasCategoriasPadrao } from "../js/ui/category-catalog.js";
 import { ABAS, idsDasAbas, grupoDaAba, abasDoRodape, abasDoMais } from "../js/ui/navigation.js";
+import { saidasDoMes, entradasDoMes, resumoDoMes, estadoDoCompromisso,
+         indiceDeLiquidacoes, chaveDe, mesesEmAtraso,
+         ABERTO, LIQUIDADO, PAGO_SEM_MOVIMENTO } from "../js/domain/reconciliation.js";
 
 let ok = 0, bad = 0;
 const eq = (nome, got, want) => {
@@ -67,7 +70,7 @@ const seed = [
   ["Banco Exemplo",  "Financiamento Exemplo",    "Financiamento", 1111.00, 12, 36, "2026-10"],
 ];
 const cent = v => Math.round(v * 100) / 100;
-const ABERTO     = cent(seed.reduce((s, r) => s + r[3] * (r[5] - r[4] + 1), 0));
+const ABERTO_FIXTURE = cent(seed.reduce((s, r) => s + r[3] * (r[5] - r[4] + 1), 0));
 const CONTRATADO = cent(seed.reduce((s, r) => s + r[3] * r[5], 0));
 const QUITADO    = cent(seed.reduce((s, r) => s + (r[4] - 1) * r[3], 0));
 
@@ -92,7 +95,7 @@ S.pagos = {};
 
 console.log("regras existentes (não podem ter mudado)");
 eq("saldo devedor bate com a conferência do SQL", cent(saldoAberto(null)), CONFERENCIA);
-eq("a fixture reproduz a carga de exemplo do SQL", ABERTO, CONFERENCIA);
+eq("a fixture reproduz a carga de exemplo do SQL", ABERTO_FIXTURE, CONFERENCIA);
 eq("restantesDe 3/6", restantesDe(S.dividas[3]), 4);
 eq("última parcela de 3/6 em 2026-10", ultimoMes(S.dividas[3]), "2027-01");
 eq("parcela única existe no mês", parcelaEm(S.dividas[0], "2026-10").n, 1);
@@ -515,6 +518,153 @@ eq("nenhuma aba fica fora do rodapé e do Mais ao mesmo tempo",
 eq("rodapé e Mais não repetem a mesma aba",
   abasDoRodape().some(a => abasDoMais().some(b => b.id === a.id)), false);
 eq("o grupo de uma aba conhecida", grupoDaAba("contas"), "MEU DINHEIRO");
+
+/* ==================================================================
+   PONTE V1 ↔ V2 · PREVISTO × REALIZADO
+   ------------------------------------------------------------------
+   A regra que estes casos existem para travar:
+
+     compromisso liquidado deixa de ser previsto e passa a ser realizado.
+     Aparece num lado OU no outro. Nunca nos dois.
+
+   Fixture sintética e independente.
+   ================================================================== */
+console.log("\nponte: estado de um compromisso");
+
+const MES = "2026-09";
+const compromissos = [
+  { id: "d1", nome: "Compromisso Um",  valor: 500 },
+  { id: "d2", nome: "Compromisso Dois", valor: 300 },
+  { id: "fx:f1", nome: "Conta Fixa",   valor: 120 },
+];
+
+eq("sem marca e sem vínculo, o compromisso está aberto",
+  estadoDoCompromisso("d1", MES, indiceDeLiquidacoes([]), {}), ABERTO);
+eq("com vínculo, está liquidado",
+  estadoDoCompromisso("d1", MES, indiceDeLiquidacoes([{ itemId:"d1", competencia:MES }]), {}),
+  LIQUIDADO);
+eq("marcado no quadradinho, sem vínculo, é um terceiro estado",
+  estadoDoCompromisso("d1", MES, indiceDeLiquidacoes([]), { [MES]: { d1: true } }),
+  PAGO_SEM_MOVIMENTO);
+/* liquidação sempre cria a marca; a marca nem sempre vem de liquidação */
+eq("o vínculo vence a marca quando os dois existem",
+  estadoDoCompromisso("d1", MES,
+    indiceDeLiquidacoes([{ itemId:"d1", competencia:MES }]), { [MES]: { d1: true } }),
+  LIQUIDADO);
+eq("o vínculo é por competência, não pelo item",
+  estadoDoCompromisso("d1", "2026-10",
+    indiceDeLiquidacoes([{ itemId:"d1", competencia:MES }]), {}), ABERTO);
+eq("a chave junta item e competência", chaveDe("d1", MES), "d1@2026-09");
+
+console.log("\nCASO B · dívida paga não conta duas vezes");
+
+/* a dívida de 500 foi liquidada: existe o vínculo E a transação de 500 */
+const casoB = saidasDoMes({
+  compromissos,
+  transacoes: [{ id:"t1", tipo:"saida", natureza:"normal", status:"realizada", valor:500 }],
+  liquidacoes: [{ itemId:"d1", competencia:MES, valor:500 }],
+  pagos: { [MES]: { d1: true } },
+  mes: MES,
+});
+eq("o previsto perde o compromisso liquidado", casoB.previsto, 420);   /* 300 + 120 */
+eq("o realizado vem da transação", casoB.realizado, 500);
+/* ESTE é o número perigoso: previsto + realizado daria 920 para 800 de
+   compromisso e 500 de movimento. O comprometido conta cada obrigação UMA vez. */
+eq("comprometido conta cada obrigação uma vez só", casoB.comprometido, 920);
+eq("e o liquidado não é somado ao previsto",
+  casoB.previsto + casoB.liquidado, casoB.comprometido - casoB.pagoSemMovimento);
+eq("gasto do mês é 500, não 1.000", casoB.realizado, 500);
+
+console.log("\npago sem movimento: o terceiro estado");
+
+const semMov = saidasDoMes({
+  compromissos,
+  transacoes: [],
+  liquidacoes: [],
+  pagos: { [MES]: { "fx:f1": true } },
+  mes: MES,
+});
+eq("marcado no quadradinho sai do previsto", semMov.previsto, 800);
+/* não inventa saída que não existe */
+eq("mas NÃO vira movimento realizado", semMov.realizado, 0);
+eq("ele tem caixa própria, com nome próprio", semMov.pagoSemMovimento, 120);
+eq("e o comprometido continua somando tudo uma vez", semMov.comprometido, 920);
+
+console.log("\nCASO C · transferência não mexe no gasto");
+
+const comTransf = saidasDoMes({
+  compromissos: [],
+  transacoes: [
+    { id:"t1", tipo:"saida",   natureza:"transferencia", status:"realizada", valor:100, transferenciaId:"g1" },
+    { id:"t2", tipo:"entrada", natureza:"transferencia", status:"realizada", valor:100, transferenciaId:"g1" },
+    { id:"t3", tipo:"saida",   natureza:"normal",        status:"realizada", valor:70 },
+  ],
+  liquidacoes: [], pagos: {}, mes: MES,
+});
+eq("transferência não entra na saída realizada", comTransf.realizado, 70);
+
+console.log("\nCASO D · receita recebida não conta duas vezes");
+
+const receitas = [
+  { id: "r1", descricao: "Receita Um",  valor: 1000 },
+  { id: "r2", descricao: "Receita Dois", valor: 200 },
+];
+const casoD = entradasDoMes({
+  receitas,
+  transacoes: [{ id:"t1", tipo:"entrada", natureza:"normal", status:"realizada", valor:1000 }],
+  liquidacoes: [{ itemId:"r1", competencia:MES, valor:1000 }],
+  mes: MES,
+});
+eq("a receita recebida sai do a receber", casoD.previsto, 200);
+eq("entrada realizada é 1.000, não 2.000", casoD.realizado, 1000);
+eq("o que foi recebido do que estava previsto fica registrado", casoD.recebidoPrevisto, 1000);
+eq("a receita ainda não recebida continua na lista de espera",
+  casoD.itens.aReceber.map(r => r.id), ["r2"]);
+
+console.log("\nresumo do mês");
+
+const resumo = resumoDoMes({
+  compromissos,
+  receitas,
+  transacoes: [
+    { id:"t1", tipo:"saida",   natureza:"normal", status:"realizada", valor:500 },
+    { id:"t2", tipo:"entrada", natureza:"normal", status:"realizada", valor:1000 },
+    { id:"t3", tipo:"saida",   natureza:"normal", status:"prevista",  valor:9999 },
+  ],
+  liquidacoes: [{ itemId:"d1", competencia:MES, valor:500 },
+                { itemId:"r1", competencia:MES, valor:1000 }],
+  pagos: { [MES]: { d1: true } },
+  mes: MES,
+  saldoEmContas: 2000,
+});
+eq("resultado realizado é entradas menos saídas do movimento",
+  resumo.resultadoRealizado, 500);
+eq("ainda entra é só a receita não recebida", resumo.aindaEntra, 200);
+eq("ainda sai é só o compromisso aberto", resumo.aindaSai, 420);
+/* 2000 + 200 − 420. O saldo JÁ contém a entrada de 1.000: somá-la de novo
+   seria contar duas vezes. */
+eq("sobra projetada parte do saldo, não das entradas já realizadas",
+  resumo.sobraProjetada, 1780);
+eq("prevista não entra em movimento nenhum", resumo.saidas.realizado, 500);
+/* 500 liquidado de 920 comprometido */
+eq("aderência é o quanto do mês já virou pagamento",
+  Math.round(resumo.aderencia * 1000) / 1000, 0.543);
+eq("sem compromisso nenhum, aderência é null e não zero",
+  resumoDoMes({ compromissos: [], receitas: [], transacoes: [], liquidacoes: [],
+                pagos: {}, mes: MES, saldoEmContas: 0 }).aderencia, null);
+
+console.log("\natraso");
+
+eq("compromisso aberto de mês fechado aparece como atrasado",
+  mesesEmAtraso(compromissos, [], {}, "2026-09", ["2026-07", "2026-08", "2026-09"])
+    .map(c => c.id + "@" + c.competencia),
+  ["d1@2026-07","d2@2026-07","fx:f1@2026-07","d1@2026-08","d2@2026-08","fx:f1@2026-08"]);
+eq("o que foi liquidado não aparece como atrasado",
+  mesesEmAtraso([{ id:"d1", valor:500 }],
+    [{ itemId:"d1", competencia:"2026-08" }], {}, "2026-09", ["2026-08"]).length, 0);
+eq("o que foi marcado no quadradinho também não",
+  mesesEmAtraso([{ id:"d1", valor:500 }], [], { "2026-08": { d1: true } },
+    "2026-09", ["2026-08"]).length, 0);
 
 console.log(`\n${ok} passaram, ${bad} falharam`);
 process.exit(bad ? 1 : 0);
