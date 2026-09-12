@@ -13,6 +13,7 @@ em ordem. Este arquivo é o registro; o SQL é a fonte.
 | `20260912214852` | `../supabase/migrations/005_v2_settlement_bridge.sql` | 12/09/2026 | **aplicada** |
 | `20260912214949` | `../supabase/migrations/006_v2_trigger_grants.sql` | 12/09/2026 | **aplicada** |
 | `20260912230851` | `../supabase/migrations/007_v2_cartoes_e_faturas.sql` | 12/09/2026 | **aplicada** |
+| `20260912233655` | `../supabase/migrations/008_v2_assinaturas.sql` | 12/09/2026 | **aplicada** |
 
 **Migração aplicada não se edita.** Quando o arquivo e o banco discordam, some
 a única fonte confiável sobre o que rodou. Conserto vira migração nova, e é por
@@ -340,6 +341,74 @@ ciclo, a recusa de guardar mais que quatro dígitos, a idempotência da criaçã
 da fatura, os centavos do parcelamento, o CASO A completo, o desfazer, as
 recusas de conta e cartão alheios, e `anon` esbarrando no grant das três RPCs.
 
+## 008 · assinaturas e recorrência
+
+A distinção que organiza a migração inteira:
+
+> **Assinatura é REGRA.** "R$ 19,90 todo mês, desde março."
+> **Ocorrência é EVENTO.** "R$ 19,90 saíram em 05/09."
+
+Confundir as duas é o mesmo erro que a ponte resolveu do outro lado: somar a
+regra com o evento conta o mesmo dinheiro duas vezes.
+
+### A estratégia de materialização
+
+Uma assinatura mensal sem data de fim tem infinitas ocorrências. Gerar "todas"
+é impossível, e gerar duzentas por garantia enche o banco de linhas que
+ninguém vai olhar e que precisam ser apagadas quando o valor mudar.
+
+**Materializa-se sob demanda, numa janela curta de dois meses, e a
+idempotência é do BANCO.** `unique (user_id, assinatura_id, competencia)`
+garante que rodar a geração duas vezes não duplica nada — e é essa propriedade,
+e só ela, que torna seguro chamá-la a cada carga da tela.
+
+É a mesma ideia da fatura na 007: encontrar ou criar, com o `unique` fazendo o
+trabalho. Duas features, um mecanismo.
+
+### A ocorrência não é tabela nova
+
+Ela **é** uma transação, com `status='prevista'`. O que faltava era reconhecer
+"esta é a cobrança de setembro desta assinatura", e a resposta é a mesma da
+ponte: competência como coluna. `transacoes` ganhou `assinatura_id` e
+`competencia`.
+
+Previsto não entra em saldo nem em consumo — a 001 já tinha decidido isso, e
+nada aqui mudou. Confirmar uma cobrança é mudar o status, e aí sim ela vira
+dinheiro.
+
+### Assinatura no cartão cai na fatura
+
+Quando a assinatura é paga no cartão, a ocorrência nasce dentro da fatura do
+ciclo daquela data, criada sob demanda pela própria geração. Ela é prevista,
+então não engorda o total da fatura até acontecer.
+
+`conta_id` e `cartao_id` são mutuamente exclusivos, e **os dois podem faltar**:
+"ainda não decidi por onde pago" é um estado real, e forçar uma escolha falsa
+só produziria dado errado.
+
+### Frequência semanal: cadastra, não materializa
+
+A competência por mês não distingue quatro cobranças semanais do mesmo mês, e a
+`unique` deixaria passar só a primeira. Resolver direito exige mudar a chave.
+Até lá, assinatura semanal é cadastrada, entra no custo equivalente (52 semanas
+por ano) e **não** vira ocorrência. A exclusão está declarada no código e na
+tela.
+
+### O que a view deriva
+
+Custo mensal equivalente e custo anual equivalente — para comparar uma
+assinatura anual com uma mensal sem conta de cabeça — e a próxima cobrança,
+que sai da âncora `inicio` em vez de ser guardada. Derivado guardado envelhece.
+
+### Como foi provada
+
+`supabase/testes/008_assinaturas.sql`, **35 casos**, como `authenticated` e como
+`anon`, em transação com `rollback`. Rodados ANTES da aplicação, junto com o
+próprio DDL numa transação revertida: 35 de 35 no ensaio e 35 de 35 depois.
+
+O caso 9 é o que mais importa: a segunda geração cria zero. Se ele quebrar,
+chamar a geração a cada carga da tela encheria o banco de duplicatas.
+
 ## O que os advisors dizem agora
 
 Segurança: **uma única ocorrência**, e é configuração de Auth, não de schema —
@@ -372,7 +441,7 @@ errado com cara de certo; até haver contrato, pagamento de fatura é integral.
 **Estorno tem schema e não tem botão.** O contrato de estorno parcial e
 múltiplo ainda não foi definido.
 
-**A instalação do zero ainda é um arquivo só.** Com sete migrações aplicadas,
+**A instalação do zero ainda é um arquivo só.** Com oito migrações aplicadas,
 `supabase-setup.sql` sozinho não reconstrói mais o banco inteiro. O
 `supabase/README.md` explica a ordem; separar em `schema.sql` + `seed.sql` +
 `migrations/` passou a fazer sentido e ainda não foi feito.
