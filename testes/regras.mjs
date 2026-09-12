@@ -21,13 +21,15 @@ const trecho = html.slice(ini, fim);
 const api = new Function(trecho + `
   return { S, restantesDe, ultimoMes, parcelaEm, dividasDoMes, totalDividas, totalFixas,
            aplicaEm, receitasDoMes, totalReceitas, rendaDoMes, periodoReceita,
-           saldoAberto, totalQuitado, parcelasAVencer, fimGeral, saldoAposMes,
+           saldoAberto, abertoDe, totalQuitado, agrupaAberto, parcelasAVencer,
+           fimGeral, saldoAposMes, escolheMesInicial, valorFixa, informado,
            midx, addM, label };`)();
 
 const {
   S, restantesDe, parcelaEm, aplicaEm, totalReceitas, rendaDoMes,
-  periodoReceita, saldoAberto, totalQuitado, parcelasAVencer, ultimoMes,
-  saldoAposMes, addM,
+  periodoReceita, saldoAberto, abertoDe, totalQuitado, agrupaAberto,
+  parcelasAVencer, ultimoMes, fimGeral, saldoAposMes, escolheMesInicial,
+  valorFixa, informado, totalFixas, midx, addM,
 } = api;
 
 let ok = 0, bad = 0;
@@ -163,6 +165,64 @@ eq("mensal sem limites", periodoReceita(mensal(null, null)), "sem prazo");
 eq("mensal só com início", periodoReceita(mensal("2026-11", null)), "desde nov/26");
 eq("mensal só com fim", periodoReceita(mensal(null, "2026-11")), "até nov/26");
 eq("mensal com intervalo", periodoReceita(mensal("2026-11", "2027-01")), "nov/26–jan/27");
+
+console.log("saldo de uma dívida só, e agrupamento");
+/* abertoDe é a mesma conta de saldoAberto para uma linha. Elas precisam
+   concordar: se uma passar a multiplicar em vez de somar mês a mês, a soma das
+   partes deixa de bater com o todo, e nenhum outro teste percebe. */
+eq("a soma dos abertos de cada dívida é o saldo total",
+  cent(S.dividas.reduce((t, d) => t + abertoDe(d), 0)), cent(saldoAberto(null)));
+S.pagos = { "2026-10": { d5: true } };
+eq("marcar uma parcela reduz abertoDe exatamente o valor dela",
+  cent(abertoDe(S.dividas[5])), cent((36 - 12 + 1 - 1) * S.dividas[5].valor));
+S.pagos = {};
+/* agrupaAberto é o que alimenta credores e categorias no painel. Ele tem que
+   somar o mesmo total e devolver do maior para o menor. */
+{
+  const porCredor = agrupaAberto(d => d.credor);
+  eq("agrupar por credor soma o mesmo total",
+    cent(porCredor.reduce((t, x) => t + x.v, 0)), cent(saldoAberto(null)));
+  eq("agrupamento vem do maior para o menor",
+    porCredor.map(x => x.v).every((v, i, a) => i === 0 || a[i - 1] >= v), true);
+}
+
+console.log("fim geral e mês de entrada");
+eq("fimGeral é o último mês entre todas as dívidas",
+  fimGeral(null), S.dividas.map(d => d.mesInicial).length
+    ? S.dividas.reduce((m, d) => (m === null || midx(ultimoMes(d)) > midx(m)) ? ultimoMes(d) : m, null)
+    : null);
+eq("fimGeral respeita o filtro",
+  fimGeral(d => d.categoria === "Cartão"), ultimoMes(S.dividas[2]));
+eq("sem dívida nenhuma, fimGeral é nulo", fimGeral(() => false), null);
+
+console.log("contas fixas: média no cadastro, real por mês");
+S.fixas = [{ id: "f1", nome: "Fixa Exemplo", valor: 300, variavel: true },
+           { id: "f2", nome: "Outra Exemplo", valor: 200, variavel: false }];
+S.fixasMes = {};
+eq("sem valor informado, vale a média do cadastro", valorFixa(S.fixas[0], "2026-10"), 300);
+eq("e `informado` diz que ainda é palpite", informado(S.fixas[0], "2026-10"), false);
+S.fixasMes = { "2026-10": { f1: 412 } };
+eq("informado um mês, vale o real daquele mês", valorFixa(S.fixas[0], "2026-10"), 412);
+eq("e `informado` passa a dizer que não é mais palpite", informado(S.fixas[0], "2026-10"), true);
+/* o contrato que mais importa: informar outubro não pode mexer em setembro
+   nem em novembro. Uma implementação que sobrescrevesse `fixas.valor` passaria
+   nos dois testes acima e falharia nestes dois. */
+eq("o mês anterior continua na média", valorFixa(S.fixas[0], "2026-09"), 300);
+eq("o mês seguinte continua na média", valorFixa(S.fixas[0], "2026-11"), 300);
+eq("conta fixa vale em qualquer mês consultado, sem prazo",
+  [valorFixa(S.fixas[1], "2020-01"), valorFixa(S.fixas[1], "2099-12")], [200, 200]);
+/* Zero informado é informação, não ausência. Conta variável pode vir zerada --
+   condomínio dispensado, energia num mês sem consumo -- e aí o app tem que
+   mostrar zero, não voltar para a média. Uma implementação por veracidade
+   (`!!valor`) trata o zero como "não informado" e passa em todo o resto. */
+S.fixasMes = { "2026-10": { f1: 0 } };
+eq("zero informado vale zero, não a média", valorFixa(S.fixas[0], "2026-10"), 0);
+eq("e zero informado conta como informado", informado(S.fixas[0], "2026-10"), true);
+S.fixasMes = { "2026-10": { f1: 412 } };
+eq("totalFixas soma o real onde há real e a média no resto",
+  totalFixas("2026-10"), 612);
+eq("e no mês sem informação soma só as médias", totalFixas("2026-11"), 500);
+S.fixas = []; S.fixasMes = {};
 
 console.log(`\n${ok} passaram, ${bad} falharam`);
 process.exit(bad ? 1 : 0);
