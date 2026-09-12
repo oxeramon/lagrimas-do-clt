@@ -36,15 +36,19 @@ js/
     navigation.js 69  registro de abas e troca de painel
 
 supabase/
-  migrations/
-    001_v2_foundation.sql   335 · tabelas da V2, aplicada em 12/09/2026
-  README.md               qual arquivo é o quê
-supabase-setup.sql        429 · instalação limpa da V1, fonte única do schema
+  migrations/                      todas aplicadas; ver docs/MIGRACOES.md
+    001_v2_foundation.sql          as quatro tabelas da V2
+    002_v2_integrity_hardening.sql FK por dono, sinal, transferência, estorno
+    003_v2_search_path_das_funcoes.sql  duas linhas de endurecimento
+  testes/
+    002_integridade.sql            27 casos de modelo, rodam e dão rollback
+  README.md                        qual arquivo é o quê
+supabase-setup.sql                 instalação limpa da V1
 
 testes/
-  regras.mjs        303 · 79 casos, importando os módulos de produção
-  preview.mjs       277 · gera preview.html com o Supabase dublado
-  audita.mjs        279 · auditoria de repositório público
+  regras.mjs        79 casos de cálculo, importando os módulos de produção
+  preview.mjs       gera preview.html com o Supabase dublado
+  audita.mjs        auditoria de repositório público
 ```
 
 ## Dependências: o que pode e o que não pode
@@ -136,12 +140,22 @@ o mesmo dinheiro duas vezes.
 
 ## Regras financeiras da V2, registradas agora
 
-**Saldo de conta é derivado.**
+**`tipo` é o sinal; `natureza` é o que aconteceu.** Esta é a decisão da qual
+todas as outras saem:
 
 ```
-saldo = saldo inicial
-      + entradas − saídas
-      + transferências recebidas − transferências enviadas
+tipo      entrada | saida                      o efeito no saldo, sempre
+natureza  normal | transferencia | estorno     o que é, economicamente
+```
+
+Enquanto `tipo` valia `transferencia` e `estorno`, o sinal ficava ambíguo e
+toda conta precisava de caso especial. Separar os dois eixos resolve os dois
+problemas de uma vez.
+
+**Saldo de conta é derivado, e a conta não tem exceção.**
+
+```
+saldo = saldo_inicial + entradas realizadas − saídas realizadas
 ```
 
 Contado a partir de `saldo_inicial_em`. Não existe coluna `saldo_atual` como
@@ -160,8 +174,25 @@ registrar o movimento decorrente do pagamento de uma parcela, ligada por
 **FGTS.** Conta com `liquidez = 'restrita'`, não receita mensal. É patrimônio e
 não paga a conta de luz. Como receita ele apareceria todo mês, o que é falso.
 
-**Transferência.** Duas linhas, uma por perna, ligadas por
-`transferencia_par_id`. Assim o saldo de cada conta fecha sozinho.
+**Transferência.** Duas linhas com o mesmo `transferencia_id`: uma `saida` na
+conta de origem, uma `entrada` na de destino, mesmo valor. Ela não aparece na
+fórmula do saldo, e é esse o ponto -- as duas pernas já são entrada e saída
+comuns, cada conta fecha sozinha e o patrimônio consolidado não se mexe.
+
+O grupo comum substituiu o par circular: com uma FK de cada perna para a outra,
+era preciso inserir uma linha incompleta antes da outra existir. Quem garante
+que o par está inteiro é um gatilho de constraint **diferido**, que confere no
+commit -- as duas pernas podem nascer em qualquer ordem dentro da transação, e
+o que não passa é a transação terminar pela metade.
+
+**Estorno.** Linha de sinal contrário ao da original, ligada a ela por
+`estorno_de_id`. Estornar uma saída é uma `entrada`; estornar uma entrada é uma
+`saida`. O sinal continua saindo do `tipo`, e `natureza` só conta a história.
+
+**Dono é integridade, não visibilidade.** Toda FK entre objetos de usuário é
+composta por `(user_id, coluna)`. A checagem de FK roda por fora do RLS, por
+definição do Postgres, então sem isso uma linha podia apontar para objeto
+alheio -- e RLS esconde, não impede.
 
 ## Tabelas preparadas
 
@@ -173,10 +204,12 @@ não paga a conta de luz. Como receita ele apareceria todo mês, o que é falso.
 | `instituicoes` | nome, tipo, logo, cor de marca, ativo |
 | `contas` | instituição, tipo, saldo inicial, data do saldo, liquidez, ativo |
 | `categorias` | hierarquia de até 3 níveis, entrada e saída em árvores separadas |
-| `transacoes` | conta, categoria, tipo, valor, data, status, origem, par de transferência |
+| `transacoes` | conta, categoria, tipo, natureza, valor, data, status, origem, grupo de transferência, estorno de |
 
-Puramente aditiva: não renomeia, não remove, não migra dado. Depois de rodar, o
-app da V1 continua idêntico, porque não consulta nada dali.
+A 001 foi puramente aditiva e a V1 não sentiu nada, porque não consulta nada
+dali. A **002** endureceu o modelo com as tabelas ainda vazias, que era a hora
+certa: com dado dentro ela teria cortado linha. As quatro seguem vazias, e
+**nenhuma tela consulta nenhuma delas ainda**.
 
 ## Estratégia de migração
 
@@ -191,8 +224,13 @@ app da V1 continua idêntico, porque não consulta nada dali.
 5. **O SQL roda antes do deploy.** Publicar código que consulta tabela que não
    existe derruba o app.
 6. Migração não carrega dado.
+7. **Migração aplicada é imutável.** Quando o arquivo e o banco discordam, some
+   a única fonte confiável sobre o que rodou. Conserto vira migração nova --
+   foi por isso que a 003 existe em vez de um remendo na 002.
+8. Migração que muda regra de modelo vem com teste em `supabase/testes/`, que
+   roda no banco de verdade dentro de uma transação e termina em `rollback`.
 
-`supabase/README.md` explica por que a instalação continua num arquivo só.
+`supabase/README.md` explica a ordem dos arquivos.
 
 ## Segurança
 
@@ -223,15 +261,20 @@ proibidos seria publicar os dados.
 | `pagamentos` carregada sem paginação; PostgREST corta em 1000 | `carregaAgora` |
 | `Math.min` do progresso é defensivo e inalcançável com dado consistente | `js/domain/debts.js` |
 | Conta variável mostra a média sem etiqueta na aba Dívidas | `renderFixas` |
+| `auth.uid()` reavaliada por linha nas 12 policies; o conserto pede mexer também nas oito da V1 | policies de RLS |
+| Instalação do zero já não cabe num arquivo só: são três migrações depois dele | `supabase-setup.sql` |
 
 ## Roadmap
 
-**Agora:** extrair o acesso ao Supabase para `js/data/`, e depois o render em
-`js/ui/render-*.js`. É o que falta para o `index.html` virar só a casca.
+**Agora:** contas e transações na tela. O banco deixou de ser o que falta -- as
+três migrações rodaram, o modelo está provado por 27 casos e as quatro tabelas
+esperam vazias. Falta a interface, e ela é o único passo entre o modelo e o
+uso.
 
-**Depois:** contas e transações na tela, com o saldo derivado. A `001` já
-rodou, então o banco não é mais o que falta: falta a interface. Enquanto ela
-não existe, as quatro tabelas ficam criadas e vazias, e nada no app as lê.
+**Junto:** extrair o acesso ao Supabase para `js/data/`, e depois o render em
+`js/ui/render-*.js`. É o que falta para o `index.html` virar só a casca, e a
+tela nova é a hora natural de estrear a camada em vez de espalhar mais 31
+chamadas soltas.
 
 **Em seguida:** cartões e faturas como entidade própria, saindo de `credores`;
 calendário financeiro; metas.

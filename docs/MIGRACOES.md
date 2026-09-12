@@ -6,7 +6,13 @@ em ordem. Este arquivo é o registro; o SQL é a fonte.
 | Versão | Arquivo | Quando | Situação |
 |---|---|---|---|
 | — | `../supabase-setup.sql` | antes do registro existir | aplicada colando no SQL Editor, fora do controle de migrações |
-| `20260912185920` | `../supabase/migrations/001_v2_foundation.sql` | 12/09/2026 | **aplicada** |
+| `20260912185920` | `../supabase/migrations/001_v2_foundation.sql` | 12/09/2026 | **aplicada** · imutável |
+| `20260912192729` | `../supabase/migrations/002_v2_integrity_hardening.sql` | 12/09/2026 | **aplicada** |
+| `20260912193340` | `../supabase/migrations/003_v2_search_path_das_funcoes.sql` | 12/09/2026 | **aplicada** |
+
+**Migração aplicada não se edita.** Quando o arquivo e o banco discordam, some
+a única fonte confiável sobre o que rodou. Conserto vira migração nova, e é por
+isso que existe uma 003 de duas linhas em vez de um remendo na 002.
 
 ## Por que a V1 não aparece no histórico
 
@@ -27,40 +33,11 @@ Acrescenta `instituicoes`, `contas`, `categorias` e `transacoes`, mais a view
 Puramente aditiva: não renomeia, não remove, não migra dado e não toca em
 nenhuma tabela da V1.
 
-### O que foi conferido depois de rodar
-
-| | |
-|---|---|
-| migração registrada | `20260912185920 · 001_v2_foundation` |
-| tabelas criadas | as quatro, todas com `rowsecurity` ligada |
-| view | `saldos_de_conta` com `security_invoker = on` |
-| policies | uma por tabela, `to authenticated`, `using` **e** `with check` por `auth.uid()`, expressão idêntica nas quatro |
-| gatilhos | quatro `*_set_user` apontando para `set_user_id()`, mais `categorias_nivel` |
-| índices | 17, contando as chaves primárias e as três restrições de unicidade |
-| chaves estrangeiras | 9; as quatro para `auth.users` em cascade, o resto `set null` |
-| restrições `check` | 14 |
-| linhas nas tabelas novas | zero nas quatro — migração não carrega dado |
-| tabelas da V1 | as oito intactas, contagem de linhas idêntica à de antes |
-| `set_user_id()` | preservada, como o rodapé da migração manda |
-
-### A prova de que o RLS pega
-
-Contagem de catálogo não prova RLS: quem consulta como `postgres` passa por
-cima dele, e uma tabela vazia responde zero por estar vazia, não por estar
-protegida. A conferência que vale foi feita trocando o papel para `anon`:
-
-- `dividas` e `credores`, que **têm** linhas, responderam zero;
-- `ping`, público de propósito, continuou respondendo;
-- as quatro tabelas novas e a view responderam zero.
-
-A view responder zero é o que confirma o `security_invoker`: sem ele, ela
-rodaria com os privilégios do dono e devolveria tudo.
-
-### Rollback
-
-Continua válido enquanto as quatro contagens estiverem em zero. O bloco está
-comentado no fim da própria migração, na ordem inversa das dependências.
-`set_user_id()` **não** entra nele: ela é da V1.
+Conferido depois de rodar: as quatro tabelas com `rowsecurity` ligada, a view
+com `security_invoker`, uma policy por tabela com `using` **e** `with check` por
+`auth.uid()`, os gatilhos `*_set_user`, 17 índices, 9 chaves estrangeiras, 14
+`check`, zero linha nas tabelas novas, as oito tabelas da V1 com contagem
+idêntica à de antes, e `set_user_id()` preservada.
 
 ### O cabeçalho da 001 está desatualizado, de propósito
 
@@ -69,24 +46,105 @@ ficou como estava para o arquivo continuar idêntico ao texto gravado em
 `schema_migrations`. Quem for ler o SQL deve olhar a tabela no topo **deste**
 arquivo para saber o que já rodou.
 
-## Em aberto, para uma 002
+## 002 · integridade da V2
 
-Duas coisas ficaram anotadas em vez de entrar de contrabando na 001.
+Rodou com as quatro tabelas ainda vazias, que era a pré-condição: ela estreita
+o modelo, e com dado dentro teria cortado linha. Conserta seis defeitos que a
+001 deixou passar.
 
-**1. `nivel_da_categoria()` é `security definer`.** O linter do Supabase passou
-a apontá-la, junto com a `set_user_id()` que já era apontada antes: as duas são
-chamáveis por `anon` e por `authenticated` via `/rest/v1/rpc/`. Nenhuma das
-duas faz nada útil quando chamada solta — `new` não existe fora de gatilho, e a
-chamada falha. Ainda assim, o `search_path` está fixado e o alerta é o mesmo
-que já existia, sem categoria nova de risco.
+| # | O defeito | O conserto |
+|---|---|---|
+| 1 | FK apontava só para `id`, então uma linha podia referenciar objeto de outro usuário — a checagem de FK roda por fora do RLS | `unique (user_id, id)` nas tabelas apontadas e FK composta `(user_id, coluna)` em todas as cinco relações |
+| 2 | transferência não tinha sinal: `valor >= 0`, `tipo = 'transferencia'` e a view somando `+valor` nas duas pernas | `tipo` passa a ser só `entrada`/`saida`; `natureza` guarda `normal`/`transferencia`/`estorno` |
+| 3 | `transferencia_tem_par` não obrigava par nenhum, e o par era FK circular para a própria tabela | `transferencia_id` comum às duas pernas, com gatilho de constraint **diferido** conferindo o grupo no commit |
+| 4 | estorno somava sempre como entrada | estorno é uma linha de sinal contrário ligada à original por `estorno_de_id` |
+| 5 | `unique (user_id, pai_id, nome)` não barrava duas raízes com o mesmo nome, porque NULL nunca é igual a NULL | `unique nulls not distinct` |
+| 6 | `categorias_nivel` disparava **antes** de `categorias_set_user` (ordem alfabética), e o nível saía calculado com `user_id` nulo | `categorias_1_set_user` e `categorias_2_nivel`, com a ordem no nome |
 
-**2. Chave estrangeira não confere dono.** `categorias.pai_id`,
-`transacoes.conta_id`, `transacoes.categoria_id` e
-`transacoes.transferencia_par_id` apontam para a própria tabela ou para outra
-protegida por RLS, mas a FK sozinha não exige que a linha apontada seja do
-mesmo usuário — a checagem de FK roda por fora do RLS, por definição do
-Postgres. Num app de um usuário só o efeito prático é nenhum, e explorar isso
-exigiria adivinhar um UUID inteiro. O conserto, quando valer a pena, é o par
-`unique (user_id, id)` na tabela apontada e FK composta por `(user_id, <col>)`.
+### A regra de saldo, agora sem caso especial
 
-Nenhuma das duas é motivo para desfazer a 001.
+```
+saldo = saldo_inicial + entradas realizadas − saídas realizadas
+```
+
+Transferência não aparece nessa conta, e é esse o ponto: as duas pernas já são
+uma `saida` e uma `entrada` comuns. A conta de origem diminui, a de destino
+aumenta, e somando todas as contas o patrimônio não se mexe.
+
+### Contrato de categoria, explícito
+
+O nome é único entre irmãos, e as raízes são irmãs entre si. Vale por usuário e
+**não** olha `fluxo`: não dá para ter "Ajuste" como raiz de entrada e outra de
+saída. É escolha, não acidente — nome repetido em duas árvores confunde na hora
+de escolher numa lista.
+
+### Como foi provado
+
+`supabase/testes/002_integridade.sql`, **27 casos**, rodando no banco de
+verdade dentro de uma transação que termina em `rollback`. Dois usuários
+inventados na hora, nenhum identificador real.
+
+| O que prova | Casos |
+|---|---|
+| entrada aumenta, saída reduz | 1 |
+| transferência move entre contas e não cria patrimônio | 2, 3, 4 |
+| estorno de saída aumenta; estorno de entrada reduz | 5, 6 |
+| prevista e cancelada ficam fora do saldo | 7 |
+| conta, categoria, pai e original de outro usuário são recusados pela FK | 8, 9, 10, 11, 12 |
+| transferência pela metade, com valores diferentes ou na mesma conta é recusada | 13, 14, 15 |
+| `natureza = transferencia` exige grupo; `tipo = transferencia` não existe mais | 16, 17 |
+| raiz duplicada recusada; níveis 1, 2 e 3; quarto nível recusado; mesmo nome sob pais diferentes permitido | 18, 19, 20, 21 |
+| nível correto quando o `user_id` vem do gatilho — a regressão do defeito 6 | 22 |
+| RLS: o logado só vê o que é dele, `anon` não vê nada da V2 nem da V1 | 23, 24, 26, 27 |
+| insert continua funcionando depois do `revoke execute` | 25 |
+
+Uma armadilha que o arquivo contorna: o gatilho da transferência é **diferido**,
+então só dispararia no commit — que nunca chega, porque o teste termina em
+rollback. `set constraints all immediate` força a conferência na hora.
+
+### Rollback
+
+Não há, e é melhor dizer isso do que fingir que há. A 002 estreita o modelo:
+`transferencia_par_id` deixou de existir e `tipo` deixou de aceitar
+`transferencia` e `estorno`. Voltar seria recriar o modelo defeituoso. Desfazer
+só faz sentido derrubando a V2 inteira, pelo bloco no fim da 001, e só enquanto
+as quatro contagens estiverem em zero.
+
+## 003 · search_path fixo nas funções da transferência
+
+Duas linhas. `valida_transferencia()` e `confere_grupo_transferencia()`
+nasceram na 002 sem `search_path` fixo. As duas já qualificavam tudo por
+extenso, então não havia furo de verdade, mas o linter aponta o padrão e a
+razão dele é boa.
+
+Depois dela, **as quatro funções de gatilho estão com `search_path = public` e
+sem `execute` para `anon` nem `authenticated`**.
+
+## O que os advisors dizem agora
+
+Segurança: **uma única ocorrência**, e é configuração de Auth, não de schema —
+proteção contra senha vazada desligada, que já era assim antes de tudo isto.
+Ligar é um clique no painel e não passa por migração.
+
+As duas ocorrências de `SECURITY DEFINER` chamável por `anon` e por
+`authenticated`, que existiam desde a V1, **sumiram** com o `revoke` da 002.
+
+Desempenho, tudo informativo e nada novo:
+
+| O que aponta | Por que fica |
+|---|---|
+| `auth_rls_initplan` nas 12 policies: `auth.uid()` reavaliada por linha | o conserto é trocar por `(select auth.uid())` em **todas**, inclusive as oito da V1 — e mexer na V1 está fora do escopo. É questão de escala, e a escala aqui é um usuário |
+| três FKs da V1 sem índice de cobertura | V1, mesma razão |
+| índices da V2 "não usados" | as tabelas estão vazias e nenhuma tela consulta ainda; some sozinho quando o uso começar |
+
+## Em aberto
+
+**A V2 não tem tela.** As quatro tabelas estão criadas, endurecidas, provadas e
+**vazias**, e o app da V1 não consulta nenhuma delas. Ligar Contas e Transações
+na interface é o passo seguinte, e é o único que ainda falta para o modelo sair
+do papel.
+
+**A instalação do zero ainda é um arquivo só.** Com três migrações aplicadas,
+`supabase-setup.sql` sozinho não reconstrói mais o banco inteiro. O
+`supabase/README.md` explica a ordem; separar em `schema.sql` + `seed.sql` +
+`migrations/` passou a fazer sentido e ainda não foi feito.

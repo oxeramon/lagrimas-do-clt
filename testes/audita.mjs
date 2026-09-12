@@ -186,9 +186,23 @@ function varreArquivo(rel, baseline) {
   const ehCss = (n) => n >= faixaCss[0] && n <= faixaCss[1];
 
   texto.split("\n").forEach((linha, i) => {
+    /* UUID não é cartão. A regra de cartão casa com 13 a 16 dígitos separados
+       por espaço ou traço, e um UUID sintético como
+       `11111111-1111-4111-8111-111111111111` cai nela em cheio -- foram 63
+       alarmes falsos de uma vez nos testes de modelo.
+       O formato 8-4-4-4-12 em hexadecimal não é o de cartão nenhum: nem os 16
+       dígitos seguidos, nem os 4-4-4-4 com traço. Então o UUID é apagado da
+       linha ANTES das regras de formato, e só delas.
+       O cruzamento com o baseline privado continua lendo a linha crua, logo
+       abaixo: se um UUID de verdade estiver na lista de dados proibidos, ele
+       segue sendo acusado -- que é onde essa checagem pertence. */
+    const semUuid = linha.replace(
+      /\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b/gi,
+      (u) => "u".repeat(u.length));
+
     for (const [nivel, regra, re, tipo] of REGRAS) {
       if (politica && tipo === "nome") continue;
-      const m = linha.match(re);
+      const m = semUuid.match(re);
       if (m && !ehPermitido(m[0])) anota(nivel, regra, rel, i + 1, linha);
     }
     if (baseline) {

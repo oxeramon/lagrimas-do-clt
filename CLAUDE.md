@@ -79,12 +79,19 @@ completo, está em `.claude/skills/public-repo-hygiene/SKILL.md`. A auditoria é
 | Projeto Supabase | região São Paulo; a URL e a chave publicável ficam no topo do `<script type="module">` do `index.html`, que é a fonte para qualquer coisa que precise delas |
 
 Estrutura do banco: **12 tabelas e 1 view**, todas com RLS ligada, 1 policy e 1
-trigger cada — `ping` sem trigger, como sempre. São as 8 da V1 mais as 4 que a
-migração `001` acrescentou em 12/09/2026; a view `saldos_de_conta` roda com
-`security_invoker`. O que já rodou no banco está em `docs/MIGRACOES.md`.
+trigger cada — `ping` sem trigger, como sempre. São as 8 da V1 mais as 4 da V2;
+a view `saldos_de_conta` roda com `security_invoker`. Três migrações já rodaram
+e o registro do que cada uma fez está em `docs/MIGRACOES.md`.
 
 As 4 tabelas da V2 estão criadas e vazias: **o app ainda não consulta nenhuma
 delas.** Ligar a tela é passo seguinte, não consequência da migração.
+
+**Migração aplicada é imutável**, comentário incluído. Quando o arquivo e o
+banco discordam, some a única fonte confiável sobre o que rodou; conserto vira
+migração nova. Na V2, `tipo` é só o efeito no saldo (`entrada`/`saida`) e
+`natureza` é o que aconteceu (`normal`/`transferencia`/`estorno`) — e FK entre
+objetos de usuário é composta por `(user_id, coluna)`, porque a checagem de FK
+roda por fora do RLS.
 
 As três fontes de dado de exemplo do projeto são a carga da seção 3 do SQL, a
 fixture de `testes/regras.mjs` e o cenário de `testes/preview.mjs`. Todas são
@@ -206,6 +213,11 @@ declarado não bater com o fechamento.
 node testes/audita.mjs
 ```
 Auditoria de repositório público. Crítico bloqueia commit e push.
+
+`supabase/testes/002_integridade.sql` são 27 casos de **modelo**, que rodam no
+banco de verdade: cole no SQL Editor ou mande por `execute_sql`. O arquivo
+abre em `begin` e fecha em `rollback`, então não grava nada. Migração que muda
+regra de modelo vem com teste assim.
 
 Cinco hooks rodam sozinhos depois de cada Write/Edit:
 

@@ -11,8 +11,8 @@
      3. o arquivo continua reexecutável do começo ao fim
 
    Silencioso quando passa. Bloqueia com a lista do que falta quando não. */
-import { readFileSync } from "node:fs";
-import { basename } from "node:path";
+import { readFileSync, readdirSync } from "node:fs";
+import { basename, dirname, join, resolve } from "node:path";
 
 const entrada = JSON.parse(readFileSync(0, "utf8"));
 const arquivo = entrada.tool_response?.filePath ?? entrada.tool_input?.file_path ?? "";
@@ -42,9 +42,15 @@ const codigo = sql.replace(/--[^\n]*/g, "");
 const tabelas = [...codigo.matchAll(/create table if not exists public\.(\w+)\s*\(([\s\S]*?)\n\);/g)]
   .map(([, nome, corpo]) => ({ nome, temUserId: /\buser_id\s+uuid/.test(corpo) }));
 
-if (!tabelas.length) {
-  problemas.push("Não encontrei nenhum 'create table if not exists public.X (...);'. "
-    + "Todas as tabelas precisam usar essa forma, senão o arquivo deixa de ser reexecutável.");
+/* Uma migração que só ajusta tabela existente não cria nenhuma, e isso é
+   legítimo -- a 002 é assim inteira. O que não pode é criar FORA da forma
+   `if not exists`, que é o que quebra a reexecução. Então a cobrança é sobre
+   a forma de quem cria, não sobre a existência de alguém criando. */
+for (const m of codigo.matchAll(/create\s+table\s+(?!if\s+not\s+exists\b)/gi)) {
+  const linha = codigo.slice(0, m.index).split("\n").length;
+  problemas.push(`Perto da linha ${linha}: 'create table' sem 'if not exists'. `
+    + "Use 'create table if not exists public.X (...);', senão o arquivo deixa "
+    + "de ser reexecutável e a segunda passada aborta.");
 }
 
 for (const { nome, temUserId } of tabelas) {
@@ -81,17 +87,37 @@ const criadaEm = new Map();
 for (const m of codigo.matchAll(/create table if not exists public\.(\w+)/g)) {
   if (!criadaEm.has(m[1])) criadaEm.set(m[1], m.index);
 }
-/* Tabela da V1 que uma migração pode referenciar sem recriar. O arquivo de
-   instalação é quem as cria; aqui elas contam como já existentes. */
-const DA_V1 = new Set(["dividas", "fixas", "fixas_mes", "credores", "receitas",
-  "pagamentos", "config", "ping"]);
+/* Tabela que já existe antes deste arquivo rodar: a instalação da V1 cria as
+   oito dela, e cada migração anterior cria as suas. A lista é LIDA, não
+   escrita à mão -- uma constante aqui dentro envelheceria a cada migração
+   nova, e o hook passaria a acusar referência legítima. A ordem é a do nome
+   do arquivo, que é a ordem em que eles rodam. */
+const jaExistem = new Set();
+try {
+  const dirSql = resolve(dirname(arquivo));
+  const raiz = basename(dirSql) === "migrations" ? resolve(dirSql, "..", "..") : resolve(dirSql, "..");
+  const antes = [join(raiz, "supabase-setup.sql")];
+  const dirMig = join(raiz, "supabase", "migrations");
+  for (const f of readdirSync(dirMig).filter((f) => f.endsWith(".sql")).sort()) {
+    if (basename(arquivo) === f) break;      /* daqui para baixo ainda não rodou */
+    antes.push(join(dirMig, f));
+  }
+  for (const caminho of antes) {
+    if (resolve(caminho) === resolve(arquivo)) continue;
+    let texto;
+    try { texto = readFileSync(caminho, "utf8"); } catch { continue; }
+    for (const m of texto.replace(/--[^\n]*/g, "").matchAll(/create table if not exists public\.(\w+)/g))
+      jaExistem.add(m[1]);
+  }
+} catch { /* sem diretório de migrações: só o que este arquivo cria vale */ }
 
 for (const m of codigo.matchAll(/references\s+public\.(\w+)\s*\(/g)) {
   const alvo = m[1], nasce = criadaEm.get(alvo);
   if (nasce === undefined) {
-    if (DA_V1.has(alvo)) continue;
-    problemas.push(`Há uma referência a public.${alvo}, mas não existe `
-      + `'create table if not exists public.${alvo}' neste arquivo.`);
+    if (jaExistem.has(alvo)) continue;
+    problemas.push(`Há uma referência a public.${alvo}, e essa tabela não é criada `
+      + `neste arquivo nem em nenhum que roda antes dele. Numa instalação do zero o `
+      + `Postgres aborta com 'relation does not exist'.`);
   } else if (nasce > m.index) {
     const linha = codigo.slice(0, m.index).split("\n").length;
     problemas.push(`Perto da linha ${linha}: a chave estrangeira aponta para `
@@ -102,9 +128,18 @@ for (const m of codigo.matchAll(/references\s+public\.(\w+)\s*\(/g)) {
 }
 
 /* ---- 4: o arquivo precisa continuar reexecutável --------------------- */
-if (/\braise exception\b/i.test(codigo)) {
-  problemas.push("O arquivo tem 'raise exception'. Um do $$ que aborta derruba a execução inteira, "
-    + "e as seções seguintes — migrações incluídas — nunca rodam. "
+/* O perigo é um `do $$` que aborta no meio do arquivo: ele derruba as seções
+   seguintes, e a migração que vinha depois nunca roda. Corpo de função é outra
+   coisa -- ele não roda na hora, roda quando alguém mexe na tabela, e recusar
+   a linha errada é exatamente o trabalho de um gatilho de constraint. Então o
+   corpo de `create function` sai daqui antes da checagem; o resto do arquivo
+   continua valendo. */
+const foraDeFuncao = codigo.replace(
+  /create\s+(?:or\s+replace\s+)?function[\s\S]*?\$\$[\s\S]*?\$\$/gi, " ");
+
+if (/\braise exception\b/i.test(foraDeFuncao)) {
+  problemas.push("O arquivo tem 'raise exception' fora de corpo de função. Um do $$ que aborta "
+    + "derruba a execução inteira, e as seções seguintes — migrações incluídas — nunca rodam. "
     + "Use 'raise notice' com 'return' para sair do bloco sem erro.");
 }
 
