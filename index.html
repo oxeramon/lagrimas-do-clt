@@ -96,15 +96,37 @@
       <!-- A V2 entra no Painel como bloco SEPARADO e rotulado. Misturar com os
            números da V1 contaria o mesmo dinheiro duas vezes: lá são
            compromissos e previsão, aqui é o que está na conta hoje. -->
+      <!-- Previsto e realizado lado a lado. Repare no que NÃO existe aqui:
+           nenhum número que some os dois. Compromisso liquidado sai do
+           previsto e entra no realizado; ele conta de um lado só. -->
       <div class="card" id="painelV2" hidden style="margin-bottom:var(--e-4)">
-        <div class="card-h"><h2>Nas suas contas agora</h2>
+        <div class="card-h"><h2>Previsto e realizado em <span id="pnMes">—</span></h2>
           <button class="btn ghost sm" id="btnVerContas">Ver contas</button></div>
-        <div class="formgrid">
-          <div class="field"><span class="hint">Saldo em contas</span>
-            <strong id="pnSaldoContas" class="num-destaque">—</strong></div>
-          <div class="field"><span class="hint">Disponível hoje</span>
-            <strong id="pnDisponivel" class="num-destaque">—</strong></div>
-          <p class="hint full" id="pnNota"></p>
+        <div class="pr-grid">
+          <div class="pr-col">
+            <span class="eyebrow">Já aconteceu</span>
+            <div class="pr-linha"><span>Entrou</span><strong id="pnEntradasReal">—</strong></div>
+            <div class="pr-linha"><span>Saiu</span><strong id="pnSaidasReal">—</strong></div>
+            <div class="pr-linha total"><span>Resultado do mês</span><strong id="pnResultado">—</strong></div>
+          </div>
+          <div class="pr-col">
+            <span class="eyebrow">Ainda falta</span>
+            <div class="pr-linha"><span>A receber</span><strong id="pnAReceber">—</strong></div>
+            <div class="pr-linha"><span>A pagar</span><strong id="pnAPagar">—</strong></div>
+            <div class="pr-linha total"><span>Sobra projetada</span><strong id="pnSobra">—</strong></div>
+          </div>
+          <div class="pr-col">
+            <span class="eyebrow">Nas contas agora</span>
+            <div class="pr-linha"><span>Saldo</span><strong id="pnSaldoContas">—</strong></div>
+            <div class="pr-linha"><span>Disponível</span><strong id="pnDisponivel">—</strong></div>
+            <div class="pr-linha"><span>Restrito</span><strong id="pnRestrito">—</strong></div>
+          </div>
+        </div>
+        <div class="pr-rodape">
+          <div class="prog" id="pnAderenciaBarra" hidden><i style="width:0%"></i></div>
+          <p class="hint" id="pnAderencia" hidden></p>
+          <p class="hint" id="pnSemMovimento" hidden></p>
+          <p class="hint" id="pnNota"></p>
         </div>
       </div>
       <div class="bento">
@@ -989,13 +1011,14 @@ import { aplicaEm, receitasDoMes, totalReceitas, rendaDoMes, periodoReceita,
 import { credorDe, paiDe, raizDe, filhosDe, pessoaDe, nomePessoa, nomeCredorDe,
          nomeBancoDe, credorPorNome } from "./js/domain/creditors.js";
 import { faturaDaCompra } from "./js/domain/billing.js";
+import { indicadoresDeContas } from "./js/domain/accounts.js";
 import { ligaNavegacao, vaiParaAba } from "./js/ui/navigation.js";
 import { ligaSupabase } from "./js/data/client.js";
 import * as v1 from "./js/data/v1-repository.js";
 import { entra, sai, observaSessao, sessaoAtual } from "./js/data/session.js";
 import { ligaTelasV2, carregaV2, renderV2, atualizaFiltrosDeTela, V2,
-         abreLiquidacao, pontePronta, indiceDaPonte } from "./js/ui/v2-screens.js";
-import { chaveDe } from "./js/domain/reconciliation.js";
+         abreLiquidacao, pontePronta, indiceDaPonte, vaiParaMes } from "./js/ui/v2-screens.js";
+import { chaveDe, resumoDoMes } from "./js/domain/reconciliation.js";
 
 /* ====================================================================
    CONFIGURAÇÃO — projeto Supabase, região São Paulo.
@@ -1826,9 +1849,86 @@ function barras(itens, total, sub){
   }).join("");
 }
 
+/* ------------------------------------------------------- previsto × realizado
+   O encontro das duas metades do app, e o lugar onde contar duas vezes seria
+   mais fácil. A regra está inteira em js/domain/reconciliation.js:
+
+       Compromisso liquidado deixa de ser previsto e passa a ser realizado.
+       Ele aparece num lado OU no outro. Nunca nos dois.
+
+   Item histórico fica de fora: ele foi pago antes de o app existir, e contá-lo
+   como "a pagar neste mês" inventaria uma dívida que não existe.
+
+   A renda base também fica de fora, e é uma escolha: ela não tem lançamento
+   para marcar, então não há como saber se já caiu. Somá-la ao previsto quando
+   ela já está dentro do saldo seria contar o mesmo salário duas vezes. */
+function renderPrevistoRealizado(){
+  const bloco = $("painelV2");
+  if (!bloco) return;
+  bloco.hidden = !V2.carregado || V2.contas.length === 0;
+  if (bloco.hidden) return;
+
+  const k = S.mes;
+  const ind = indicadoresDeContas(V2.contas, V2.saldos);
+  const r = resumoDoMes({
+    compromissos: itensDoMes(k).filter(it => !it.historico),
+    receitas: receitasDoMes(k),
+    transacoes: V2.transacoes,
+    liquidacoes: V2.liquidacoes,
+    pagos: S.pagos,
+    mes: k,
+    saldoEmContas: ind.total,
+  });
+
+  $("pnMes").textContent = labelLong(k);
+
+  $("pnEntradasReal").textContent = money(r.entradas.realizado);
+  $("pnSaidasReal").textContent   = money(r.saidas.realizado);
+  const res = $("pnResultado");
+  res.textContent = money(r.resultadoRealizado);
+  res.className = r.resultadoRealizado < 0 ? "ruim" : r.resultadoRealizado > 0 ? "bom" : "";
+
+  $("pnAReceber").textContent = money(r.aindaEntra);
+  $("pnAPagar").textContent   = money(r.aindaSai);
+  const sobra = $("pnSobra");
+  sobra.textContent = money(r.sobraProjetada);
+  sobra.className = r.sobraProjetada < 0 ? "ruim" : "";
+
+  $("pnSaldoContas").textContent = money(ind.total);
+  $("pnDisponivel").textContent  = money(ind.disponivel);
+  $("pnRestrito").textContent    = money(ind.restrito);
+
+  /* Aderência: quanto do que o mês devia pagar já saiu do papel. Só aparece
+     quando há compromisso, porque 0 de 0 não é 0% -- é pergunta sem sentido. */
+  const barra = $("pnAderenciaBarra"), texto = $("pnAderencia");
+  const temAderencia = r.saidas.aderencia !== null;
+  barra.hidden = texto.hidden = !temAderencia;
+  if (temAderencia){
+    barra.querySelector("i").style.width = (r.saidas.aderencia * 100).toFixed(1) + "%";
+    texto.textContent = pct(r.saidas.aderencia) + " dos compromissos do mês já resolvidos ("
+      + money(r.saidas.liquidado + r.saidas.pagoSemMovimento) + " de "
+      + money(r.saidas.comprometido) + ").";
+  }
+
+  /* O terceiro estado, dito em voz alta. Ignorá-lo seria mentir nas duas
+     direções: contar como saída inventa um lançamento, contar como previsto
+     diz que falta pagar o que já foi pago. */
+  const sm = $("pnSemMovimento");
+  sm.hidden = !temValor(r.saidas.pagoSemMovimento);
+  if (!sm.hidden){
+    sm.textContent = money(r.saidas.pagoSemMovimento)
+      + " está marcado como pago sem lançamento em conta. Fica fora das duas colunas: "
+      + "não saiu de nenhuma conta aqui, e também não falta mais pagar.";
+  }
+
+  $("pnNota").textContent = "As três colunas não se somam. A renda base fica fora da "
+    + "projeção: sem lançamento para marcar, não dá para saber se ela já caiu.";
+}
+
 function renderPainel(){
   const k = S.mes;
   document.querySelectorAll(".pMes").forEach(e => { e.textContent = label(k); });
+  renderPrevistoRealizado();
 
   const aberto = saldoAberto(null);
   const quitado = totalQuitado();
@@ -2461,6 +2561,12 @@ async function carregaAgora(){
   if (v2r && v2r.erro) console.warn("V2 indisponível:", v2r.erro);
   atualizaFiltrosDeTela();
 
+  /* a V2 nasce no mês corrente; a V1 pode abrir noutro. Alinhar aqui, antes do
+     primeiro render, evita o Painel mostrar o realizado de um mês e o previsto
+     de outro na primeira tela que a pessoa vê. */
+  if (!S.mesFixado) S.mes = escolheMesInicial();
+  if (V2.carregado && V2.mes !== S.mes) await vaiParaMes(S.mes);
+
   renderAll();
 }
 
@@ -2470,9 +2576,23 @@ async function carregaAgora(){
 /* A navegação virou registro em js/ui/navigation.js: acrescentar uma tela é
    acrescentar uma linha lá, e não mexer aqui. */
 ligaNavegacao();
-ligaTelasV2({ toast, erro, pontemudou });
+ligaTelasV2({ toast, erro, pontemudou, mudouDeMes });
 
-function vaiPara(k){
+/* O app inteiro fala de UM mês. A V2 tinha navegação própria, e duas
+   navegações independentes fariam o Painel dizer setembro enquanto a lista de
+   lançamentos dizia outubro -- e o "realizado" do mês viria do mês errado sem
+   ninguém reparar. */
+async function vaiPara(k){
+  S.mesFixado = true; S.mes = k;
+  renderPainel(); renderMes(); renderReceitas(); renderProj();
+  /* as transações do mês vêm do banco; o que já está na tela não espera por
+     elas, e o Painel se refaz quando chegam */
+  await vaiParaMes(k);
+  renderPainel();
+}
+
+/* o caminho inverso: a V2 trocou de mês e a V1 acompanha */
+function mudouDeMes(k){
   S.mesFixado = true; S.mes = k;
   renderPainel(); renderMes(); renderReceitas(); renderProj();
 }

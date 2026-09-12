@@ -270,6 +270,17 @@ async function criaConta(p, nome, saldo, primeira){
   await p.waitForTimeout(350);
 }
 
+/* Os números do bloco "previsto e realizado". O espaço do BRL é U+00A0, não
+   espaço comum -- comparar sem normalizar falha por um caractere invisível. */
+const painel = (p) => p.evaluate(() => {
+  const t = (id) => (document.getElementById(id).textContent || "").replace(/\u00a0/g, " ");
+  return { entrou:t("pnEntradasReal"), saiu:t("pnSaidasReal"), resultado:t("pnResultado"),
+           aReceber:t("pnAReceber"), aPagar:t("pnAPagar"), sobra:t("pnSobra"),
+           saldo:t("pnSaldoContas"),
+           /* o terceiro estado: marcado como pago SEM lançamento em conta */
+           semMovimento: document.getElementById("pnSemMovimento").hidden ? "" : t("pnSemMovimento") };
+});
+
 /* ==================================================================
    1. CONTAS: a primeira e a SEGUNDA
    ================================================================== */
@@ -429,6 +440,13 @@ console.log("\nponte: pagar e receber");
   eq("o compromisso do mês ganha o botão da ponte", antes.botoes, 1);
   eq("e ele diz Pagar enquanto ninguém pagou", antes.rotulo, "Pagar");
 
+  const pAntes = await painel(p);
+  eq("o painel começa sem nada realizado", [pAntes.entrou, pAntes.saiu],
+    ["R$ 0,00", "R$ 0,00"]);
+  eq("com o compromisso inteiro no 'a pagar'", pAntes.aPagar, "R$ 200,00");
+  eq("e a sobra projetada é o saldo menos o que falta pagar",
+    [pAntes.saldo, pAntes.sobra], ["R$ 1.000,00", "R$ 800,00"]);
+
   await p.click("#listaMes [data-liquidar]");
   await p.waitForTimeout(300);
   const noDialogo = await p.evaluate(() => ({
@@ -468,6 +486,20 @@ console.log("\nponte: pagar e receber");
   eq("CASO B · o total do mês continua o mesmo depois de pagar",
     depois.total, antes.total);
   eq("CASO B · e o que falta pagar zerou", depois.falta.replace(/ /g, " "), "R$ 0,00");
+
+  const pDepois = await painel(p);
+  eq("o pagamento aparece no realizado", pDepois.saiu, "R$ 200,00");
+  eq("e sai do previsto no mesmo movimento", pDepois.aPagar, "R$ 0,00");
+  eq("o saldo do painel caiu 200", pDepois.saldo, "R$ 800,00");
+  /* A sobra projetada NÃO se mexe: o dinheiro saiu da conta e saiu da lista de
+     compromissos ao mesmo tempo. Se ela mudasse, alguém estaria contando duas
+     vezes -- é a forma mais curta de enunciar o contrato inteiro. */
+  eq("CASO B · a sobra projetada não se mexe ao pagar",
+    pDepois.sobra, pAntes.sobra);
+  /* Pago pela ponte é LIQUIDADO, e liquidado não é "pago sem movimento". Os
+     dois somem do previsto, então só esta linha separa um do outro -- sem ela,
+     perder o vínculo passaria despercebido. */
+  eq("pago pela ponte não vira 'pago sem lançamento'", pDepois.semMovimento, "");
 
   /* ---- e o saldo da conta caiu exatamente uma vez ---- */
   await vaiPara(p, "contas");
@@ -520,6 +552,10 @@ console.log("\nponte: pagar e receber");
   eq("a receita do mês ganha o botão de receber", rAntes.botoes, 1);
   eq("e ele diz Receber enquanto não caiu", rAntes.rotulo, "Receber");
 
+  const prAntes = await painel(p);
+  eq("a receita entra como 'a receber', não como entrada", 
+    [prAntes.aReceber, prAntes.entrou], ["R$ 300,00", "R$ 0,00"]);
+
   await p.click("#listaReceitas [data-receber]");
   await p.waitForTimeout(300);
   eq("o diálogo abre falando de receber",
@@ -546,6 +582,12 @@ console.log("\nponte: pagar e receber");
   /* ---- CASO D: a receita não conta duas vezes ---- */
   eq("CASO D · o previsto do mês continua o mesmo depois de receber",
     rDepois.total, rAntes.total);
+
+  const prDepois = await painel(p);
+  eq("recebida, ela vira entrada e sai do 'a receber'",
+    [prDepois.entrou, prDepois.aReceber], ["R$ 300,00", "R$ 0,00"]);
+  eq("CASO D · a sobra projetada não se mexe ao receber",
+    prDepois.sobra, prAntes.sobra);
 
   await vaiPara(p, "contas");
   await p.waitForTimeout(250);

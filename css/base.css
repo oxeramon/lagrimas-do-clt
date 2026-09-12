@@ -679,3 +679,31 @@ label.btn{display:inline-flex; align-items:center}
    corta: estica a coluna, e a página inteira passava a rolar de lado. */
 @media (max-width:520px){ .kpis{grid-template-columns:1fr} }
 @media (prefers-reduced-motion: reduce){*{transition:none !important; animation:none !important}}
+
+/* ------------------------------------------------------- previsto × realizado
+   Três colunas com o mesmo peso: o que já aconteceu, o que ainda falta e o que
+   está na conta. Elas NÃO se somam, e a tela diz isso pela separação -- um
+   número só, grande, juntando as três, seria a mentira que o modelo inteiro
+   existe para evitar.
+
+   `auto-fit` com mínimo de 200px cai para uma coluna sozinho em tela estreita;
+   `minmax(200px, 1fr)` sem o `min-width:0` do filho estouraria a linha, porque
+   `1fr` cresce até o filho mais largo. */
+.pr-grid{display:grid; grid-template-columns:repeat(auto-fit, minmax(200px, 1fr));
+  gap:var(--e-3); padding:var(--e-4)}
+.pr-col{min-width:0; display:flex; flex-direction:column; gap:4px}
+.pr-col .eyebrow{margin-bottom:4px}
+.pr-linha{display:flex; align-items:baseline; justify-content:space-between; gap:var(--e-2);
+  font-size:12.5px; color:var(--ink-2)}
+.pr-linha > span{min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+.pr-linha > strong{font-weight:var(--peso-forte); white-space:nowrap;
+  font-variant-numeric:tabular-nums; color:var(--ink)}
+.pr-linha.total{margin-top:6px; padding-top:7px; border-top:1px solid var(--line)}
+.pr-linha.total > strong{font-size:15px}
+.pr-linha.total > strong.ruim{color:var(--critical)}
+.pr-linha.total > strong.bom{color:var(--good)}
+.pr-rodape{padding:0 var(--e-4) var(--e-4); display:flex; flex-direction:column; gap:7px}
+.pr-rodape .prog{height:5px; border-radius:var(--raio-cheio); background:var(--surface-3);
+  overflow:hidden}
+.pr-rodape .prog > i{display:block; height:100%; border-radius:var(--raio-cheio);
+  background:var(--brand); transition:width var(--t-lento) var(--curva)}

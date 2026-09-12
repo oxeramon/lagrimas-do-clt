@@ -299,7 +299,6 @@ export function ligaTelasV2(deps){
 export function renderV2(){
   renderContas();
   renderTransacoes();
-  renderPainelV2();
 }
 
 /* Todo botão com `data-fechar` fecha o diálogo que ele nomeia. Um ouvinte só,
@@ -310,22 +309,6 @@ function ligaFecharDialogos(){
     const b = e.target.closest("[data-fechar]");
     if (b) $(b.getAttribute("data-fechar"))?.close();
   });
-}
-
-/* O bloco da V2 no Painel. Ele mostra o que ESTÁ na conta, e nada mais: os
-   compromissos continuam sendo assunto da V1, no resto da tela. Somar os dois
-   num número só contaria o mesmo dinheiro duas vezes. */
-export function renderPainelV2(){
-  const bloco = $("painelV2");
-  if (!bloco) return;
-  bloco.hidden = V2.contas.length === 0;
-  if (bloco.hidden) return;
-  const ind = indicadoresDeContas(V2.contas, V2.saldos);
-  $("pnSaldoContas").textContent = money(ind.total);
-  $("pnDisponivel").textContent  = money(ind.disponivel);
-  $("pnNota").textContent =
-    "Isto é o que está nas contas hoje. As dívidas e a projeção abaixo são outra conta: "
-    + "elas falam do que ainda vai sair, e os dois números não se somam.";
 }
 
 /* ------------------------------------------------------------ folha Mais --*/
@@ -599,11 +582,24 @@ function ligaTransacoes(){
   });
 }
 
-async function trocaMes(passo){
-  V2.mes = fromIdx(midx(V2.mes) + passo);
+/* O app inteiro fala de UM mês. Duas navegações de mês independentes -- uma
+   aqui, outra na V1 -- fariam o Painel dizer setembro enquanto a lista dizia
+   outubro, e ninguém repara nisso até somar errado.
+
+   Esta função NÃO avisa a V1: ela é o lado que RECEBE o aviso. Quem avisa é
+   `trocaMes`, logo abaixo -- e separar as duas é o que evita o laço infinito. */
+export async function vaiParaMes(k){
+  V2.mes = k;
   const r = await carregaTransacoesDoMes();
-  if (r.erro){ dep.erro("Não deu para carregar o mês. " + r.erro); return; }
+  if (r.erro){ dep.erro("Não deu para carregar o mês. " + r.erro); return { erro: r.erro }; }
   renderTransacoes();
+  return { erro: null };
+}
+
+async function trocaMes(passo){
+  const r = await vaiParaMes(fromIdx(midx(V2.mes) + passo));
+  if (r && r.erro) return;
+  if (dep.mudouDeMes) dep.mudouDeMes(V2.mes);
 }
 
 /* -------------------------------------------------------- transferência --*/
