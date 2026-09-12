@@ -1,0 +1,26 @@
+# backups baixados pelo app (Ajustes > Backup)
+quitacao-*.csv
+
+# configuração local do Claude Code (a de projeto, .claude/settings.json, é versionada)
+.claude/settings.local.json
+
+# lixo de sistema operacional
+Thumbs.db
+desktop.ini
+.DS_Store
+
+# editores
+.vscode/
+.idea/
+
+# prévia local gerada para inspeção visual, nunca publicada
+preview.html
+
+# comparativos de proposta visual, gerados localmente
+preview-A.html
+preview-B.html
+preview-C.html
+preview-D.html
+
+# planilhas de fatura preenchidas, não são código
+fatura-*.csv

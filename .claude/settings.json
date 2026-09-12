@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${CLAUDE_PROJECT_DIR:-.}/.claude/hooks/checa-sintaxe.mjs\"",
+            "timeout": 20,
+            "statusMessage": "Conferindo a sintaxe do index.html…"
+          },
+          {
+            "type": "command",
+            "command": "node \"${CLAUDE_PROJECT_DIR:-.}/.claude/hooks/checa-html.mjs\"",
+            "timeout": 20,
+            "statusMessage": "Conferindo a estrutura do HTML…"
+          },
+          {
+            "type": "command",
+            "command": "node \"${CLAUDE_PROJECT_DIR:-.}/.claude/hooks/checa-rls.mjs\"",
+            "timeout": 20,
+            "statusMessage": "Conferindo o RLS do schema…"
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -1,0 +1,69 @@
+name: keepalive
+
+# Por que este arquivo existe:
+#   1. O plano gratuito do Supabase pausa o projeto após ~7 dias de baixa
+#      atividade, e sair da pausa é manual. Um ping por dia evita isso.
+#   2. O GitHub desliga agendamentos em repositórios sem commits há 60 dias.
+#      Por isso o job também grava um arquivo de data uma vez por semana,
+#      mantendo o próprio agendamento vivo.
+#
+# Segredos necessários (Settings > Secrets and variables > Actions):
+#   SUPABASE_URL       ex.: https://abcdefgh.supabase.co
+#   SUPABASE_ANON_KEY  a chave anon do projeto
+
+on:
+  schedule:
+    - cron: "17 9 * * *"      # todo dia, 09:17 UTC (06:17 em Brasília)
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: keepalive
+  cancel-in-progress: false
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Acordar o banco
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+        run: |
+          set -euo pipefail
+          if [ -z "${SUPABASE_URL:-}" ] || [ -z "${SUPABASE_ANON_KEY:-}" ]; then
+            echo "::error::Configure os segredos SUPABASE_URL e SUPABASE_ANON_KEY."
+            exit 1
+          fi
+          codigo=$(curl -sS -o /tmp/resposta.txt -w "%{http_code}" \
+            "${SUPABASE_URL%/}/rest/v1/ping?select=id&limit=1" \
+            -H "apikey: ${SUPABASE_ANON_KEY}" \
+            -H "Authorization: Bearer ${SUPABASE_ANON_KEY}")
+          echo "HTTP ${codigo}"
+          cat /tmp/resposta.txt
+          if [ "$codigo" != "200" ]; then
+            echo "::error::O banco não respondeu como esperado. Verifique se o projeto está pausado."
+            exit 1
+          fi
+
+      - name: Manter o repositório ativo (uma vez por semana)
+        run: |
+          set -euo pipefail
+          if [ "$(date -u +%u)" != "1" ]; then
+            echo "Só às segundas-feiras. Nada a fazer hoje."
+            exit 0
+          fi
+          date -u +"%Y-%m-%d" > .keepalive
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add .keepalive
+          if git diff --staged --quiet; then
+            echo "Sem mudança."
+          else
+            git commit -m "chore: keepalive $(date -u +%F)"
+            git push
+          fi
