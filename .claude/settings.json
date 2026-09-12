@@ -7,6 +7,12 @@
         "hooks": [
           {
             "type": "command",
+            "command": "node \"${CLAUDE_PROJECT_DIR:-.}/.claude/hooks/checa-publico.mjs\"",
+            "timeout": 30,
+            "statusMessage": "Conferindo se nada privado entrou no repositório…"
+          },
+          {
+            "type": "command",
             "command": "node \"${CLAUDE_PROJECT_DIR:-.}/.claude/hooks/checa-sintaxe.mjs\"",
             "timeout": 20,
             "statusMessage": "Conferindo a sintaxe do index.html…"

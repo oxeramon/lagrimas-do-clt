@@ -4,6 +4,72 @@ Organizador financeiro pessoal de um usuário só. Site estático no GitHub Page
 dados no Supabase. Português do Brasil em tudo: interface, banco, comentários,
 commits.
 
+## Repositório público — regra de segurança obrigatória
+
+Este repositório é PÚBLICO.
+
+Nenhum dado real, pessoal, financeiro, identificável ou derivado da base em uso
+pode ser escrito em qualquer arquivo versionado, documentação, teste, fixture,
+seed, comentário, exemplo, screenshot, artefato, nome de branch, mensagem de
+commit ou outro conteúdo destinado ao Git.
+
+Esta regra vale inclusive para dados usados apenas temporariamente durante uma
+análise ou depuração.
+
+Nunca use dados reais como exemplo para depois sanitizar.
+Crie o exemplo sintético antes de escrever.
+
+São proibidos, entre outros:
+
+- nomes reais de pessoas;
+- e-mails pessoais;
+- telefones;
+- CPF/CNPJ;
+- endereços e CEP;
+- placas;
+- números ou finais reais de cartões;
+- números de contrato;
+- credores reais;
+- bancos/produtos derivados da base pessoal;
+- saldos;
+- rendas;
+- valores de dívidas;
+- valores de parcelas;
+- combinações parcela/total provenientes da base real;
+- datas de compra reais;
+- ciclos reais de cartão;
+- dados de aluguel;
+- dados de financiamento;
+- dumps, backups e exportações reais;
+- screenshots contendo dados reais;
+- JWT;
+- service_role;
+- senhas;
+- tokens privados;
+- chaves privadas;
+- secrets de IA, WhatsApp ou serviços externos.
+
+Podem permanecer apenas quando tecnicamente necessários e explicitamente
+classificados como públicos:
+
+- SUPABASE_URL;
+- chave Supabase publishable/anon;
+- URLs públicas do GitHub/GitHub Pages;
+- dados de teste comprovadamente sintéticos.
+
+Ao precisar de dados para teste, crie fixtures artificiais que não sejam
+transformações, arredondamentos ou pequenas alterações de dados reais.
+
+Antes de qualquer commit ou push, execute a auditoria de repositório público.
+
+Se houver dúvida se uma informação pode ser publicada, trate-a como privada e
+não a grave no repositório.
+
+Como fazer isso na prática, com os critérios de classificação e o procedimento
+completo, está em `.claude/skills/public-repo-hygiene/SKILL.md`. A auditoria é
+`node testes/audita.mjs`, e ela roda sozinha a cada Write/Edit pelo hook
+`.claude/hooks/checa-publico.mjs` e antes de cada push pelo `.githooks/pre-push`.
+
 ## Onde fica o que
 
 | | |
@@ -15,12 +81,10 @@ commits.
 Estrutura do banco: **8 tabelas**, todas com RLS ligada, 1 policy e 1 trigger
 cada — `ping` sem trigger, como sempre.
 
-**Este repositório é público e não guarda dado financeiro real.** A carga da
-seção 3 do SQL, a fixture de `testes/regras.mjs` e o cenário de
-`testes/preview.mjs` são todos fictícios, com nomes genéricos e valores
-redondos. Ao mexer em qualquer um dos três, mantenha assim: nada de saldo, nome
-de pessoa, credor, final de cartão ou valor vindo de uma base em uso. O mesmo
-vale para exemplos em comentário, em placeholder de formulário e em
+As três fontes de dado de exemplo do projeto são a carga da seção 3 do SQL, a
+fixture de `testes/regras.mjs` e o cenário de `testes/preview.mjs`. Todas são
+inventadas, com nomes genéricos e centavos zerados. A regra acima vale para as
+três, e também para exemplo em comentário, em placeholder de formulário e em
 documentação.
 
 O valor de conferência da seção 5 do SQL vale para uma instalação do zero, só

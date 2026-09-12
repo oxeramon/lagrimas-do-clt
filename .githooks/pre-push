@@ -1,0 +1,38 @@
+#!/bin/sh
+# Última barreira antes de o conteúdo sair da máquina.
+#
+# Este repositório é público. A auditoria confere a árvore rastreada e as
+# mensagens dos commits que seriam enviados; ocorrência crítica cancela o push.
+#
+# Para ligar, uma vez por clone:
+#
+#     git config core.hooksPath .githooks
+#
+# O cruzamento com valores conhecidos da base real é opcional e mora FORA do
+# repositório. Se você tem esse arquivo, exporte o caminho antes de empurrar:
+#
+#     export SANITIZATION_BASELINE_PATH=/caminho/fora/do/repo/baseline-privado.json
+#
+# Sem ele o push segue valendo, com a auditoria genérica -- que já barra token,
+# JWT, CPF, cartão e afins.
+
+set -e
+
+raiz=$(git rev-parse --show-toplevel)
+
+if [ -z "${SANITIZATION_BASELINE_PATH:-}" ]; then
+  echo "pre-push: sem SANITIZATION_BASELINE_PATH; rodando só a auditoria genérica." >&2
+fi
+
+if ! node "$raiz/testes/audita.mjs" --push; then
+  echo "" >&2
+  echo "pre-push CANCELADO: a auditoria de repositório público achou dado que não" >&2
+  echo "pode ser publicado. Corrija antes de empurrar." >&2
+  echo "" >&2
+  echo "A regra está em CLAUDE.md; o critério, em" >&2
+  echo ".claude/skills/public-repo-hygiene/SKILL.md." >&2
+  echo "" >&2
+  echo "Se for falso positivo, ajuste a regra em testes/audita.mjs de forma" >&2
+  echo "justificada. Não use --no-verify para contornar." >&2
+  exit 1
+fi

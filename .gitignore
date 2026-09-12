@@ -24,3 +24,12 @@ preview-D.html
 
 # planilhas de fatura preenchidas, não são código
 fatura-*.csv
+
+# baseline privado da auditoria: a lista dos dados proibidos NUNCA vai para o
+# Git, porque publicá-la é publicar os dados. Ela mora fora do repositório e o
+# caminho vem por SANITIZATION_BASELINE_PATH. Estes padrões são só uma rede.
+baseline-privado*.json
+*baseline*.json
+dados-proibidos*
+*.dump
+*.bak
