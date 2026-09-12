@@ -6,12 +6,34 @@ e sem dependência de conta corporativa.
 
 | Aba | Para quê |
 |---|---|
-| **Painel** | quanto falta pagar, data prevista de quitação, curva de quanto ainda falta, maiores credores e quebra por categoria |
+| **Início** | quanto falta pagar, data prevista de quitação, curva de quanto ainda falta, maiores credores, e o saldo que está nas contas |
 | **Mês** | o que vence no mês, com marcação de pago |
-| **Dívidas** | tudo que está parcelado e as contas fixas |
+| **Contas** | onde o dinheiro está: saldo por conta, disponível, restrito e bloqueado |
+| **Transações** | o que entrou e saiu, por dia, com filtro e busca |
 | **Receitas** | o que entra além da renda base: recorrente ou uma vez só |
+| **Dívidas** | tudo que está parcelado e as contas fixas |
 | **Projeção** | 12 meses de compromisso contra a renda de cada mês |
-| **Ajustes** | renda base, credores, importação de planilha e backup em CSV |
+| **Ajustes** | renda base, credores, categorias, instituições, importação e backup |
+
+### Duas metades, e elas não se somam
+
+O app está no meio de uma troca de motor, e é importante saber qual metade
+responde o quê:
+
+| | Responde por | Onde vive |
+|---|---|---|
+| **Compromisso** | dívidas, parcelas, contas fixas, receitas previstas, projeção | Dívidas, Receitas, Projeção |
+| **Movimento** | contas, saldo, o que entrou e saiu, transferências | Contas, Transações |
+
+A primeira fala do que **ainda vai** acontecer. A segunda, do que **já**
+aconteceu. Somar as duas num número só contaria o mesmo dinheiro duas vezes,
+então o app não faz isso -- e é por isso que ainda não existe um "patrimônio
+líquido" na tela.
+
+**Marcar uma dívida como paga NÃO cria transação, e lançar uma transação NÃO
+marca dívida como paga.** As duas pontas são independentes de propósito nesta
+fase. A ligação entre elas é trabalho de uma fase seguinte, e inventá-la sem
+projeto é a maneira mais rápida de duplicar dinheiro na tela.
 
 ### O que ele sabe fazer
 
@@ -229,7 +251,7 @@ scripts abaixo precisam só do Node.
 node testes/regras.mjs
 ```
 
-Roda 79 casos sobre os mesmos módulos que o navegador carrega: parcelas,
+Roda 152 casos sobre os mesmos módulos que o navegador carrega: parcelas,
 intervalos de receita, renda do mês, contas fixas variáveis, fatura de cartão,
 hierarquia banco/cartão e a regressão que amarra o saldo devedor ao valor de
 conferência do `supabase-setup.sql`. Rode depois de mexer em qualquer conta.

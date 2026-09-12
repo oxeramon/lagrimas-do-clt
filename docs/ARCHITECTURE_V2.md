@@ -46,7 +46,7 @@ supabase/
 supabase-setup.sql                 instalação limpa da V1
 
 testes/
-  regras.mjs        79 casos de cálculo, importando os módulos de produção
+  regras.mjs        152 casos de cálculo, importando os módulos de produção
   preview.mjs       gera preview.html com o Supabase dublado
   audita.mjs        auditoria de repositório público
 ```

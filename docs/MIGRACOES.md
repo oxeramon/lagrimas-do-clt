@@ -9,6 +9,7 @@ em ordem. Este arquivo é o registro; o SQL é a fonte.
 | `20260912185920` | `../supabase/migrations/001_v2_foundation.sql` | 12/09/2026 | **aplicada** · imutável |
 | `20260912192729` | `../supabase/migrations/002_v2_integrity_hardening.sql` | 12/09/2026 | **aplicada** |
 | `20260912193340` | `../supabase/migrations/003_v2_search_path_das_funcoes.sql` | 12/09/2026 | **aplicada** |
+| `20260912200722` | `../supabase/migrations/004_v2_transaction_operations.sql` | 12/09/2026 | **aplicada** |
 
 **Migração aplicada não se edita.** Quando o arquivo e o banco discordam, some
 a única fonte confiável sobre o que rodou. Conserto vira migração nova, e é por
@@ -120,6 +121,53 @@ razão dele é boa.
 Depois dela, **as quatro funções de gatilho estão com `search_path = public` e
 sem `execute` para `anon` nem `authenticated`**.
 
+## 004 · operações atômicas de transferência
+
+A 002 deixou o modelo certo, mas o frontend não tinha como cumpri-lo. Duas
+pernas por dois `insert` HTTP são duas transações: a primeira comita, a segunda
+falha, e sobra meia transferência ou a dúvida de se sobrou. A 004 leva as duas
+pernas para dentro do Postgres.
+
+| Função | O que faz |
+|---|---|
+| `cria_transferencia` | os dois inserts num comando só; devolve o `transferencia_id` |
+| `atualiza_transferencia` | as duas pernas na mesma transação; trocar os parâmetros inverte o sentido |
+| `remove_transferencia` | apaga o grupo inteiro, nunca uma perna |
+| `confere_pernas_da_transferencia` | a validação que as três compartilham |
+
+Todas `SECURITY INVOKER`, com `search_path` fixo, sem `execute` para `anon` e
+com `execute` para `authenticated`. **Nenhuma aceita `user_id`**: quem preenche
+é o gatilho, com `auth.uid()`. A conferência de dono não pergunta "essa conta é
+minha?" -- ela conta quantas das duas o RLS deixa enxergar, porque distinguir
+"não é sua" de "não existe" contaria que o id existe.
+
+### O defeito da 002 que ela conserta
+
+A 002 revogou `execute` de `confere_grupo_transferencia()` junto com o das
+outras funções de gatilho. O raciocínio estava certo pela metade: **gatilho não
+precisa de `execute`, mas função CHAMADA por um gatilho precisa.**
+`valida_transferencia()` a chamava com `perform`, e toda transferência de
+usuário real morria com `permission denied`. Ninguém tinha esbarrado porque a
+V2 está vazia.
+
+O conserto tira a chamada do meio em vez de devolver o grant: a conferência
+passou a morar dentro do próprio gatilho, e a função antiga saiu.
+
+**Por que escapou, e a lição:** os testes da 002 rodavam como `postgres`, que é
+dono das tabelas e passa por cima de RLS e de grant. Teste de permissão que
+roda como dono não prova nada. Pelo mesmo motivo, as ajudantes dos dois
+arquivos de teste deixaram de ser `security definer` -- com elas assim, um caso
+de "anon não pode" passava sozinho.
+
+### Como foi provada
+
+`supabase/testes/004_operacoes.sql`, **25 casos**, rodando como `authenticated`
+e como `anon`, em transação com `rollback`. Cobre o caminho feliz, a
+atomicidade (um `status` inválido derruba a operação inteira sem deixar perna
+órfã), as recusas (mesma conta, valor zero, conta alheia, grupo inexistente), a
+edição, a exclusão do par, o gatilho rodando para usuário de verdade, e `anon`
+esbarrando no grant.
+
 ## O que os advisors dizem agora
 
 Segurança: **uma única ocorrência**, e é configuração de Auth, não de schema —
@@ -139,10 +187,15 @@ Desempenho, tudo informativo e nada novo:
 
 ## Em aberto
 
-**A V2 não tem tela.** As quatro tabelas estão criadas, endurecidas, provadas e
-**vazias**, e o app da V1 não consulta nenhuma delas. Ligar Contas e Transações
-na interface é o passo seguinte, e é o único que ainda falta para o modelo sair
-do papel.
+**A ponte entre V1 e V2 não existe, e é de propósito.** Marcar dívida como paga
+NÃO cria transação, e lançar transação NÃO marca dívida como paga. A V1
+responde por compromisso e previsão; a V2, por conta e movimento realizado.
+Ligar as duas sem projeto é a maneira mais rápida de contar o mesmo dinheiro
+duas vezes -- e por isso ainda não há "patrimônio líquido" no produto.
+
+**Cartão e fatura na V2 ainda não existem.** Cartão continua sendo `credores`
+na V1. Estorno tem schema e sabe ser renderizado, mas não tem botão: o contrato
+de estorno parcial e múltiplo ainda não foi definido.
 
 **A instalação do zero ainda é um arquivo só.** Com três migrações aplicadas,
 `supabase-setup.sql` sozinho não reconstrói mais o banco inteiro. O

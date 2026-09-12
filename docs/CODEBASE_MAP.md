@@ -23,7 +23,7 @@ graph TB
     end
     subgraph "Supabase (São Paulo)"
         Auth["Auth — e-mail e senha"]
-        PG[("Postgres · 12 tabelas<br/>RLS por auth.uid()")]
+        PG[("Postgres · 12 tabelas + 4 RPCs<br/>RLS por auth.uid()")]
     end
     subgraph GitHub
         Pages["Pages — deploy no push"]
@@ -188,9 +188,15 @@ vira botão: com etiqueta "média" enquanto é palpite, sem ela depois de inform
 ## Schema
 
 8 tabelas da V1. 5 seções: TABELAS, SEGURANÇA, CARGA INICIAL, MIGRAÇÃO,
-CONFERÊNCIA. As 4 tabelas da V2 vieram depois, por
-`supabase/migrations/001_v2_foundation.sql`; o registro está em
-`MIGRACOES.md`.
+CONFERÊNCIA. As 4 tabelas da V2 e as 4 funções de transferência vieram depois,
+pelas migrações 001 a 004; o registro está em `MIGRACOES.md`.
+
+**A fronteira entre as duas metades.** A V1 responde por compromisso: dívida,
+parcela, conta fixa, receita prevista, projeção. A V2 responde por movimento:
+conta, saldo, transação, transferência. Elas NÃO conversam -- marcar dívida
+como paga não cria transação, e lançar transação não marca dívida como paga.
+Isso é deliberado nesta fase, e quem for ligar as duas precisa desenhar a
+regra antes: sem ela, o mesmo dinheiro aparece nos dois lados.
 
 | Tabela | RLS | Policy | Trigger |
 |---|---|---|---|

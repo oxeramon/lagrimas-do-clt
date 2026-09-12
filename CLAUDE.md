@@ -112,11 +112,20 @@ onde mexer para cada tipo de mudança. Leia antes de uma alteração grande.
 `docs/ARCHITECTURE_V2.md` tem o mapa de módulos e o que cada camada pode
 importar. `docs/CONTRATOS_V1.md` tem o que não pode mudar de comportamento.
 
-Resumindo: `index.html` guarda CSS (35–784), HTML (786–1399) e o JS de tela
-(1400–4378), com uma única dependência de CDN. O cálculo NÃO está mais aqui:
-núcleo e domínio são ES Modules em `js/`, e `testes/regras.mjs` importa
-exatamente os mesmos. Há um segundo `<script>`, de 15 linhas, no `<head>`: ele
-resolve o tema antes da primeira pintura e não faz mais nada.
+Resumindo: `index.html` guarda o HTML e o JS de tela da V1. O CSS saiu para
+`css/` (tokens, base, views-v2) e o cálculo saiu para `js/`, em ES Modules que
+`testes/regras.mjs` importa exatamente iguais. As telas da V2 -- Contas e
+Transações -- nasceram já em `js/ui/v2-screens.js`, e o acesso ao banco mora em
+`js/data/`: nenhum `sb.from` sobrou no `index.html`. Há um segundo `<script>`,
+de 15 linhas, no `<head>`: ele resolve o tema antes da primeira pintura e não
+faz mais nada.
+
+**A V1 e a V2 não se somam.** A V1 responde por compromisso (dívida, fixa,
+receita prevista, projeção); a V2, por movimento (conta, saldo, transação,
+transferência). Marcar dívida como paga NÃO cria transação, e lançar transação
+NÃO marca dívida como paga -- isso é fase seguinte, e inventar a ligação sem
+projeto duplica dinheiro na tela. Não existe "patrimônio líquido" no produto, e
+não deve existir enquanto as duas metades estiverem separadas.
 
 ## Restrições que não são negociáveis
 
@@ -193,7 +202,7 @@ tem a tabela o erro passa despercebido e só aparece numa instalação nova.
 ```bash
 node testes/regras.mjs
 ```
-79 casos sobre uma fixture sintética, importando os mesmos módulos que o
+152 casos sobre uma fixture sintética, importando os mesmos módulos que o
 navegador carrega -- não uma cópia deles. Inclui a regressão que amarra
 `saldoAberto()` ao valor de conferência do SQL, lido do próprio
 `supabase-setup.sql`: se a carga de exemplo mudar e a fixture não acompanhar, o
