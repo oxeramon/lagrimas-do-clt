@@ -26,6 +26,17 @@ import {
 import { credorDe, paiDe, raizDe, filhosDe, nomeCredorDe, nomeBancoDe,
          credorPorNome } from "../js/domain/creditors.js";
 import { faturaDaCompra } from "../js/domain/billing.js";
+import { indicadoresDeContas, porInstituicao, porTipo, saldoDaConta,
+         rotuloDoTipo, podeExcluirConta } from "../js/domain/accounts.js";
+import { sinalDe, valorComSinal, contaNoSaldo, ehTransferencia, filtraTransacoes,
+         totaisDoPeriodo, agrupaPorData, gastoPorCategoria, semTransferencias,
+         evolucaoDoSaldo } from "../js/domain/transactions.js";
+import { categoriasPorFluxo, caminhoDaCategoria, arvoreDeCategorias,
+         paisPossiveis, descendentesDe } from "../js/domain/categories.js";
+import { doBanco, paraBanco, paraCamel, paraSnake } from "../js/data/v2-repository.js";
+import { monogramaDe, contrasteSobre, doCatalogo } from "../js/ui/institution-catalog.js";
+import { raizesPadrao, filhasPadrao, quantasCategoriasPadrao } from "../js/ui/category-catalog.js";
+import { ABAS, idsDasAbas, grupoDaAba, abasDoRodape, abasDoMais } from "../js/ui/navigation.js";
 
 let ok = 0, bad = 0;
 const eq = (nome, got, want) => {
@@ -298,6 +309,212 @@ eq("financiamento e empréstimo são meios com juros",
 eq("meuDe desconta a parte do terceiro", meuDe(S.dividas[0]), 60);
 eq("sem terceiro, tudo é seu", meuDe({ valor: 100 }), 100);
 S.dividas = [];
+
+/* ==================================================================
+   V2 · CONTAS, TRANSAÇÕES, CATEGORIAS
+   ------------------------------------------------------------------
+   Fixture sintética e independente: nomes genéricos, valores redondos,
+   UUIDs inventados. Nada aqui veio de base nenhuma.
+   ================================================================== */
+console.log("\ncontas: indicadores da tela");
+
+const cts = [
+  { id: "c1", nome: "Conta Um",    tipo: "corrente",     liquidez: "livre",     instituicaoId: "i1", ativo: true },
+  { id: "c2", nome: "Conta Dois",  tipo: "poupanca",     liquidez: "livre",     instituicaoId: "i1", ativo: true },
+  { id: "c3", nome: "Reserva",     tipo: "fgts",         liquidez: "restrita",  instituicaoId: "i2", ativo: true },
+  { id: "c4", nome: "Presa",       tipo: "corrente",     liquidez: "bloqueada", instituicaoId: null, ativo: true },
+  { id: "c5", nome: "Antiga",      tipo: "corrente",     liquidez: "livre",     instituicaoId: "i1", ativo: false },
+];
+const sld = [
+  { contaId: "c1", saldo: 1000 }, { contaId: "c2", saldo: 500 },
+  { contaId: "c3", saldo: 300 },  { contaId: "c4", saldo: 200 },
+  { contaId: "c5", saldo: 9999 },
+];
+const insts = [
+  { id: "i1", nome: "Instituição Um", cor: "#123456", logo: "" },
+  { id: "i2", nome: "Instituição Dois", cor: null, logo: "" },
+];
+
+const ind = indicadoresDeContas(cts, sld);
+eq("saldo em contas soma só as ativas", ind.total, 2000);
+eq("disponível é só a liquidez livre", ind.disponivel, 1500);
+eq("restrito não entra no disponível", ind.restrito, 300);
+eq("bloqueado é uma terceira caixa", ind.bloqueado, 200);
+eq("conta inativa fica de fora e é contada à parte",
+  [ind.quantidade, ind.inativas], [4, 1]);
+/* saldo ausente não é zero: a tela precisa saber que ainda não sabe */
+eq("saldo de conta que a view ainda não trouxe é null", saldoDaConta(sld, "c9"), null);
+eq("conta sem saldo conhecido não entra na soma",
+  indicadoresDeContas([{ id: "cx", liquidez: "livre", ativo: true }], []),
+  { total: 0, disponivel: 0, restrito: 0, bloqueado: 0, quantidade: 1, inativas: 0, semSaldo: 1 });
+
+eq("distribuição por instituição vem do maior para o menor",
+  porInstituicao(cts, sld, insts).map(g => [g.nome, g.total]),
+  [["Instituição Um", 1500], ["Instituição Dois", 300], ["Sem instituição", 200]]);
+eq("conta sem instituição vira grupo próprio, não some",
+  porInstituicao(cts, sld, insts).some(g => g.nome === "Sem instituição"), true);
+eq("distribuição por tipo usa o rótulo legível",
+  porTipo(cts, sld).map(g => g.nome),
+  ["Conta corrente", "Poupança", "FGTS"]);
+eq("tipo desconhecido cai em Outro", rotuloDoTipo("marte"), "Outro");
+eq("conta com movimento não pode ser excluída",
+  [podeExcluirConta(0), podeExcluirConta(3)], [true, false]);
+
+console.log("\ntransações: sinal, filtro e totais");
+
+const tx = [
+  { id: "t1", contaId: "c1", categoriaId: "k1", tipo: "entrada", natureza: "normal",
+    valor: 1000, data: "2026-03-05", status: "realizada", descricao: "Entrada normal" },
+  { id: "t2", contaId: "c1", categoriaId: "k2", tipo: "saida", natureza: "normal",
+    valor: 200, data: "2026-03-05", status: "realizada", descricao: "Saída normal" },
+  { id: "t3", contaId: "c1", categoriaId: null, tipo: "saida", natureza: "transferencia",
+    valor: 300, data: "2026-03-06", status: "realizada", descricao: "Transferência", transferenciaId: "g1" },
+  { id: "t4", contaId: "c2", categoriaId: null, tipo: "entrada", natureza: "transferencia",
+    valor: 300, data: "2026-03-06", status: "realizada", descricao: "Transferência", transferenciaId: "g1" },
+  { id: "t5", contaId: "c1", categoriaId: "k2", tipo: "entrada", natureza: "estorno",
+    valor: 50, data: "2026-03-07", status: "realizada", descricao: "Estorno de saída", estornoDeId: "t2" },
+  { id: "t6", contaId: "c1", categoriaId: "k2", tipo: "saida", natureza: "normal",
+    valor: 9999, data: "2026-03-08", status: "prevista", descricao: "Ainda vai sair" },
+  { id: "t7", contaId: "c1", categoriaId: "k2", tipo: "saida", natureza: "normal",
+    valor: 8888, data: "2026-03-09", status: "cancelada", descricao: "Cancelada" },
+];
+
+/* o sinal sai do tipo e de mais nada: é a regra que a 002 existiu para criar */
+eq("entrada é +, saída é −", [sinalDe(tx[0]), sinalDe(tx[1])], [1, -1]);
+eq("transferência não tem sinal próprio: a perna de saída é negativa",
+  valorComSinal(tx[2]), -300);
+eq("estorno também não: quem manda é o tipo", valorComSinal(tx[4]), 50);
+eq("prevista e cancelada não entram no saldo",
+  [contaNoSaldo(tx[5]), contaNoSaldo(tx[6]), contaNoSaldo(tx[0])], [false, false, true]);
+
+const tot = totaisDoPeriodo(tx);
+eq("entradas somam entrada realizada, inclusive a perna de transferência",
+  tot.entradas, 1350);
+eq("saídas somam saída realizada", tot.saidas, 500);
+eq("resultado é entradas menos saídas", tot.resultado, 850);
+eq("previstas ficam num número separado", tot.previstas, -9999);
+
+/* a pergunta "quanto entrou e saiu de verdade" exclui as duas pernas */
+const semTr = totaisDoPeriodo(semTransferencias(tx));
+eq("sem transferências, entrou 1050 e saiu 200", [semTr.entradas, semTr.saidas], [1050, 200]);
+eq("transferência não altera o resultado quando as duas pernas estão na lista",
+  tot.resultado - semTr.resultado, 0);
+
+eq("filtro vazio devolve tudo", filtraTransacoes(tx, {}).length, 7);
+eq("filtro por conta", filtraTransacoes(tx, { contaId: "c2" }).map(t => t.id), ["t4"]);
+eq("filtro por tipo", filtraTransacoes(tx, { tipo: "entrada" }).length, 3);
+eq("filtro por status", filtraTransacoes(tx, { status: "prevista" }).map(t => t.id), ["t6"]);
+eq("filtro por categoria", filtraTransacoes(tx, { categoriaId: "k1" }).map(t => t.id), ["t1"]);
+eq("busca ignora maiúscula e olha descrição",
+  filtraTransacoes(tx, { busca: "ESTORNO" }).map(t => t.id), ["t5"]);
+eq("filtros combinam", filtraTransacoes(tx, { contaId: "c1", tipo: "saida" }).length, 4);
+eq("busca que não acha devolve lista vazia", filtraTransacoes(tx, { busca: "zzz" }).length, 0);
+
+const dias = agrupaPorData(tx);
+eq("agrupa por dia, do mais recente para o mais antigo",
+  dias.map(d => d.data), ["2026-03-09", "2026-03-08", "2026-03-07", "2026-03-06", "2026-03-05"]);
+eq("o total do dia ignora prevista e cancelada",
+  dias.find(d => d.data === "2026-03-08").total, 0);
+eq("dia com as duas pernas da transferência fecha em zero",
+  dias.find(d => d.data === "2026-03-06").total, 0);
+
+eq("gasto por categoria só olha saída realizada e sem transferência",
+  gastoPorCategoria(tx, [{ id: "k2", nome: "Categoria Dois" }]).map(g => [g.nome, g.total]),
+  [["Categoria Dois", 200]]);
+eq("saída sem categoria vira 'Sem categoria' em vez de sumir",
+  gastoPorCategoria([{ tipo: "saida", natureza: "normal", status: "realizada",
+                       valor: 10, categoriaId: null }], []).map(g => g.nome),
+  ["Sem categoria"]);
+
+eq("evolução do saldo acumula do mais antigo para o mais novo",
+  evolucaoDoSaldo(tx, 100).map(d => d.saldo), [900, 900, 950, 950, 950]);
+
+console.log("\ncategorias: árvore e fluxo");
+
+const cats = [
+  { id: "k1", paiId: null, nome: "Raiz Saída",   nivel: 1, fluxo: "saida",   ordem: 10, ativo: true },
+  { id: "k2", paiId: "k1", nome: "Filha",        nivel: 2, fluxo: "saida",   ordem: 10, ativo: true },
+  { id: "k3", paiId: "k2", nome: "Neta",         nivel: 3, fluxo: "saida",   ordem: 10, ativo: true },
+  { id: "k4", paiId: null, nome: "Raiz Entrada", nivel: 1, fluxo: "entrada", ordem: 20, ativo: true },
+  { id: "k5", paiId: null, nome: "Dos Dois",     nivel: 1, fluxo: "ambos",   ordem: 30, ativo: true },
+  { id: "k6", paiId: null, nome: "Desativada",   nivel: 1, fluxo: "saida",   ordem: 40, ativo: false },
+];
+eq("fluxo saída traz as de saída e as de ambos",
+  categoriasPorFluxo(cats, "saida").map(c => c.id), ["k1", "k2", "k3", "k5"]);
+eq("fluxo entrada traz as de entrada e as de ambos",
+  categoriasPorFluxo(cats, "entrada").map(c => c.id), ["k4", "k5"]);
+eq("categoria desativada não aparece na escolha",
+  categoriasPorFluxo(cats, "saida").some(c => c.id === "k6"), false);
+eq("o caminho mostra a árvore inteira", caminhoDaCategoria(cats, "k3"), "Raiz Saída › Filha › Neta");
+eq("caminho de raiz é o próprio nome", caminhoDaCategoria(cats, "k4"), "Raiz Entrada");
+eq("caminho de id inexistente é vazio", caminhoDaCategoria(cats, "nada"), "");
+eq("a árvore aninha e respeita a ordem",
+  arvoreDeCategorias(cats).map(r => [r.nome, r.filhos.map(f => f.nome)]),
+  [["Raiz Saída", ["Filha"]], ["Raiz Entrada", []], ["Dos Dois", []], ["Desativada", []]]);
+/* a tela não oferece o quarto nível: o banco recusaria depois do formulário */
+eq("nível 3 não pode ser pai", paisPossiveis(cats).map(c => c.id), ["k1", "k2", "k4", "k5"]);
+eq("editando, a própria categoria não é pai de si",
+  paisPossiveis(cats, "k1").some(c => c.id === "k1"), false);
+eq("descendentes avisam o que o cascade leva junto",
+  descendentesDe(cats, "k1").map(c => c.id), ["k2", "k3"]);
+
+console.log("\ncamada de dados: snake_case ↔ camelCase");
+
+eq("snake vira camel", paraCamel("saldo_inicial_em"), "saldoInicialEm");
+eq("camel vira snake", paraSnake("saldoInicialEm"), "saldo_inicial_em");
+eq("ida e volta não perde nada",
+  paraSnake(paraCamel("transferencia_par_id")), "transferencia_par_id");
+eq("doBanco converte as chaves e preserva os valores",
+  doBanco({ id: 1, saldo_inicial: 10.5, conta_id: "x", estorno_de_id: null }),
+  { id: 1, saldoInicial: 10.5, contaId: "x", estornoDeId: null });
+eq("doBanco atravessa lista", doBanco([{ pai_id: "a" }, { pai_id: "b" }]),
+  [{ paiId: "a" }, { paiId: "b" }]);
+eq("doBanco devolve null como null", doBanco(null), null);
+/* undefined é campo que o formulário não mexeu: mandar null apagaria o que
+   estava lá */
+/* Object.keys e não o objeto: JSON.stringify APAGA chave com undefined, então
+   comparar os objetos deixaria passar a versão que mantém `obs: undefined` --
+   e é justamente ela que apagaria o campo no banco. */
+eq("paraBanco ignora undefined e mantém null",
+  Object.keys(paraBanco({ nome: "x", obs: undefined, paiId: null })).sort(),
+  ["nome", "pai_id"]);
+eq("paraBanco preserva o valor null, que é apagar de propósito",
+  paraBanco({ paiId: null }).pai_id, null);
+
+console.log("\ncatálogos públicos e monograma");
+
+eq("monograma de nome de uma palavra é uma letra", monogramaDe("Nubank"), "N");
+eq("monograma de duas palavras é duas letras", monogramaDe("Mercado Pago"), "MP");
+eq("preposição não vira inicial", monogramaDe("Banco do Brasil"), "BB");
+eq("nome vazio não quebra", monogramaDe(""), "?");
+/* texto branco sobre amarelo não se lê: o contraste decide, não o chute */
+eq("cor escura pede texto claro", contrasteSobre("#111111"), "#FFFFFF");
+eq("cor clara pede texto escuro", contrasteSobre("#FAE128"), "#14201C");
+eq("cor inválida não quebra", contrasteSobre("banana"), "#FFFFFF");
+eq("o catálogo acha por slug", doCatalogo("nubank").nome, "Nubank");
+eq("slug desconhecido devolve null", doCatalogo("inexistente"), null);
+
+const raizes = raizesPadrao();
+eq("as categorias padrão têm raízes de saída, entrada e ambos",
+  [...new Set(raizes.map(r => r.fluxo))].sort(), ["ambos", "entrada", "saida"]);
+eq("nenhuma raiz padrão nasce com pai", raizes.every(r => !r.paiId), true);
+const filhas = filhasPadrao(raizes.map((r, i) => ({ ...r, id: "id" + i })));
+eq("toda filha aponta para uma raiz salva", filhas.every(f => !!f.paiId), true);
+eq("filha herda o fluxo da mãe",
+  filhas.every(f => raizes.some(r => r.fluxo === f.fluxo)), true);
+eq("o total do catálogo bate com o que é gerado",
+  raizes.length + filhas.length, quantasCategoriasPadrao());
+
+console.log("\nnavegação");
+
+eq("toda aba do registro tem grupo", ABAS.every(a => !!a.grupo), true);
+eq("o rodapé do celular para em cinco", abasDoRodape().length <= 5, true);
+eq("nenhuma aba fica fora do rodapé e do Mais ao mesmo tempo",
+  idsDasAbas().every(id => abasDoRodape().some(a => a.id === id)
+                        || abasDoMais().some(a => a.id === id)), true);
+eq("rodapé e Mais não repetem a mesma aba",
+  abasDoRodape().some(a => abasDoMais().some(b => b.id === a.id)), false);
+eq("o grupo de uma aba conhecida", grupoDaAba("contas"), "MEU DINHEIRO");
 
 console.log(`\n${ok} passaram, ${bad} falharam`);
 process.exit(bad ? 1 : 0);
