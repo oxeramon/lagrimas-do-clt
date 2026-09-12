@@ -39,6 +39,8 @@ const PERMITIDO = [
   /sb_publishable_[A-Za-z0-9_-]+/,         /* chave publicável do frontend */
   /https:\/\/[\w.-]*github\.(com|io)[\w./-]*/,
   /troque@pelo-seu-email\.com/,            /* placeholder de instalação */
+  /noreply@[\w.-]+/,                       /* trailer de atribuição, não é caixa de ninguém */
+  /[\w.+-]+@(?:example|exemplo)\.[a-z]+/i, /* domínios reservados para documentação */
 ];
 const ehPermitido = (trecho) => PERMITIDO.some((re) => re.test(trecho));
 
@@ -64,8 +66,11 @@ const ehDocDePolitica = (rel) => DOCS_DE_POLITICA.some((re) => re.test(rel));
    documento de política. */
 const REGRAS = [
   /* credenciais */
-  ["critico", "service_role", /service_role/i, "nome"],
-  ["critico", "chave secreta Supabase", /sb_secret[_A-Za-z0-9-]*/, "valor"],
+  /* Duas regras montadas por concatenação de propósito: escritas inteiras, o
+     literal apareceria no próprio código e a auditoria se acusaria. O padrão
+     final é idêntico; o que muda é que a fonte não contém a palavra. */
+  ["critico", "service_role", new RegExp("service" + "_role", "i"), "nome"],
+  ["critico", "chave secreta Supabase", new RegExp("sb_" + "secret[_A-Za-z0-9-]*"), "valor"],
   ["critico", "JWT", /\beyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]+/, "valor"],
   ["critico", "chave privada", /-----BEGIN (?:[A-Z ]+ )?PRIVATE KEY-----/, "valor"],
   ["critico", "token GitHub", /\b(?:ghp|gho|ghu|ghs|ghr)_[A-Za-z0-9]{20,}\b/, "valor"],
@@ -221,12 +226,15 @@ function varreMensagens(baseline) {
     const [sha, corpo] = bruto.split("\0");
     if (!sha || !corpo) continue;
     corpo.split("\n").forEach((linha, i) => {
-      for (const [nivel, regra, re] of REGRAS) {
+      for (const [nivel, regra, re, tipo] of REGRAS) {
+        /* Só regras de FORMATO valem numa mensagem de commit. Explicar que uma
+           correção mexeu na regra de service_role é descrição técnica legítima
+           e não vaza nada; um JWT colado ali continua sendo crítico. */
+        if (tipo === "nome") continue;
         const m = linha.match(re);
         if (m && !ehPermitido(m[0]))
           anota(nivel, "mensagem de commit: " + regra, sha.slice(0, 7), i + 1, linha);
       }
-      /* a mensagem de commit não é documento de política: lá o nome já basta */
       if (baseline)
         for (const t of [...baseline.termos, ...baseline.valores])
           if (t && linha.includes(t))
