@@ -12,6 +12,7 @@ em ordem. Este arquivo é o registro; o SQL é a fonte.
 | `20260912200722` | `../supabase/migrations/004_v2_transaction_operations.sql` | 12/09/2026 | **aplicada** |
 | `20260912214852` | `../supabase/migrations/005_v2_settlement_bridge.sql` | 12/09/2026 | **aplicada** |
 | `20260912214949` | `../supabase/migrations/006_v2_trigger_grants.sql` | 12/09/2026 | **aplicada** |
+| `20260912230851` | `../supabase/migrations/007_v2_cartoes_e_faturas.sql` | 12/09/2026 | **aplicada** |
 
 **Migração aplicada não se edita.** Quando o arquivo e o banco discordam, some
 a única fonte confiável sobre o que rodou. Conserto vira migração nova, e é por
@@ -252,6 +253,93 @@ por `authenticated` — sozinha ela não apaga nada sem uma linha em
 `liquidacoes`, mas função de gatilho não é API, e a 002 já tinha estabelecido a
 regra. Migração aplicada não se edita, nem quando o conserto tem duas linhas.
 
+## 007 · cartões e faturas
+
+Contrato escrito antes do SQL, em [`CONTRATO_CARTAO.md`](CONTRATO_CARTAO.md).
+Ele cabe em duas frases:
+
+> **Compra no cartão é despesa.**
+> **Pagamento da fatura não é despesa nova.**
+
+### A assimetria que torna a dupla contagem inescrevível
+
+```
+compra no cartão      fatura_id preenchido, conta_id VAZIO
+pagamento da fatura   conta_id preenchido,  fatura_id VAZIO
+```
+
+Duas perguntas, dois filtros que nunca se cruzam:
+
+| Pergunta | Filtro |
+|---|---|
+| quanto eu gastei (consumo) | `tipo='saida'` e `natureza='normal'` |
+| quanto saiu da conta (caixa) | `conta_id is not null` |
+
+Compra de 100 mais pagamento de 100 dá 100 de consumo e 100 de caixa. Nunca
+200 em lugar nenhum. Três `check` garantem: `transacao_nao_e_conta_e_fatura`,
+`pagamento_de_fatura_sai_de_conta` e `parcela_mora_numa_fatura`.
+
+### O que entrou
+
+| Objeto | O que faz |
+|---|---|
+| `cartoes` | nome, apelido, **final de quatro dígitos opcional**, limite, ciclo, conta padrão, cor. Nunca número completo, CVV, validade, senha ou token |
+| `faturas` | cartão, competência e as três datas do ciclo. `unique (user_id, cartao_id, competencia)` |
+| `compras_de_cartao` | a compra lógica: uma decisão, N obrigações |
+| `transacoes` + `fatura_id`, `compra_id`, `parcela`, `total_parcelas` | parcela com identidade de coluna, não de sufixo de texto |
+| `dia_no_mes`, `competencia_da_compra`, `ciclo_da_fatura` | a regra do ciclo, implementada uma vez |
+| `faturas_resolvidas` | view `security_invoker` com total, pago e situação **derivados** |
+| `fatura_na_competencia`, `fatura_do_cartao` | a fatura nasce sob demanda, idempotente pelo `unique` |
+| `registra_compra_de_cartao` | compra e N parcelas numa transação; centavos com sobra na primeira |
+| `paga_fatura` | saída com `natureza='pagamento_de_fatura'` + vínculo em `liquidacoes` |
+
+`natureza` ganhou `'pagamento_de_fatura'` e `liquidacoes.tipo` ganhou
+`'fatura'` — este último era o caso que o contrato da ponte previa com o texto
+"só precisa entrar no check".
+
+### A regra do ciclo, e por que ela fica no banco
+
+```
+fechamento(M) = dia min(F, último dia de M) do mês M
+abertura(M)   = fechamento(M-1)
+vencimento(M) = dia min(V, último dia de Mv) do mês Mv, Mv = M se V > F, senão M+1
+
+competência(D) = mês(D) se dia(D) < fechamento-dia(mês(D)), senão mês(D)+1
+```
+
+Janela meio aberta: `abertura <= D < fechamento`. Compra no PRÓPRIO dia do
+fechamento cai na fatura seguinte — é a mesma regra que a V1 já usa em
+`js/domain/billing.js`, e discordar dela faria as duas metades do app falarem
+coisas diferentes da mesma compra.
+
+O dia guardado no cartão não é truncado; quem trunca é o cálculo, mês a mês.
+
+### Total derivado, não guardado
+
+`faturas` não tem coluna de total nem de status. Guardar o total criaria dois
+números com o mesmo nome, e eles discordariam no primeiro estorno. A
+consequência boa aparece no teste 52: apagar o pagamento devolve a fatura para
+"fechada" **sozinho**, sem gatilho nenhum, porque a situação é derivada.
+
+### Como foi provada
+
+`supabase/testes/007_cartoes.sql`, **67 casos**, como `authenticated` e como
+`anon`, em transação com `rollback`.
+
+**Ela foi rodada inteira ANTES de ser aplicada**: o DDL e os 67 casos foram
+executados juntos numa transação revertida no fim. Esse ensaio encontrou um
+defeito real — uma variável chamada `nome` dentro de `paga_fatura` colidia com
+a coluna `nome` de `cartoes`, e o plpgsql só recusa essa ambiguidade em tempo
+de EXECUÇÃO. O erro apareceria na primeira fatura paga de verdade. Depois de
+aplicada, os 67 rodaram de novo contra o schema aplicado: 67 de 67, sem
+resíduo.
+
+Cobrem o truncamento de dia (fevereiro comum, bissexto, mês de 30 dias), a
+fronteira do fechamento nos três lados, a virada de dezembro, as três datas do
+ciclo, a recusa de guardar mais que quatro dígitos, a idempotência da criação
+da fatura, os centavos do parcelamento, o CASO A completo, o desfazer, as
+recusas de conta e cartão alheios, e `anon` esbarrando no grant das três RPCs.
+
 ## O que os advisors dizem agora
 
 Segurança: **uma única ocorrência**, e é configuração de Auth, não de schema —
@@ -271,16 +359,20 @@ Desempenho, tudo informativo e nada novo:
 
 ## Em aberto
 
-**Cartão e fatura na V2 ainda não existem.** Cartão continua sendo `credores`
-na V1, e a fatura é derivada na tela, não uma entidade. Enquanto for assim, uma
-compra no cartão não tem como ser liquidada pela ponte — quem paga uma compra
-de cartão é a fatura, e pagar item a item registraria a compra e o pagamento
-como duas saídas. A tela já recusa oferecer o botão nesse caso.
+**A V1 continua com cartão em `credores`, e é de propósito.** A 007 criou
+`cartoes` e `faturas` na V2 sem tocar na V1: migrar automaticamente credor para
+cartão exigiria adivinhar qual credor é cartão, e adivinhar em cima de dado de
+dinheiro é como se conta errado. Compra de cartão da V1 continua sem botão de
+pagar na tela do Mês — quem paga uma compra de cartão é a fatura.
+
+**Pagamento parcial de fatura não existe.** A `unique` da 005 recusa a segunda
+liquidação da mesma fatura. Juros rotativo sem modelo de juros vira número
+errado com cara de certo; até haver contrato, pagamento de fatura é integral.
 
 **Estorno tem schema e não tem botão.** O contrato de estorno parcial e
 múltiplo ainda não foi definido.
 
-**A instalação do zero ainda é um arquivo só.** Com seis migrações aplicadas,
+**A instalação do zero ainda é um arquivo só.** Com sete migrações aplicadas,
 `supabase-setup.sql` sozinho não reconstrói mais o banco inteiro. O
 `supabase/README.md` explica a ordem; separar em `schema.sql` + `seed.sql` +
 `migrations/` passou a fazer sentido e ainda não foi feito.
