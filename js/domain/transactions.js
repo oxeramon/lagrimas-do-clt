@@ -13,9 +13,13 @@ export const TIPOS = [
 ];
 
 export const NATUREZAS = [
-  { id: "normal",        rotulo: "Normal" },
-  { id: "transferencia", rotulo: "Transferência" },
-  { id: "estorno",       rotulo: "Estorno" },
+  { id: "normal",              rotulo: "Normal" },
+  { id: "transferencia",       rotulo: "Transferência" },
+  { id: "estorno",             rotulo: "Estorno" },
+  /* Saída que quita uma fatura. Continua sendo SAÍDA -- quem dá o sinal é
+     `tipo`. O que a natureza diz é que ela não é consumo novo: o consumo já
+     foi contado quando a compra entrou na fatura. */
+  { id: "pagamento_de_fatura", rotulo: "Pagamento de fatura" },
 ];
 
 export const STATUS = [

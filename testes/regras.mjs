@@ -11,7 +11,7 @@
 import { readFileSync } from "node:fs";
 
 import { S } from "../js/core/state.js";
-import { midx, addM, label, HOJE } from "../js/core/dates.js";
+import { midx, addM, fromIdx, label, HOJE } from "../js/core/dates.js";
 import { money, pct, temValor } from "../js/core/money.js";
 import { esc } from "../js/core/escape.js";
 import {
@@ -26,6 +26,10 @@ import {
 import { credorDe, paiDe, raizDe, filhosDe, nomeCredorDe, nomeBancoDe,
          credorPorNome } from "../js/domain/creditors.js";
 import { faturaDaCompra } from "../js/domain/billing.js";
+import { diaNoMes, competenciaDaCompra, cicloDaFatura, situacaoDaFatura,
+         rotuloDaFatura, parcelasDe, competenciasDasParcelas, consumoDe, caixaDe,
+         ehConsumo, saiDoCaixa, indicadoresDeCartoes, proximaAVencer, vencidas }
+  from "../js/domain/cards.js";
 import { indicadoresDeContas, porInstituicao, porTipo, saldoDaConta,
          rotuloDoTipo, podeExcluirConta } from "../js/domain/accounts.js";
 import { sinalDe, valorComSinal, contaNoSaldo, ehTransferencia, filtraTransacoes,
@@ -561,7 +565,7 @@ console.log("\nCASO B · dívida paga não conta duas vezes");
 /* a dívida de 500 foi liquidada: existe o vínculo E a transação de 500 */
 const casoB = saidasDoMes({
   compromissos,
-  transacoes: [{ id:"t1", tipo:"saida", natureza:"normal", status:"realizada", valor:500 }],
+  transacoes: [{ id:"t1", contaId:"ct1", tipo:"saida", natureza:"normal", status:"realizada", valor:500 }],
   liquidacoes: [{ itemId:"d1", competencia:MES, valor:500 }],
   pagos: { [MES]: { d1: true } },
   mes: MES,
@@ -595,9 +599,9 @@ console.log("\nCASO C · transferência não mexe no gasto");
 const comTransf = saidasDoMes({
   compromissos: [],
   transacoes: [
-    { id:"t1", tipo:"saida",   natureza:"transferencia", status:"realizada", valor:100, transferenciaId:"g1" },
-    { id:"t2", tipo:"entrada", natureza:"transferencia", status:"realizada", valor:100, transferenciaId:"g1" },
-    { id:"t3", tipo:"saida",   natureza:"normal",        status:"realizada", valor:70 },
+    { id:"t1", contaId:"ct1", tipo:"saida",   natureza:"transferencia", status:"realizada", valor:100, transferenciaId:"g1" },
+    { id:"t2", contaId:"ct1", tipo:"entrada", natureza:"transferencia", status:"realizada", valor:100, transferenciaId:"g1" },
+    { id:"t3", contaId:"ct1", tipo:"saida",   natureza:"normal",        status:"realizada", valor:70 },
   ],
   liquidacoes: [], pagos: {}, mes: MES,
 });
@@ -611,7 +615,7 @@ const receitas = [
 ];
 const casoD = entradasDoMes({
   receitas,
-  transacoes: [{ id:"t1", tipo:"entrada", natureza:"normal", status:"realizada", valor:1000 }],
+  transacoes: [{ id:"t1", contaId:"ct1", tipo:"entrada", natureza:"normal", status:"realizada", valor:1000 }],
   liquidacoes: [{ itemId:"r1", competencia:MES, valor:1000 }],
   mes: MES,
 });
@@ -627,9 +631,9 @@ const resumo = resumoDoMes({
   compromissos,
   receitas,
   transacoes: [
-    { id:"t1", tipo:"saida",   natureza:"normal", status:"realizada", valor:500 },
-    { id:"t2", tipo:"entrada", natureza:"normal", status:"realizada", valor:1000 },
-    { id:"t3", tipo:"saida",   natureza:"normal", status:"prevista",  valor:9999 },
+    { id:"t1", contaId:"ct1", tipo:"saida",   natureza:"normal", status:"realizada", valor:500 },
+    { id:"t2", contaId:"ct1", tipo:"entrada", natureza:"normal", status:"realizada", valor:1000 },
+    { id:"t3", contaId:"ct1", tipo:"saida",   natureza:"normal", status:"prevista",  valor:9999 },
   ],
   liquidacoes: [{ itemId:"d1", competencia:MES, valor:500 },
                 { itemId:"r1", competencia:MES, valor:1000 }],
@@ -653,6 +657,44 @@ eq("sem compromisso nenhum, aderência é null e não zero",
   resumoDoMes({ compromissos: [], receitas: [], transacoes: [], liquidacoes: [],
                 pagos: {}, mes: MES, saldoEmContas: 0 }).aderencia, null);
 
+/* ------------------------------------------------------------------------
+   CASO A dentro do Painel: a compra no cartão e o pagamento da fatura não
+   podem inchar o mesmo número. O Painel mostra CAIXA na coluna "Saiu"; o
+   consumo é outra pergunta, e mora noutro campo.
+   ------------------------------------------------------------------------ */
+const comCartao = resumoDoMes({
+  compromissos: [], receitas: [], liquidacoes: [], pagos: {}, mes: MES,
+  saldoEmContas: 1000,
+  transacoes: [
+    /* compra no cartão: sem conta, dentro de uma fatura */
+    { id:"c1", contaId:null, faturaId:"f1", tipo:"saida", natureza:"normal",
+      status:"realizada", valor:100 },
+    /* o pagamento daquela fatura: com conta, natureza própria */
+    { id:"p1", contaId:"ct1", faturaId:null, tipo:"saida",
+      natureza:"pagamento_de_fatura", status:"realizada", valor:100 },
+  ],
+});
+eq("CASO A · a coluna Saiu do Painel é caixa: 100, não 200",
+  comCartao.saidas.realizado, 100);
+eq("CASO A · e a compra no cartão não entra nela",
+  resumoDoMes({ compromissos: [], receitas: [], liquidacoes: [], pagos: {}, mes: MES,
+    saldoEmContas: 0,
+    transacoes: [{ id:"c1", contaId:null, faturaId:"f1", tipo:"saida",
+                   natureza:"normal", status:"realizada", valor:100 }],
+  }).saidas.realizado, 0);
+eq("CASO A · o consumo é 100, e é a compra quem entra nele",
+  comCartao.saidas.consumo, 100);
+eq("CASO A · o pagamento da fatura não é consumo novo",
+  resumoDoMes({ compromissos: [], receitas: [], liquidacoes: [], pagos: {}, mes: MES,
+    saldoEmContas: 0,
+    transacoes: [{ id:"p1", contaId:"ct1", tipo:"saida",
+                   natureza:"pagamento_de_fatura", status:"realizada", valor:100 }],
+  }).saidas.consumo, 0);
+/* o saldo já caiu os 100 do pagamento; a sobra projetada não os desconta de
+   novo, e a compra no cartão não a afeta porque ainda não é caixa */
+eq("CASO A · a sobra projetada não conta a compra nem o pagamento duas vezes",
+  comCartao.sobraProjetada, 1000);
+
 console.log("\natraso");
 
 eq("compromisso aberto de mês fechado aparece como atrasado",
@@ -665,6 +707,159 @@ eq("o que foi liquidado não aparece como atrasado",
 eq("o que foi marcado no quadradinho também não",
   mesesEmAtraso([{ id:"d1", valor:500 }], [], { "2026-08": { d1: true } },
     "2026-09", ["2026-08"]).length, 0);
+
+
+console.log("\ncartão: o ciclo");
+
+/* ------------------------------------------------------------------------
+   OS MESMOS CASOS QUE supabase/testes/007_cartoes.sql RODA NO BANCO.
+
+   A regra do ciclo existe em dois lugares: em plpgsql, na 007, que é quem
+   manda na hora de escrever; e em js/domain/cards.js, para a tela poder dizer
+   "esta compra cai na fatura que vence em 08/10" sem ida e volta de rede.
+
+   Duas implementações da mesma regra é dívida, e o preço se paga aqui: estes
+   casos são cópia literal dos casos 1 a 20 do arquivo SQL. Se as duas
+   discordarem, esta suíte acusa. Enquanto concordarem, a duplicação é segura.
+   ------------------------------------------------------------------------ */
+
+eq("dia 31 em fevereiro comum vira 28",  diaNoMes("2026-02", 31), "2026-02-28");
+eq("dia 31 em fevereiro bissexto vira 29", diaNoMes("2028-02", 31), "2028-02-29");
+eq("dia 31 em abril vira 30",            diaNoMes("2026-04", 31), "2026-04-30");
+eq("dia 31 em janeiro continua 31",      diaNoMes("2026-01", 31), "2026-01-31");
+eq("dia 30 em fevereiro comum vira 28",  diaNoMes("2026-02", 30), "2026-02-28");
+eq("dia normal não é tocado",            diaNoMes("2026-09", 25), "2026-09-25");
+
+eq("compra ANTES do fechamento cai na fatura do mês",
+  competenciaDaCompra("2026-09-24", 25), "2026-09");
+eq("compra NO DIA do fechamento cai na fatura seguinte",
+  competenciaDaCompra("2026-09-25", 25), "2026-10");
+eq("compra DEPOIS do fechamento cai na fatura seguinte",
+  competenciaDaCompra("2026-09-26", 25), "2026-10");
+eq("dezembro vira janeiro do ano seguinte",
+  competenciaDaCompra("2026-12-28", 25), "2027-01");
+eq("fechamento 31 em fevereiro: dia 27 ainda é de fevereiro",
+  competenciaDaCompra("2026-02-27", 31), "2026-02");
+eq("fechamento 31 em fevereiro: dia 28 já é de março",
+  competenciaDaCompra("2026-02-28", 31), "2026-03");
+eq("fevereiro bissexto: dia 28 ainda é de fevereiro",
+  competenciaDaCompra("2028-02-28", 31), "2028-02");
+
+eq("fecha 25 e vence 8: vence no mês SEGUINTE",
+  cicloDaFatura("2026-09", 25, 8).vencimento, "2026-10-08");
+eq("e fecha no próprio mês",
+  cicloDaFatura("2026-09", 25, 8).fechamento, "2026-09-25");
+eq("a abertura é o fechamento anterior: a janela é meio aberta",
+  cicloDaFatura("2026-09", 25, 8).abertura, "2026-08-25");
+eq("fecha 10 e vence 20: vence no MESMO mês",
+  cicloDaFatura("2026-09", 10, 20).vencimento, "2026-09-20");
+eq("dezembro vence em janeiro",
+  cicloDaFatura("2026-12", 25, 8).vencimento, "2027-01-08");
+eq("fechamento 31 numa competência de fevereiro bissexto",
+  cicloDaFatura("2028-02", 31, 10).fechamento, "2028-02-29");
+eq("vencimento 31 num mês de 30 dias vira 30",
+  cicloDaFatura("2026-04", 25, 31).vencimento, "2026-04-30");
+
+/* a V1 responde outra pergunta -- em que MÊS a fatura é paga -- e por isso a
+   resposta dela é um mês adiante da competência quando o vencimento vem antes
+   do fechamento. As duas precisam continuar coerentes entre si. */
+eq("a competência da V2 e o mês de pagamento da V1 são coerentes",
+  fromIdx(midx(competenciaDaCompra("2026-09-26", 25)) + 1),
+  faturaDaCompra("2026-09-26", 25, 8));
+
+console.log("\ncartão: situação e rótulo");
+
+eq("sem pagamento e antes do fechamento, a fatura está aberta",
+  situacaoDaFatura({ fechamento: "2026-09-25", pagamentoId: null }, "2026-09-12"), "aberta");
+eq("no dia do fechamento ela já está fechada",
+  situacaoDaFatura({ fechamento: "2026-09-25", pagamentoId: null }, "2026-09-25"), "fechada");
+eq("com pagamento, paga -- mesmo antes do fechamento",
+  situacaoDaFatura({ fechamento: "2026-09-25", pagamentoId: "x" }, "2026-09-01"), "paga");
+/* o rótulo NUNCA é um mês solto: competência 2026-09 vence em outubro, e quem
+   lê chamaria isso de "fatura de outubro" */
+eq("o rótulo mostra as duas datas, nunca o mês sozinho",
+  rotuloDaFatura({ fechamento: "2026-09-25", vencimento: "2026-10-08" }),
+  "fecha 25/09 · vence 08/10");
+
+console.log("\ncartão: parcelamento");
+
+eq("100 em 3 vezes soma exatamente 100",
+  parcelasDe(100, 3).reduce((s, v) => s + v, 0), 100);
+/* A auditoria avisa sobre "valor de exemplo com centavo não zerado" aqui, e o
+   aviso é falso positivo: 33,34 e 33,33 não vieram de base nenhuma, vieram de
+   100 dividido por 3. Arredondar para calar o aviso apagaria justamente o que
+   este caso testa. */
+eq("e a sobra de centavos vai para a primeira",
+  parcelasDe(100, 3), [33.34, 33.33, 33.33]);
+eq("à vista é uma parcela só, com o valor inteiro", parcelasDe(100, 1), [100]);
+eq("valor que divide certo não ganha sobra nenhuma",
+  parcelasDe(90, 3), [30, 30, 30]);
+eq("dez centavos em três: a primeira leva o centavo que sobra",
+  parcelasDe(0.10, 3), [0.04, 0.03, 0.03]);
+eq("as parcelas caem em competências consecutivas",
+  competenciasDasParcelas("2026-11", 3), ["2026-11", "2026-12", "2027-01"]);
+
+console.log("\ncartão: CASO A · compra mais pagamento não é o dobro");
+
+/* ------------------------------------------------------------------------
+   CASO A do contrato anti-dupla-contagem, do lado do JavaScript.
+
+       compra no cartão      R$ 100   fatura_id preenchido, conta_id VAZIO
+       pagamento da fatura   R$ 100   conta_id preenchido, natureza própria
+
+       consumo = 100     caixa = 100     NUNCA 200 em nenhum dos dois
+   ------------------------------------------------------------------------ */
+const casoA = [
+  { id:"c1", tipo:"saida", natureza:"normal", status:"realizada", valor:100,
+    faturaId:"f1", contaId:null },
+  { id:"p1", tipo:"saida", natureza:"pagamento_de_fatura", status:"realizada", valor:100,
+    faturaId:null, contaId:"ct1" },
+];
+eq("CASO A · o consumo é 100, e a compra é quem entra", consumoDe(casoA), 100);
+eq("CASO A · o caixa é 100, e o pagamento é quem entra", caixaDe(casoA), 100);
+eq("CASO A · somar os dois daria 200, e nenhum indicador faz isso",
+  consumoDe(casoA) + caixaDe(casoA), 200);
+eq("a compra no cartão não sai de conta nenhuma", saiDoCaixa(casoA[0]), false);
+eq("e o pagamento da fatura não é consumo novo", ehConsumo(casoA[1]), false);
+eq("transferência não é consumo",
+  ehConsumo({ tipo:"saida", natureza:"transferencia", status:"realizada", valor:50 }), false);
+eq("mas ela sai do caixa de uma conta, sim",
+  saiDoCaixa({ tipo:"saida", natureza:"transferencia", status:"realizada", valor:50, contaId:"ct1" }),
+  true);
+eq("prevista não conta em nenhum dos dois",
+  [consumoDe([{ tipo:"saida", natureza:"normal", status:"prevista", valor:9, faturaId:"f1" }]),
+   caixaDe([{ tipo:"saida", natureza:"normal", status:"prevista", valor:9, contaId:"ct1" }])],
+  [0, 0]);
+
+console.log("\ncartão: indicadores");
+
+const faturasDoCartao = [
+  { faturaId:"f1", total:100, vencimento:"2026-10-08", situacao:"fechada" },
+  { faturaId:"f2", total:250, vencimento:"2026-09-05", situacao:"fechada" },
+  { faturaId:"f3", total:70,  vencimento:"2026-11-08", situacao:"aberta" },
+  { faturaId:"f4", total:400, vencimento:"2026-08-08", situacao:"paga" },
+];
+const cartoesFixture = [
+  { id:"k1", nome:"Cartão Um",  limite:3000, ativo:true },
+  { id:"k2", nome:"Cartão Dois", limite:1000, ativo:true },
+  { id:"k3", nome:"Antigo",     limite:null, ativo:false },
+];
+const indCartoes = indicadoresDeCartoes(cartoesFixture, faturasDoCartao);
+eq("cartão inativo não conta no total ativo", indCartoes.quantidade, 2);
+eq("o que falta pagar soma só as faturas não pagas", indCartoes.aPagar, 420);
+eq("e sabe quantas são", indCartoes.faturasAbertas, 3);
+eq("limite soma só quem tem limite informado", indCartoes.limiteTotal, 4000);
+eq("sem nenhum limite informado, o indicador é null e não zero",
+  indicadoresDeCartoes([{ id:"k", limite:null, ativo:true }], []).limiteTotal, null);
+
+eq("a próxima a vencer ignora as já pagas e as vencidas",
+  (proximaAVencer(faturasDoCartao, "2026-09-12") || {}).faturaId, "f1");
+eq("sem nenhuma a vencer, a resposta é null e não a primeira da lista",
+  proximaAVencer([{ faturaId:"f4", vencimento:"2026-08-08", situacao:"paga" }], "2026-09-12"), null);
+eq("fatura vencida e não paga aparece separada",
+  vencidas(faturasDoCartao, "2026-09-12").map(f => f.faturaId), ["f2"]);
+eq("e fatura paga nunca aparece como vencida",
+  vencidas([{ faturaId:"f4", vencimento:"2026-08-08", situacao:"paga" }], "2026-09-12").length, 0);
 
 console.log(`\n${ok} passaram, ${bad} falharam`);
 process.exit(bad ? 1 : 0);

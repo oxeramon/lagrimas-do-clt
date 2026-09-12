@@ -20,6 +20,7 @@
  * Nada aqui toca DOM nem banco.
  */
 import { contaNoSaldo, semTransferencias } from "./transactions.js";
+import { ehConsumo, saiDoCaixa } from "./cards.js";
 
 export const ABERTO = "aberto";
 export const LIQUIDADO = "liquidado";
@@ -65,14 +66,26 @@ export function saidasDoMes({ compromissos, transacoes, liquidacoes, pagos, mes 
   /* O movimento vem das transações, e não da soma dos compromissos liquidados.
      São quase sempre o mesmo número -- e "quase" é o motivo: a pessoa pode ter
      pago um valor diferente do previsto, e quem manda no extrato é o extrato.
-     Transferência fica de fora: ela não é despesa, só muda de gaveta. */
-  const movimento = semTransferencias(transacoes || [])
-    .filter((t) => t.tipo === "saida" && contaNoSaldo(t))
+     Transferência fica de fora: ela não é despesa, só muda de gaveta.
+
+     ISTO É CAIXA, e caixa exige conta: `saiDoCaixa` pede `contaId`. Compra no
+     cartão não tem conta nenhuma -- quando ela acontece, nenhum dinheiro saiu
+     de lugar nenhum, e contá-la aqui somaria a compra ao pagamento da fatura
+     mais tarde. É o CASO A do contrato, visto do Painel. */
+  const lista = semTransferencias(transacoes || []);
+  const movimento = lista.filter(saiDoCaixa)
+    .reduce((s, t) => s + Number(t.valor || 0), 0);
+
+  /* A outra pergunta, que NÃO se soma à de cima: quanto foi consumido. Aqui a
+     compra no cartão entra e o pagamento da fatura não, exatamente ao
+     contrário do caixa. Ver docs/CONTRATO_CARTAO.md. */
+  const consumo = lista.filter(ehConsumo)
     .reduce((s, t) => s + Number(t.valor || 0), 0);
 
   return {
     previsto: caixas.aberto,
     realizado: movimento,
+    consumo,
     pagoSemMovimento: caixas.pagoSemMovimento,
     liquidado: caixas.liquidado,
     itens: caixas.itens,
@@ -99,8 +112,9 @@ export function entradasDoMes({ receitas, transacoes, liquidacoes, mes }){
     }
   }
 
+  /* Simétrico da saída: entrada só é caixa quando caiu numa conta. */
   const movimento = semTransferencias(transacoes || [])
-    .filter((t) => t.tipo === "entrada" && contaNoSaldo(t))
+    .filter((t) => t.tipo === "entrada" && t.contaId && contaNoSaldo(t))
     .reduce((s, t) => s + Number(t.valor || 0), 0);
 
   return { previsto: aReceber, realizado: movimento, recebidoPrevisto, itens };
