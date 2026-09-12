@@ -14,6 +14,7 @@ em ordem. Este arquivo é o registro; o SQL é a fonte.
 | `20260912214949` | `../supabase/migrations/006_v2_trigger_grants.sql` | 12/09/2026 | **aplicada** |
 | `20260912230851` | `../supabase/migrations/007_v2_cartoes_e_faturas.sql` | 12/09/2026 | **aplicada** |
 | `20260912233655` | `../supabase/migrations/008_v2_assinaturas.sql` | 12/09/2026 | **aplicada** |
+| `20260912235737` | `../supabase/migrations/009_v2_grupos_e_rateios.sql` | 12/09/2026 | **aplicada** |
 
 **Migração aplicada não se edita.** Quando o arquivo e o banco discordam, some
 a única fonte confiável sobre o que rodou. Conserto vira migração nova, e é por
@@ -409,6 +410,69 @@ próprio DDL numa transação revertida: 35 de 35 no ensaio e 35 de 35 depois.
 O caso 9 é o que mais importa: a segunda geração cria zero. Se ele quebrar,
 chamar a geração a cada carga da tela encheria o banco de duplicatas.
 
+## 009 · grupos, rateios e acertos
+
+A mesma ideia das anteriores, vista de mais um ângulo:
+
+> **GRUPO calcula OBRIGAÇÃO.** "Carlos te deve R$ 100."
+> **TRANSAÇÃO calcula DINHEIRO.** "Carlos pagou R$ 100 na sua conta."
+
+Registrar um acerto no grupo não move dinheiro nenhum. Quem liga as duas
+metades é a pessoa, escolhendo a conta — nunca o app por conta própria.
+Adivinhar aqui é a maneira mais rápida de inventar uma entrada que não existiu.
+
+### Minimização de dados
+
+Membro de grupo **não é usuário do app** e não precisa ser. A tabela guarda
+nome, apelido e nada mais. Sem e-mail, sem telefone, sem documento — não porque
+seja difícil, mas porque não é necessário, e dado pessoal que não existe não
+vaza. O caso 3 dos testes cobra isso consultando o `information_schema`: se
+alguém acrescentar uma dessas colunas, o teste acusa.
+
+### O contrato dos centavos, cobrado pelo banco
+
+A soma dos rateios é **exatamente** o valor da despesa. Não "aproximadamente".
+Dois gatilhos postergados cobram isso — um do lado do rateio, outro do lado da
+despesa — e eles são `deferrable initially deferred` porque os rateios entram
+um a um: conferir a cada linha recusaria a primeira. É a mesma técnica que a
+002 usa para as duas pernas de uma transferência.
+
+Estar no banco e não na RPC importa: **nem a RPC consegue contornar.** Quem
+escrever direto na tabela esbarra na mesma regra.
+
+Despesa sem rateio nenhum também é pega: a soma de zero linhas é zero, e zero é
+diferente do valor da despesa.
+
+### O saldo, e a prova de que a conta fecha
+
+```
+saldo = pagou − coube − recebeu de acerto + quitou de acerto
+```
+
+Positivo tem a receber, negativo deve. E **a soma dos saldos de um grupo é
+sempre zero** — é assim que se sabe que a conta fecha, e é um caso de teste.
+
+### `sou_eu`
+
+Um membro por grupo pode ser marcado como a própria pessoa, garantido por
+índice parcial único. Sem isso o app só saberia dizer "A deve a B", que não
+ajuda ninguém a decidir nada. Zero também é válido: dá para acompanhar o rateio
+de outras pessoas.
+
+É `sou_eu` que decide o sinal quando um acerto entra em conta — entrada quando o
+dinheiro vem para você, saída quando sai. Acerto entre duas outras pessoas não
+entra na sua conta, e a RPC recusa.
+
+### Como foi provada
+
+`supabase/testes/009_grupos.sql`, **35 casos**, como `authenticated` e como
+`anon`, em transação com `rollback`. Rodados antes da aplicação junto com o
+DDL, e de novo depois: 35 de 35 nas duas vezes.
+
+O `deve_falhar` deste arquivo é diferente dos outros: ele chama `set
+constraints all immediate` antes de julgar, porque gatilho postergado só
+dispara no commit — e este arquivo nunca faz commit.
+
 ## O que os advisors dizem agora
 
 Segurança: **uma única ocorrência**, e é configuração de Auth, não de schema —
@@ -441,7 +505,7 @@ errado com cara de certo; até haver contrato, pagamento de fatura é integral.
 **Estorno tem schema e não tem botão.** O contrato de estorno parcial e
 múltiplo ainda não foi definido.
 
-**A instalação do zero ainda é um arquivo só.** Com oito migrações aplicadas,
+**A instalação do zero ainda é um arquivo só.** Com nove migrações aplicadas,
 `supabase-setup.sql` sozinho não reconstrói mais o banco inteiro. O
 `supabase/README.md` explica a ordem; separar em `schema.sql` + `seed.sql` +
 `migrations/` passou a fazer sentido e ainda não foi feito.
