@@ -34,6 +34,7 @@ export const ABAS = [
   { id: "receitas",   rotulo: "Receitas",    grupo: "MEU DINHEIRO",   rodape: false },
   { id: "dividas",    rotulo: "Dívidas",     grupo: "PLANEJAMENTO",   rodape: false },
   { id: "proj",       rotulo: "Projeção",    grupo: "PLANEJAMENTO",   rodape: false },
+  { id: "assinaturas", rotulo: "Assinaturas", grupo: "ROTINAS",        rodape: false },
   { id: "ajustes",    rotulo: "Ajustes",     grupo: "CONFIGURAÇÕES",  rodape: false },
 ];
 

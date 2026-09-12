@@ -71,6 +71,7 @@
         <button class="navitem" id="nav-receitas" role="tab" aria-selected="false" aria-controls="p-receitas"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7l6 6 4-4 8 8"/><path d="M21 13v4h-4"/></svg><span>Receitas</span></button>
         <p class="grupo-nav">PLANEJAMENTO</p>
         <button class="navitem" id="nav-dividas" role="tab" aria-selected="false" aria-controls="p-dividas"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 17l6-6 4 4 8-8"/><path d="M21 11V7h-4"/></svg><span>Dívidas</span></button>
+        <button class="navitem" id="nav-assinaturas" role="tab" aria-selected="false" aria-controls="p-assinaturas"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12a8 8 0 0 1 13.6-5.7M20 12a8 8 0 0 1-13.6 5.7"/><path d="M17 3v4h-4M7 21v-4h4"/></svg><span>Assinaturas</span></button>
         <button class="navitem" id="nav-proj" role="tab" aria-selected="false" aria-controls="p-proj"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 3v18h18"/><path d="M7 14l4-4 3 3 5-6"/></svg><span>Projeção</span></button>
       </nav>
       <div class="sep"></div>
@@ -351,6 +352,42 @@
     </section>
 
     <!-- ==================== TRANSAÇÕES ==================== -->
+
+    <!-- ==================== ASSINATURAS ==================== -->
+    <section class="panel stack" id="p-assinaturas" role="tabpanel" aria-labelledby="nav-assinaturas" hidden>
+      <div id="assinaturasVazio" hidden>
+        <div class="vazio">
+          <div class="emoji" aria-hidden="true">🔁</div>
+          <h3>Nenhuma assinatura cadastrada</h3>
+          <p>Aquelas cobranças que aparecem sozinhas todo mês. Cadastre e o app passa a contá-las antes de elas chegarem.</p>
+          <button class="btn primary" id="btnPrimeiraAssinatura">Adicionar a primeira</button>
+        </div>
+      </div>
+
+      <div id="assinaturasConteudo" hidden>
+        <div class="lente">
+          <h2>Por mês, somando tudo</h2>
+          <p class="numerao" id="asMensal">—</p>
+          <p class="piada" id="asPiada"></p>
+          <div class="fatias">
+            <div class="fatia"><b id="asAnual">—</b><span>Por ano</span></div>
+            <div class="fatia"><b id="asQuantidade">—</b><span>Ativas</span></div>
+            <div class="fatia"><b id="asMaior">—</b><span>A maior</span></div>
+          </div>
+        </div>
+
+        <p class="hint" id="asProximas" hidden></p>
+
+        <div class="linha-acoes">
+          <h2 class="titulo-secao">Suas assinaturas</h2>
+          <span class="sep"></span>
+          <button class="btn primary sm" id="btnNovaAssinatura">Nova assinatura</button>
+        </div>
+
+        <div id="listaAssinaturas"></div>
+      </div>
+    </section>
+
     <section class="panel stack" id="p-transacoes" role="tabpanel" aria-labelledby="nav-transacoes" hidden>
       <div id="txSemConta" hidden>
         <div class="vazio">
@@ -912,6 +949,38 @@
     <button type="button" class="btn" data-fechar="dlgFatura">Fechar</button>
     <button type="button" class="btn primary" id="ftPagarBtn">Pagar fatura</button>
   </div>
+</dialog>
+
+
+<dialog id="dlgAssinatura">
+  <form id="formAssinatura">
+    <div class="dlg-h"><h2 id="asTitulo">Nova assinatura</h2><button type="button" class="btn ghost" data-fechar="dlgAssinatura" aria-label="Fechar"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M18 6L6 18M6 6l12 12"/></svg></button></div>
+    <div class="formgrid">
+      <div class="field full"><label for="as_nome">Nome</label>
+        <input id="as_nome" maxlength="60" required placeholder="Serviço de streaming"></div>
+      <div class="field"><label for="as_valor">Valor (R$)</label>
+        <input type="number" id="as_valor" step="0.01" min="0.01" inputmode="decimal" required></div>
+      <div class="field"><label for="as_frequencia">Cobrança</label><select id="as_frequencia"></select></div>
+      <p class="hint full" id="asEquivalente" hidden></p>
+      <div class="field"><label for="as_inicio">Primeira cobrança</label>
+        <input type="date" id="as_inicio" required></div>
+      <div class="field"><label for="as_fim">Até (opcional)</label><input type="date" id="as_fim"></div>
+      <div class="field"><label for="as_meio">Cobrada em</label><select id="as_meio"></select></div>
+      <div class="field"><label for="as_categoria">Categoria</label><select id="as_categoria"></select></div>
+      <div class="field full"><label for="as_logo">Logo (URL pública, opcional)</label>
+        <input id="as_logo" maxlength="300" placeholder="https://…"></div>
+      <div class="field full"><label for="as_obs">Observação</label><input id="as_obs" maxlength="200"></div>
+      <div class="field"><label for="as_ativo">Situação</label>
+        <select id="as_ativo"><option value="sim">Ativa</option><option value="nao">Pausada</option></select></div>
+      <p class="hint full" id="asErro" role="alert" hidden></p>
+    </div>
+    <div class="dlg-f">
+      <button type="button" class="btn ghost" id="asExcluir" hidden>Excluir</button>
+      <span style="flex:1"></span>
+      <button type="button" class="btn" data-fechar="dlgAssinatura">Cancelar</button>
+      <button type="submit" class="btn primary" id="asSalvar">Salvar</button>
+    </div>
+  </form>
 </dialog>
 
 <dialog id="dlgLiquidar">

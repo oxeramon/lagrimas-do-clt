@@ -75,7 +75,7 @@ await new Promise((ok) => servidor.listen(PORTA, "127.0.0.1", ok));
 /* --------------------------------------------------------------- dublê --*/
 const DUBLE = `
 const T = { instituicoes:[], contas:[], categorias:[], transacoes:[], liquidacoes:[],
-            cartoes:[], faturas:[], compras_de_cartao:[],
+            cartoes:[], faturas:[], compras_de_cartao:[], assinaturas:[],
             dividas:[], fixas:[], credores:[], receitas:[], pagamentos:[], fixas_mes:[], config:[] };
 let seq = 0;
 const uid = () => "id-" + (++seq);
@@ -111,8 +111,23 @@ function faturasResolvidas(){
              situacao: l ? "paga" : (hoje >= f.fechamento ? "fechada" : "aberta") };
   });
 }
+/* a view assinaturas_resolvidas: custo equivalente e próxima cobrança, os dois
+   DERIVADOS -- guardar a próxima cobrança seria guardar algo que envelhece */
+const POR_ANO = { semanal:52, mensal:12, bimestral:6, trimestral:4, semestral:2, anual:1 };
+function assinaturasResolvidas(){
+  const hoje = new Date().toISOString().slice(0,10);
+  return T.assinaturas.map(a => {
+    const anual = Math.round(a.valor * POR_ANO[a.frequencia] * 100) / 100;
+    const prox = T.transacoes
+      .filter(t => t.assinatura_id === a.id && t.status === "prevista" && t.data >= hoje)
+      .map(t => t.data).sort()[0] || null;
+    return { ...a, custo_anual:anual, custo_mensal:Math.round(anual / 12 * 100) / 100,
+             proxima_cobranca:prox };
+  });
+}
 const linhasDe = (t) => t === "saldos_de_conta" ? saldos()
                       : t === "faturas_resolvidas" ? faturasResolvidas()
+                      : t === "assinaturas_resolvidas" ? assinaturasResolvidas()
                       : (T[t] || []);
 
 export function createClient(){
@@ -188,6 +203,42 @@ export function createClient(){
           conta_id: t.tipo === "saida" ? a.p_conta_origem : a.p_conta_destino }));
         return Promise.resolve({ data:a.p_transferencia, error:null });
       }
+      /* --- assinaturas, mesma regra da 008 --- */
+      if (nome === "materializa_assinaturas"){
+        const hoje = new Date();
+        const iso = (d) => d.toISOString().slice(0,10);
+        const limite = a.p_ate || iso(new Date(Date.UTC(
+          hoje.getUTCFullYear(), hoje.getUTCMonth() + 2, hoje.getUTCDate())));
+        let criadas = 0;
+        for (const s of T.assinaturas){
+          /* semanal fica de fora: a competência por mês não distingue quatro
+             cobranças do mesmo mês. Mesma exclusão declarada da 008. */
+          if (!s.ativo || s.frequencia === "semanal") continue;
+          if (s.fim && s.fim < iso(hoje)) continue;
+          const passo = { mensal:1, bimestral:2, trimestral:3, semestral:6, anual:12 }[s.frequencia];
+          let d = new Date(s.inicio + "T00:00:00Z");
+          let voltas = 0;
+          while (iso(d) < iso(hoje) && voltas++ < 2000)
+            d = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + passo, d.getUTCDate()));
+          while (iso(d) <= limite && (!s.fim || iso(d) <= s.fim)){
+            const comp = iso(d).slice(0,7);
+            /* a idempotência é do BANCO: a mesma competência não entra duas
+               vezes, e é isso que torna seguro chamar isto a cada carga */
+            if (!T.transacoes.some(t => t.assinatura_id === s.id && t.competencia === comp)){
+              T.transacoes.push({ id:uid(), user_id:"u1", conta_id:s.conta_id || null,
+                fatura_id:null, compra_id:null, parcela:null, total_parcelas:null,
+                assinatura_id:s.id, competencia:comp, categoria_id:s.categoria_id || null,
+                tipo:"saida", natureza:"normal", descricao:s.nome, valor:s.valor,
+                data:iso(d), status:"prevista", origem:"recorrencia", origem_id:s.id,
+                obs:"", transferencia_id:null });
+              criadas++;
+            }
+            d = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + passo, d.getUTCDate()));
+          }
+        }
+        return Promise.resolve({ data:criadas, error:null });
+      }
+
       /* --- cartão e fatura, mesma regra da 007 --- */
       const diasDoMes = (mes) => {
         const [a,m] = mes.split("-").map(Number);
@@ -922,7 +973,136 @@ console.log("\ncartão e fatura");
 }
 
 /* ==================================================================
-   5. ROLAGEM LATERAL: mobile é primeira classe
+   5. ASSINATURAS: a regra, e a ocorrência que ela gera
+   ==================================================================
+   A propriedade que este bloco existe para provar: gerar duas vezes não
+   duplica nada. Sem ela, chamar a materialização a cada carga da tela -- que
+   é exatamente o que o app faz -- encheria o banco de cobranças repetidas.
+   ================================================================== */
+console.log("\nassinaturas");
+{
+  const { p, erros } = await abreApp(1440);
+  await criaConta(p, "Conta Alfa", 1000, true);
+
+  await vaiPara(p, "assinaturas");
+  await p.waitForTimeout(150);
+  eq("sem assinatura, a tela mostra o vazio",
+    await p.evaluate(() => !document.getElementById("assinaturasVazio").hidden), true);
+
+  await p.click("#btnPrimeiraAssinatura");
+  await p.waitForTimeout(250);
+  await p.fill("#as_nome", "Assinatura Mensal");
+  await p.fill("#as_valor", "30");
+  await p.fill("#as_inicio", "2026-09-20");
+  await p.click("#asSalvar");
+  await p.waitForTimeout(500);
+
+  eq("a assinatura foi criada",
+    await p.evaluate(() => globalThis.__T.assinaturas.map(a => a.nome)), ["Assinatura Mensal"]);
+  eq("e a tela troca o vazio pela lista",
+    await p.evaluate(() => !document.getElementById("assinaturasConteudo").hidden), true);
+  eq("o custo mensal aparece no topo",
+    (await p.textContent("#asMensal")).replace(/ /g, " "), "R$ 30,00");
+  eq("e o anual equivalente também",
+    (await p.textContent("#asAnual")).replace(/ /g, " "), "R$ 360,00");
+
+  /* a materialização já rodou na carga; as ocorrências são PREVISTAS */
+  const ocorrencias = await p.evaluate(() => {
+    const t = globalThis.__T.transacoes.filter(x => x.assinatura_id);
+    return { quantas: t.length, todasPrevistas: t.every(x => x.status === "prevista"),
+             comCompetencia: t.every(x => !!x.competencia) };
+  });
+  eq("a assinatura virou ocorrências previstas", ocorrencias.quantas > 0, true);
+  eq("todas nascem previstas: elas ainda não aconteceram", ocorrencias.todasPrevistas, true);
+  eq("e cada uma sabe de qual período é", ocorrencias.comCompetencia, true);
+
+  /* PREVISTO NÃO É DINHEIRO */
+  await vaiPara(p, "contas");
+  await p.waitForTimeout(250);
+  eq("ocorrência prevista não mexe no saldo da conta",
+    (await p.textContent("#ctSaldoTotal")).replace(/ /g, " "), "R$ 1.000,00");
+
+  /* A IDEMPOTÊNCIA, medida recarregando a tela inteira */
+  const antes = await p.evaluate(() => globalThis.__T.transacoes.length);
+  await vaiPara(p, "assinaturas");
+  await p.waitForTimeout(150);
+  await vaiPara(p, "contas");
+  await p.waitForTimeout(150);
+  await p.click("#btnNovaConta");
+  await p.waitForTimeout(200);
+  await p.fill("#cn_nome", "Conta Beta");
+  await p.fill("#cn_saldo", "0");
+  await p.click("#cnSalvar");
+  await p.waitForTimeout(500);
+  eq("recarregar não cria ocorrência nenhuma a mais: a idempotência é do banco",
+    await p.evaluate(() => globalThis.__T.transacoes.length), antes);
+
+  /* ANUAL: o equivalente é o que dá sentido à comparação */
+  await vaiPara(p, "assinaturas");
+  await p.waitForTimeout(150);
+  await p.click("#btnNovaAssinatura");
+  await p.waitForTimeout(250);
+  await p.fill("#as_nome", "Assinatura Anual");
+  await p.fill("#as_valor", "120");
+  await p.selectOption("#as_frequencia", "anual");
+  await p.fill("#as_inicio", "2026-10-01");
+  await p.waitForTimeout(150);
+  eq("o diálogo mostra o equivalente mensal antes de salvar",
+    (await p.textContent("#asEquivalente")).includes("10,00"), true);
+  await p.click("#asSalvar");
+  await p.waitForTimeout(500);
+
+  eq("o custo mensal soma os equivalentes, não os valores crus",
+    (await p.textContent("#asMensal")).replace(/ /g, " "), "R$ 40,00");
+  /* 120 por ano é MENOR que 30 por mês, e a tela precisa concordar com isso */
+  eq("a maior é pela régua mensal", await p.textContent("#asMaior"), "Assinatura Mensal");
+
+  /* SEMANAL: cadastra, avisa, e não gera */
+  await p.click("#btnNovaAssinatura");
+  await p.waitForTimeout(250);
+  await p.fill("#as_nome", "Assinatura Semanal");
+  await p.fill("#as_valor", "9");
+  await p.selectOption("#as_frequencia", "semanal");
+  await p.fill("#as_inicio", "2026-09-15");
+  await p.waitForTimeout(150);
+  eq("o diálogo avisa que a semanal ainda não vira lançamento",
+    (await p.textContent("#asEquivalente")).includes("ainda não vira lançamento"), true);
+  await p.click("#asSalvar");
+  await p.waitForTimeout(500);
+  eq("ela é cadastrada",
+    await p.evaluate(() => globalThis.__T.assinaturas.length), 3);
+  eq("mas não gera ocorrência nenhuma",
+    await p.evaluate(() => globalThis.__T.transacoes.filter(t =>
+      t.assinatura_id === globalThis.__T.assinaturas.find(a => a.frequencia === "semanal").id).length),
+    0);
+  eq("e a lista diz isso, em vez de deixar esperando",
+    (await p.textContent("#listaAssinaturas")).includes("ainda não vira lançamento"), true);
+
+  /* Antes de pausar, as três somam 79 por mês equivalente: 30 da mensal, 10 da
+     anual e 39 da semanal. A semanal ENTRA no custo mesmo sem virar
+     lançamento -- ela é cobrada de qualquer jeito, e deixá-la fora do total
+     seria mentir sobre quanto a pessoa gasta. */
+  eq("a semanal entra no custo mesmo sem virar lançamento",
+    (await p.textContent("#asMensal")).replace(/\u00a0/g, " "), "R$ 79,00");
+
+  /* PAUSAR tira do custo sem apagar o histórico. A primeira da lista é a
+     mensal, de 30: 79 menos 30 dá 49. */
+  await p.click("#listaAssinaturas [data-editassinatura]");
+  await p.waitForTimeout(250);
+  await p.selectOption("#as_ativo", "nao");
+  await p.click("#asSalvar");
+  await p.waitForTimeout(500);
+  eq("assinatura pausada sai do custo mensal",
+    (await p.textContent("#asMensal")).replace(/ /g, " "), "R$ 49,00");
+  eq("mas continua na lista, marcada",
+    (await p.textContent("#listaAssinaturas")).includes("pausada"), true);
+
+  eq("nenhum erro de JavaScript no caminho inteiro", erros, []);
+  await p.close();
+}
+
+/* ==================================================================
+   6. ROLAGEM LATERAL: mobile é primeira classe
    ================================================================== */
 console.log("\nrolagem lateral");
 {
@@ -955,7 +1135,8 @@ console.log("\nrolagem lateral");
 
   for (const largura of [320, 360, 390, 768, 1366, 1440]){
     await p.setViewportSize({ width: largura, height: 900 });
-    for (const aba of ["painel", "mes", "contas", "cartoes", "transacoes", "receitas"]){
+    for (const aba of ["painel", "mes", "contas", "cartoes", "assinaturas",
+                       "transacoes", "receitas"]){
       await vaiPara(p, aba);
       await p.waitForTimeout(120);
       eq(`sem rolagem lateral em ${largura}px na aba ${aba}`,

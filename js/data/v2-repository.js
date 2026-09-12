@@ -273,3 +273,24 @@ export const pagaFatura = (p) => consulta(
    vezes devolve a mesma fatura, e quem garante é o `unique` do banco. */
 export const faturaDoCartao = (cartaoId, data) => consulta(
   bancoV2().rpc("fatura_do_cartao", { p_cartao: cartaoId, p_data: data }), "fatura");
+
+/* ---------------------------------------------------------- assinaturas --
+   Assinatura é REGRA; ocorrência é uma transação prevista. Ver a migração 008.
+
+   A lista vem da VIEW, que já traz custo mensal equivalente, custo anual e a
+   próxima cobrança derivados. */
+export const listaAssinaturas = () => consulta(
+  bancoV2().from("assinaturas_resolvidas").select("*").order("ordem").order("nome"),
+  "assinaturas");
+
+export const salvaAssinatura = (modelo, id) => consulta(
+  id ? bancoV2().from("assinaturas").update(paraBanco(modelo)).eq("id", id)
+     : bancoV2().from("assinaturas").insert(paraBanco(modelo)), "assinatura");
+export const removeAssinatura = (id) =>
+  consulta(bancoV2().from("assinaturas").delete().eq("id", id), "assinatura");
+
+/* Gera as ocorrências que faltam na janela curta. É SEGURO chamar a cada carga
+   da tela: a `unique (user_id, assinatura_id, competencia)` garante que rodar
+   duas vezes não duplica nada. Devolve quantas criou. */
+export const materializaAssinaturas = (ate) => consulta(
+  bancoV2().rpc("materializa_assinaturas", { p_ate: ate || null }), "assinaturas");

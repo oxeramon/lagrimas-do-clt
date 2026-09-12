@@ -30,6 +30,9 @@ import { diaNoMes, competenciaDaCompra, cicloDaFatura, situacaoDaFatura,
          rotuloDaFatura, parcelasDe, competenciasDasParcelas, consumoDe, caixaDe,
          ehConsumo, saiDoCaixa, indicadoresDeCartoes, proximaAVencer, vencidas }
   from "../js/domain/cards.js";
+import { custoMensal, custoAnual, indicadoresDeAssinaturas, proximasCobrancas,
+         meioDaAssinatura, venceu, materializa, rotuloDaFrequencia }
+  from "../js/domain/subscriptions.js";
 import { indicadoresDeContas, porInstituicao, porTipo, saldoDaConta,
          rotuloDoTipo, podeExcluirConta } from "../js/domain/accounts.js";
 import { sinalDe, valorComSinal, contaNoSaldo, ehTransferencia, filtraTransacoes,
@@ -860,6 +863,70 @@ eq("fatura vencida e não paga aparece separada",
   vencidas(faturasDoCartao, "2026-09-12").map(f => f.faturaId), ["f2"]);
 eq("e fatura paga nunca aparece como vencida",
   vencidas([{ faturaId:"f4", vencimento:"2026-08-08", situacao:"paga" }], "2026-09-12").length, 0);
+
+
+console.log("\nassinaturas: custo equivalente");
+
+/* Os mesmos casos 1 a 4 de supabase/testes/008_assinaturas.sql. A view do banco
+   e este módulo respondem a mesma pergunta, e discordar seria mostrar um
+   número na digitação e outro depois de salvar. */
+eq("mensal: o custo mensal é o próprio valor", custoMensal(30, "mensal"), 30);
+eq("mensal: o custo anual é doze vezes", custoAnual(30, "mensal"), 360);
+eq("anual: o mensal equivalente é um doze avos", custoMensal(120, "anual"), 10);
+eq("anual: o custo anual é o próprio valor", custoAnual(120, "anual"), 120);
+eq("semanal: 52 semanas por ano", custoAnual(9, "semanal"), 468);
+eq("semestral: duas por ano", custoAnual(60, "semestral"), 120);
+eq("trimestral: quatro por ano", custoAnual(25, "trimestral"), 100);
+
+/* comparar pelo valor cru diria que a anual de 120 é maior que a mensal de 30,
+   e ela não é: 10 por mês contra 30 por mês */
+eq("a régua da comparação é o equivalente mensal, não o valor cru",
+  custoMensal(120, "anual") < custoMensal(30, "mensal"), true);
+
+console.log("\nassinaturas: indicadores");
+
+const assinaturas = [
+  { id:"a1", nome:"Mensal",  valor:30,  frequencia:"mensal", ativo:true,
+    proximaCobranca:"2026-09-20", contaId:"ct1", cartaoId:null },
+  { id:"a2", nome:"Anual",   valor:120, frequencia:"anual",  ativo:true,
+    proximaCobranca:"2026-10-01", contaId:null, cartaoId:"k1" },
+  { id:"a3", nome:"Pausada", valor:99,  frequencia:"mensal", ativo:false,
+    proximaCobranca:null, contaId:null, cartaoId:null },
+  { id:"a4", nome:"Acabou",  valor:50,  frequencia:"mensal", ativo:true,
+    fim:"2026-08-31", proximaCobranca:null, contaId:null, cartaoId:null },
+];
+const indAs = indicadoresDeAssinaturas(assinaturas, "2026-09-12");
+eq("assinatura pausada fica fora da conta", indAs.quantidade, 2);
+eq("assinatura com fim já passado também, mesmo sem ninguém ter desligado",
+  venceu(assinaturas[3], "2026-09-12"), true);
+eq("o custo mensal soma os equivalentes: 30 mais 10", indAs.mensal, 40);
+eq("e o anual é doze vezes isso", indAs.anual, 480);
+eq("a maior é pela régua mensal, não pelo valor cru", indAs.maior.nome, "Mensal");
+
+eq("as próximas cobranças vêm em ordem",
+  proximasCobrancas(assinaturas, "2026-09-12", 3).map(a => a.nome), ["Mensal", "Anual"]);
+eq("cobrança já passada não é 'próxima'",
+  proximasCobrancas(assinaturas, "2026-09-25", 3).map(a => a.nome), ["Anual"]);
+eq("sem nenhuma à frente, a lista é vazia e não a primeira da fixture",
+  proximasCobrancas(assinaturas, "2027-01-01", 3).length, 0);
+
+console.log("\nassinaturas: onde é cobrada, e o que ainda não vira lançamento");
+
+eq("cobrada em conta", meioDaAssinatura(assinaturas[0], [{ id:"ct1", nome:"Conta Alfa" }], []).rotulo,
+  "Conta Alfa");
+eq("cobrada no cartão", meioDaAssinatura(assinaturas[1], [], [{ id:"k1", nome:"Cartão Um" }]).onde,
+  "cartao");
+/* "ainda não escolhido" é um estado real, e não um erro: forçar a escolha
+   produziria dado errado */
+eq("sem conta e sem cartão tem nome próprio",
+  meioDaAssinatura(assinaturas[2], [], []).rotulo, "Ainda não escolhido");
+
+eq("mensal vira lançamento", materializa("mensal"), true);
+/* quatro cobranças semanais caem no mesmo mês e a chave por competência não as
+   distingue -- a 008 deixa a semanal de fora, e a tela precisa avisar */
+eq("semanal ainda não vira lançamento, e isso é declarado", materializa("semanal"), false);
+eq("o rótulo da frequência é frase, não jargão",
+  rotuloDaFrequencia("bimestral"), "A cada 2 meses");
 
 console.log(`\n${ok} passaram, ${bad} falharam`);
 process.exit(bad ? 1 : 0);

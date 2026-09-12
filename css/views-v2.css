@@ -367,3 +367,23 @@
   .cartao-topo .btn{order:3; margin-left:auto}
   .cartao-valor{order:2}
 }
+
+/* ======================================================= assinaturas =====
+   Lista simples: identidade, regra, valor, editar. A assinatura não tem
+   sub-itens como o cartão tem faturas, então ela não precisa ser um bloco. */
+.assinatura-linha{display:flex; align-items:center; gap:var(--e-3);
+  padding:12px var(--e-4); border-bottom:1px solid var(--line);
+  background:var(--surface)}
+.assinatura-linha:first-child{border-top-left-radius:var(--raio-2);
+  border-top-right-radius:var(--raio-2); border-top:1px solid var(--line)}
+.assinatura-linha:last-child{border-bottom-left-radius:var(--raio-2);
+  border-bottom-right-radius:var(--raio-2)}
+.assinatura-linha.off{opacity:.6}
+/* quem encolhe é a descrição, não o valor nem o alvo de clique */
+.assinatura-linha .desc{flex:1; min-width:0}
+.assinatura-linha .desc b{display:block; font-weight:var(--peso-medio);
+  font-size:14px; overflow-wrap:anywhere}
+.assinatura-linha .meta{font-size:11.5px; color:var(--ink-3)}
+.assinatura-linha .amt{font-weight:var(--peso-forte); white-space:nowrap;
+  font-variant-numeric:tabular-nums}
+.assinatura-linha .btn{flex-shrink:0}
