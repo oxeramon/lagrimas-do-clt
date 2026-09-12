@@ -217,3 +217,59 @@ export const desfazLiquidacao = (p) => consulta(
   bancoV2().rpc("desfaz_liquidacao", {
     p_tipo: p.tipo, p_item_id: p.itemId, p_competencia: p.competencia,
   }), "desfazer");
+
+/* ------------------------------------------------------ cartões e faturas --
+   Ver `docs/CONTRATO_CARTAO.md` e a migração 007. A regra que governa tudo
+   aqui: compra no cartão é despesa; pagamento da fatura não é despesa nova. */
+
+/* Cartões e faturas vêm juntos: a tela de Cartões não desenha um cartão sem
+   saber o que ele deve. As faturas vêm da VIEW, que já traz total, pago e
+   situação derivados -- consultar a tabela crua daria uma fatura sem número. */
+export async function carregaCartoes(){
+  const c = bancoV2();
+  const [ct, fa] = await Promise.all([
+    c.from("cartoes").select("*").order("ordem").order("nome"),
+    c.from("faturas_resolvidas").select("*").order("vencimento", { ascending: false }),
+  ]);
+  const falha = [ct, fa].find((r) => r.error);
+  if (falha) return { dados: null, erro: falha.error.message };
+  return { erro: null, dados: { cartoes: doBanco(ct.data || []), faturas: doBanco(fa.data || []) } };
+}
+
+export const salvaCartao = (modelo, id) => consulta(
+  id ? bancoV2().from("cartoes").update(paraBanco(modelo)).eq("id", id)
+     : bancoV2().from("cartoes").insert(paraBanco(modelo)), "cartão");
+export const removeCartao = (id) =>
+  consulta(bancoV2().from("cartoes").delete().eq("id", id), "cartão");
+
+/* Os itens de uma fatura. Carregados sob demanda, ao abrir o detalhe: uma
+   fatura pode ter dezenas de linhas e a lista de cartões não precisa delas. */
+export const itensDaFatura = (faturaId) => consulta(
+  bancoV2().from("transacoes").select("*").eq("fatura_id", faturaId)
+    .order("data", { ascending: false }), "fatura");
+
+/* A compra e as N parcelas nascem juntas ou não nascem. Meia compra parcelada
+   no banco seria pior que nenhuma, porque pareceria certa. */
+export const registraCompraDeCartao = (p) => consulta(
+  bancoV2().rpc("registra_compra_de_cartao", {
+    p_cartao:      p.cartaoId,
+    p_descricao:   p.descricao,
+    p_valor_total: p.valor,
+    p_data:        p.data,
+    p_parcelas:    p.parcelas || 1,
+    p_categoria:   p.categoriaId || null,
+    p_obs:         p.obs || "",
+  }), "compra");
+
+/* Saída da conta + vínculo, numa transação. O vínculo é o MESMO mecanismo da
+   ponte da 005: fatura é mais um compromisso. */
+export const pagaFatura = (p) => consulta(
+  bancoV2().rpc("paga_fatura", {
+    p_fatura: p.faturaId, p_conta: p.contaId, p_valor: p.valor,
+    p_data: p.data, p_obs: p.obs || "",
+  }), "fatura");
+
+/* Encontra OU cria a fatura do ciclo daquela data. Idempotente: chamar duas
+   vezes devolve a mesma fatura, e quem garante é o `unique` do banco. */
+export const faturaDoCartao = (cartaoId, data) => consulta(
+  bancoV2().rpc("fatura_do_cartao", { p_cartao: cartaoId, p_data: data }), "fatura");

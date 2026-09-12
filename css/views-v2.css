@@ -315,3 +315,55 @@
 .num-destaque{ font-family:"IBM Plex Mono",ui-monospace,monospace;
   font-variant-numeric:tabular-nums; font-size:22px; font-weight:var(--peso-medio);
   color:var(--ink); letter-spacing:-.02em }
+
+/* ============================================================ cartões =====
+   Um cartão é um bloco: identidade em cima, faturas embaixo. A fatura é a
+   unidade que a pessoa paga, então ela é o alvo de clique -- e não o cartão. */
+.cartao-card{background:var(--surface); border:1px solid var(--line);
+  border-radius:var(--raio-2); margin-bottom:var(--e-3); overflow:hidden}
+.cartao-card.off{opacity:.62}
+
+.cartao-topo{display:flex; align-items:center; gap:var(--e-3);
+  padding:var(--e-4); border-bottom:1px solid var(--line)}
+/* `min-width:0` porque quem encolhe numa linha apertada é o nome, e não o
+   valor nem o botão. Sem isso, `flex:1` cresce até o filho mais largo e a
+   linha estoura em 320px. */
+.cartao-nome{flex:1; min-width:0}
+.cartao-nome b{display:block; font-weight:var(--peso-medio); font-size:14px;
+  overflow-wrap:anywhere}
+.cartao-nome .meta{font-size:11.5px; color:var(--ink-3)}
+.cartao-valor{text-align:right; white-space:nowrap}
+.cartao-valor b{display:block; font-weight:var(--peso-forte); font-size:15px;
+  font-variant-numeric:tabular-nums}
+.cartao-valor span{font-size:10.5px; color:var(--ink-3)}
+.cartao-topo .btn{flex-shrink:0}
+
+.cartao-faturas{display:flex; flex-direction:column}
+.fatura-linha{appearance:none; font:inherit; text-align:left; cursor:pointer; width:100%;
+  display:flex; align-items:center; gap:var(--e-2); background:none; border:0;
+  border-bottom:1px solid var(--line); padding:10px var(--e-4); color:var(--ink-2)}
+.fatura-linha:last-child{border-bottom:0}
+.fatura-linha:hover{background:var(--surface-2)}
+.fatura-linha:focus-visible{outline:2px solid var(--brand); outline-offset:-2px}
+.fatura-quando{flex:1; min-width:0; font-size:12.5px; overflow:hidden;
+  text-overflow:ellipsis; white-space:nowrap}
+.fatura-total{font-weight:var(--peso-forte); white-space:nowrap; color:var(--ink)}
+
+/* Situação por rótulo E por cor, nunca só por cor: quem não distingue matiz
+   continua lendo "A pagar". */
+.pill.sit-aberta{background:var(--surface-3); color:var(--ink-2)}
+.pill.sit-fechada{background:var(--warn-soft); color:var(--ink)}
+.pill.sit-paga{background:var(--good-soft); color:var(--good)}
+
+.fatura-itens{border:1px solid var(--line); border-radius:var(--raio-2);
+  max-height:260px; overflow-y:auto}
+
+/* Aviso de fatura vencida. Sem piada: atraso custa juros. */
+.hint.alerta{color:var(--critical); font-weight:var(--peso-medio)}
+
+@media (max-width:600px){
+  .cartao-topo{flex-wrap:wrap}
+  /* o botão desce para a segunda linha em vez de espremer o nome */
+  .cartao-topo .btn{order:3; margin-left:auto}
+  .cartao-valor{order:2}
+}

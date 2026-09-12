@@ -75,6 +75,7 @@ await new Promise((ok) => servidor.listen(PORTA, "127.0.0.1", ok));
 /* --------------------------------------------------------------- dublê --*/
 const DUBLE = `
 const T = { instituicoes:[], contas:[], categorias:[], transacoes:[], liquidacoes:[],
+            cartoes:[], faturas:[], compras_de_cartao:[],
             dividas:[], fixas:[], credores:[], receitas:[], pagamentos:[], fixas_mes:[], config:[] };
 let seq = 0;
 const uid = () => "id-" + (++seq);
@@ -92,7 +93,27 @@ function saldos(){
              saldo: Number(c.saldo_inicial) + soma };
   });
 }
-const linhasDe = (t) => t === "saldos_de_conta" ? saldos() : (T[t] || []);
+/* a view faturas_resolvidas, recalculada como a 007 faria. Total, pago e
+   situação são DERIVADOS aqui também -- se o dublê guardasse status, ele
+   deixaria de provar que apagar o pagamento reabre a fatura sozinho. */
+function faturasResolvidas(){
+  const hoje = new Date().toISOString().slice(0,10);
+  return T.faturas.map(f => {
+    const itens = T.transacoes.filter(t => t.fatura_id === f.id
+      && ["realizada","conciliada"].includes(t.status));
+    const l = T.liquidacoes.find(x => x.tipo === "fatura" && x.item_id === f.id);
+    return { fatura_id:f.id, user_id:"u1", cartao_id:f.cartao_id, competencia:f.competencia,
+             abertura:f.abertura, fechamento:f.fechamento, vencimento:f.vencimento, obs:"",
+             total: itens.reduce((s,t) => s + Number(t.valor), 0),
+             itens: itens.length,
+             pago: l ? Number(l.valor) : 0,
+             pagamento_id: l ? l.transacao_id : null,
+             situacao: l ? "paga" : (hoje >= f.fechamento ? "fechada" : "aberta") };
+  });
+}
+const linhasDe = (t) => t === "saldos_de_conta" ? saldos()
+                      : t === "faturas_resolvidas" ? faturasResolvidas()
+                      : (T[t] || []);
 
 export function createClient(){
   const consulta = (tabela) => {
@@ -114,6 +135,10 @@ export function createClient(){
         return Promise.resolve({ data:null, error:null }); } }),
       upsert:()=>Promise.resolve({ data:null, error:null }),
       delete:()=>({ eq:(k,v)=>{ T[tabela]=(T[tabela]||[]).filter(r=>r[k]!==v);
+        /* cascade: apagar a transação leva o vínculo junto, e com ele a
+           situação "paga" da fatura, que é derivada */
+        if (tabela === "transacoes" && k === "id")
+          T.liquidacoes = T.liquidacoes.filter(l => l.transacao_id !== v);
         return Promise.resolve({ data:null, error:null }); },
         in:()=>Promise.resolve({ data:null, error:null }) }),
       maybeSingle:()=>Promise.resolve({ data:linhasDe(tabela)[0]||null, error:null }),
@@ -163,6 +188,90 @@ export function createClient(){
           conta_id: t.tipo === "saida" ? a.p_conta_origem : a.p_conta_destino }));
         return Promise.resolve({ data:a.p_transferencia, error:null });
       }
+      /* --- cartão e fatura, mesma regra da 007 --- */
+      const diasDoMes = (mes) => {
+        const [a,m] = mes.split("-").map(Number);
+        return new Date(Date.UTC(a, m, 0)).getUTCDate();
+      };
+      const diaNoMes = (mes, dia) =>
+        mes + "-" + String(Math.min(Math.max(dia,1), diasDoMes(mes))).padStart(2,"0");
+      const midx = (k) => { const p = k.split("-"); return (+p[0])*12 + (+p[1]) - 1; };
+      const fromIdx = (i) => Math.floor(i/12) + "-" + String(i%12 + 1).padStart(2,"0");
+      const competenciaDaCompra = (iso, fecha) => {
+        const mes = iso.slice(0,7), dia = +iso.slice(8,10);
+        return dia < +diaNoMes(mes, fecha).slice(8,10) ? mes : fromIdx(midx(mes)+1);
+      };
+      const cicloDaFatura = (comp, fecha, vence) => ({
+        abertura: diaNoMes(fromIdx(midx(comp)-1), fecha),
+        fechamento: diaNoMes(comp, fecha),
+        vencimento: diaNoMes(vence > fecha ? comp : fromIdx(midx(comp)+1), vence),
+      });
+      /* encontra OU cria: chamar duas vezes devolve a mesma fatura */
+      const faturaNaCompetencia = (cartaoId, comp) => {
+        const c = T.cartoes.find(x => x.id === cartaoId);
+        if (!c) return null;
+        const achou = T.faturas.find(f => f.cartao_id === cartaoId && f.competencia === comp);
+        if (achou) return achou.id;
+        const ci = cicloDaFatura(comp, c.dia_fechamento, c.dia_vencimento);
+        const nova = { id:uid(), user_id:"u1", cartao_id:cartaoId, competencia:comp,
+                       abertura:ci.abertura, fechamento:ci.fechamento, vencimento:ci.vencimento };
+        T.faturas.push(nova);
+        return nova.id;
+      };
+      if (nome === "fatura_do_cartao"){
+        const c = T.cartoes.find(x => x.id === a.p_cartao);
+        if (!c) return Promise.resolve({ data:null, error:{ message:"fatura: cartão não encontrado" } });
+        return Promise.resolve({ data: faturaNaCompetencia(a.p_cartao,
+          competenciaDaCompra(a.p_data, c.dia_fechamento)), error:null });
+      }
+      if (nome === "registra_compra_de_cartao"){
+        const c = T.cartoes.find(x => x.id === a.p_cartao);
+        if (!c) return Promise.resolve({ data:null, error:{ message:"compra: cartão não encontrado" } });
+        if (!(a.p_valor_total > 0))
+          return Promise.resolve({ data:null, error:{ message:"compra: o valor precisa ser maior que zero" } });
+        const n = a.p_parcelas || 1;
+        const compra = { id:uid(), user_id:"u1", cartao_id:a.p_cartao, categoria_id:a.p_categoria||null,
+                         descricao:a.p_descricao, valor_total:a.p_valor_total,
+                         data_compra:a.p_data, total_parcelas:n, obs:a.p_obs||"" };
+        T.compras_de_cartao.push(compra);
+        const centavos = Math.round(a.p_valor_total * 100);
+        const base = Math.floor(centavos / n), sobra = centavos - base * n;
+        const comp1 = competenciaDaCompra(a.p_data, c.dia_fechamento);
+        for (let i = 0; i < n; i++){
+          const comp = fromIdx(midx(comp1) + i);
+          T.transacoes.push({ id:uid(), user_id:"u1",
+            /* compra no cartão NÃO tem conta: nada saiu de conta nenhuma */
+            conta_id:null, fatura_id:faturaNaCompetencia(a.p_cartao, comp),
+            compra_id:compra.id, parcela:i+1, total_parcelas:n,
+            categoria_id:a.p_categoria||null, tipo:"saida", natureza:"normal",
+            descricao:a.p_descricao, valor:(base + (i === 0 ? sobra : 0)) / 100,
+            data:diaNoMes(comp, +a.p_data.slice(8,10)), status:"realizada",
+            origem:"cartao", origem_id:compra.id, obs:a.p_obs||"", transferencia_id:null });
+        }
+        return Promise.resolve({ data:compra.id, error:null });
+      }
+      if (nome === "paga_fatura"){
+        const f = T.faturas.find(x => x.id === a.p_fatura);
+        if (!f) return Promise.resolve({ data:null, error:{ message:"fatura: não encontrada" } });
+        if (!a.p_conta) return Promise.resolve({ data:null, error:{ message:"fatura: escolha a conta" } });
+        if (!(a.p_valor > 0))
+          return Promise.resolve({ data:null, error:{ message:"fatura: o valor precisa ser maior que zero" } });
+        if (T.liquidacoes.some(l => l.tipo === "fatura" && l.item_id === f.id))
+          return Promise.resolve({ data:null, error:{ message:"duplicate key value violates unique constraint" } });
+        const c = T.cartoes.find(x => x.id === f.cartao_id);
+        const t = { id:uid(), user_id:"u1", conta_id:a.p_conta,
+                    /* o pagamento NÃO é item da fatura: se fosse, entraria no total */
+                    fatura_id:null, compra_id:null, parcela:null, total_parcelas:null,
+                    categoria_id:null, tipo:"saida", natureza:"pagamento_de_fatura",
+                    descricao:"Fatura " + ((c && c.nome) || "do cartão"),
+                    valor:a.p_valor, data:a.p_data, status:"realizada",
+                    origem:"cartao", origem_id:f.id, obs:a.p_obs||"", transferencia_id:null };
+        T.transacoes.push(t);
+        T.liquidacoes.push({ id:uid(), user_id:"u1", tipo:"fatura", item_id:f.id,
+                             competencia:f.competencia, transacao_id:t.id, valor:a.p_valor });
+        return Promise.resolve({ data:t.id, error:null });
+      }
+
       /* --- a ponte com a V1, mesma regra da 005 --- */
       const confere = (tipo, itemId, competencia, conta, valor) => {
         if (!conta) return "liquidação: escolha a conta";
@@ -599,7 +708,221 @@ console.log("\nponte: pagar e receber");
 }
 
 /* ==================================================================
-   4. ROLAGEM LATERAL: mobile é primeira classe
+   4. CARTÃO E FATURA: o CASO A na tela
+   ==================================================================
+   A prova que dá nome a esta fase, feita clicando:
+
+     compra no cartão      R$ 100
+     pagamento da fatura   R$ 100
+
+     consumo = 100    caixa = 100    NUNCA 200 em nenhum dos dois
+
+   O dublê implementa a MESMA regra da 007, inclusive a situação derivada da
+   fatura -- se ele guardasse status, deixaria de provar que apagar o
+   pagamento reabre a fatura sozinho.
+   ================================================================== */
+console.log("\ncartão e fatura");
+{
+  const { p, erros } = await abreApp(1440);
+  await criaConta(p, "Conta Alfa", 1000, true);
+
+  await vaiPara(p, "cartoes");
+  await p.waitForTimeout(150);
+  eq("sem cartão, a tela mostra o vazio e não uma lista em branco",
+    await p.evaluate(() => ({ vazio: !document.getElementById("cartoesVazio").hidden,
+                              lista: !document.getElementById("cartoesConteudo").hidden })),
+    { vazio: true, lista: false });
+
+  await p.click("#btnPrimeiroCartao");
+  await p.waitForTimeout(250);
+  await p.fill("#cr_nome", "Cartão Teste");
+  await p.fill("#cr_fechamento", "10");
+  await p.fill("#cr_vencimento", "20");
+  /* o ciclo aparece ANTES de salvar: dois números trocados mudam o mês
+     inteiro de uma fatura, e ver o resultado é o que impede errar por um dia */
+  eq("o diálogo mostra o ciclo resolvido enquanto se digita",
+    await p.evaluate(() => !document.getElementById("crCiclo").hidden), true);
+
+  /* DUAS barreiras no campo do final, e elas pegam coisas diferentes.
+     A primeira é o `maxlength`: nada além de quatro dígitos entra no campo,
+     nem digitado nem colado -- o navegador corta.
+
+     O teste NÃO escreve uma sequência com cara de cartão, nem de mentira: a
+     auditoria de repositório público barra isso, e ela está certa. Nove
+     dígitos provam a mesma coisa que dezesseis. */
+  await p.fill("#cr_final", "123456789");
+  eq("o campo do final não aceita mais de quatro dígitos, nem colados",
+    await p.inputValue("#cr_final"), "1234");
+
+  /* A segunda é a checagem antes de salvar, para o que passa pelo maxlength
+     mas não é dígito. Sem ela, o banco recusaria -- e recusa depois do clique
+     é justamente o defeito que a transferência tinha. */
+  await p.fill("#cr_final", "12a4");
+  await p.click("#crSalvar");
+  await p.waitForTimeout(250);
+  const recusa = await p.evaluate(() => ({
+    aberto: document.getElementById("dlgCartao").open,
+    erro: !document.getElementById("crErro").hidden,
+  }));
+  eq("final que não são quatro dígitos não passa da tela", recusa, { aberto: true, erro: true });
+  eq("e nada foi gravado", await p.evaluate(() => globalThis.__T.cartoes.length), 0);
+
+  await p.fill("#cr_final", "1234");
+  await p.click("#crSalvar");
+  await p.waitForTimeout(400);
+  eq("com quatro dígitos, o cartão é criado",
+    await p.evaluate(() => globalThis.__T.cartoes.map(c => c.nome + "/" + c.final)),
+    ["Cartão Teste/1234"]);
+  eq("e a tela troca o vazio pela lista",
+    await p.evaluate(() => !document.getElementById("cartoesConteudo").hidden), true);
+
+  /* ---- a compra ---- */
+  await p.click("#btnNovaCompra");
+  await p.waitForTimeout(250);
+  await p.fill("#cp_descricao", "Compra do Caso A");
+  await p.fill("#cp_valor", "100");
+  await p.fill("#cp_data", "2026-09-05");
+  await p.waitForTimeout(150);
+  eq("a prévia diz em qual fatura vai cair, antes de gravar",
+    await p.evaluate(() => !document.getElementById("cpPrevia").hidden), true);
+
+  await p.click("#cpSalvar");
+  await p.waitForTimeout(500);
+
+  const aposCompra = await p.evaluate(() => ({
+    compras: globalThis.__T.compras_de_cartao.length,
+    parcelas: globalThis.__T.transacoes.length,
+    semConta: globalThis.__T.transacoes.every(t => t.conta_id === null),
+    faturas: globalThis.__T.faturas.length,
+  }));
+  eq("a compra virou UMA compra lógica", aposCompra.compras, 1);
+  eq("e uma parcela só, porque foi à vista", aposCompra.parcelas, 1);
+  eq("a compra no cartão NÃO tem conta: nada saiu de conta nenhuma",
+    aposCompra.semConta, true);
+  eq("e a fatura do ciclo nasceu sozinha", aposCompra.faturas, 1);
+
+  await vaiPara(p, "contas");
+  await p.waitForTimeout(250);
+  eq("por isso o saldo da conta não se mexeu",
+    (await p.textContent("#ctSaldoTotal")).replace(/ /g, " "), "R$ 1.000,00");
+
+  /* ---- pagar a fatura ---- */
+  await vaiPara(p, "cartoes");
+  await p.waitForTimeout(200);
+  eq("a fatura aparece na lista do cartão",
+    await p.locator("#listaCartoes [data-fatura]").count(), 1);
+  eq("com as DUAS datas, nunca um mês solto",
+    /fecha \d\d\/\d\d · vence \d\d\/\d\d/.test(
+      await p.textContent("#listaCartoes .fatura-quando")), true);
+
+  await p.click("#listaCartoes [data-fatura]");
+  await p.waitForTimeout(400);
+  const noDlg = await p.evaluate(() => ({
+    aberto: document.getElementById("dlgFatura").open,
+    valor: document.getElementById("ft_valor").value,
+    avisa: !document.getElementById("ftAviso").hidden,
+    itens: document.querySelectorAll("#ftItens .row").length,
+  }));
+  eq("o diálogo da fatura abre", noDlg.aberto, true);
+  eq("com o total já preenchido", noDlg.valor, "100.00");
+  eq("e avisa que o pagamento é integral ANTES do clique", noDlg.avisa, true);
+  eq("os lançamentos da fatura aparecem", noDlg.itens, 1);
+
+  await p.click("#ftPagarBtn");
+  await p.waitForTimeout(500);
+
+  const aposPagar = await p.evaluate(() => {
+    const T = globalThis.__T;
+    const conta = (t) => ["realizada","conciliada"].includes(t.status);
+    return {
+      consumo: T.transacoes.filter(t => t.tipo === "saida" && t.natureza === "normal" && conta(t))
+                 .reduce((s,t) => s + t.valor, 0),
+      caixa: T.transacoes.filter(t => t.tipo === "saida" && t.conta_id && conta(t))
+                 .reduce((s,t) => s + t.valor, 0),
+      pagamentoSemFatura: T.transacoes.filter(t => t.natureza === "pagamento_de_fatura")
+                 .every(t => t.fatura_id === null),
+      vinculos: T.liquidacoes.filter(l => l.tipo === "fatura").length,
+      situacao: document.querySelector("#listaCartoes .pill").textContent,
+    };
+  });
+  eq("CASO A · o consumo é 100, e é a compra quem entra", aposPagar.consumo, 100);
+  eq("CASO A · o caixa é 100, e é o pagamento quem entra", aposPagar.caixa, 100);
+  eq("CASO A · somados dariam 200, e nenhum indicador da tela faz isso",
+    aposPagar.consumo + aposPagar.caixa, 200);
+  eq("o pagamento NÃO é item da fatura", aposPagar.pagamentoSemFatura, true);
+  eq("o vínculo da ponte registra a quitação", aposPagar.vinculos, 1);
+  eq("e a fatura passa a dizer Paga", aposPagar.situacao, "Paga");
+
+  await vaiPara(p, "contas");
+  await p.waitForTimeout(250);
+  eq("agora sim o saldo caiu, uma vez só",
+    (await p.textContent("#ctSaldoTotal")).replace(/ /g, " "), "R$ 900,00");
+
+  /* ---- desfazer ---- */
+  await vaiPara(p, "cartoes");
+  await p.waitForTimeout(200);
+  await p.click("#listaCartoes [data-fatura]");
+  await p.waitForTimeout(400);
+  eq("na fatura paga, o diálogo oferece desfazer e não pagar de novo",
+    await p.evaluate(() => ({ desfazer: !document.getElementById("ftDesfazer").hidden,
+                              pagar: document.getElementById("ftPagarBtn").hidden })),
+    { desfazer: true, pagar: true });
+  await p.click("#ftDesfazer");
+  await p.waitForTimeout(120);
+  await p.click("#ftDesfazer");
+  await p.waitForTimeout(500);
+
+  eq("desfazer apaga o pagamento e o vínculo junto",
+    await p.evaluate(() => ({
+      pagamentos: globalThis.__T.transacoes.filter(t => t.natureza === "pagamento_de_fatura").length,
+      vinculos: globalThis.__T.liquidacoes.length })),
+    { pagamentos: 0, vinculos: 0 });
+  /* a situação é DERIVADA: ninguém precisou reabrir a fatura à mão */
+  eq("e a fatura volta sozinha para 'a pagar'",
+    await p.textContent("#listaCartoes .pill"), "A pagar");
+
+  await vaiPara(p, "contas");
+  await p.waitForTimeout(250);
+  eq("o saldo volta ao que era",
+    (await p.textContent("#ctSaldoTotal")).replace(/ /g, " "), "R$ 1.000,00");
+
+  /* ---- parcelamento ---- */
+  await vaiPara(p, "cartoes");
+  await p.waitForTimeout(150);
+  await p.click("#btnNovaCompra");
+  await p.waitForTimeout(250);
+  await p.fill("#cp_descricao", "Compra Parcelada");
+  await p.fill("#cp_valor", "100");
+  await p.fill("#cp_data", "2026-09-05");
+  await p.fill("#cp_parcelas", "3");
+  await p.waitForTimeout(150);
+  await p.click("#cpSalvar");
+  await p.waitForTimeout(500);
+
+  const parcelado = await p.evaluate(() => {
+    /* filtrar por `parcela` pegaria também a compra à vista, que é a parcela
+       1 de 1. O recorte é pela COMPRA, que tem identidade própria -- é para
+       isso que `compra_id` existe. */
+    const compra = globalThis.__T.compras_de_cartao.find(c => c.total_parcelas === 3);
+    const t = globalThis.__T.transacoes.filter(x => x.compra_id === compra.id);
+    return { quantas: t.length,
+             soma: Math.round(t.reduce((s,x) => s + x.valor, 0) * 100) / 100,
+             primeira: t.find(x => x.parcela === 1).valor,
+             ultima: t.find(x => x.parcela === 3).valor,
+             faturas: new Set(t.map(x => x.fatura_id)).size };
+  });
+  eq("três parcelas nascem juntas", parcelado.quantas, 3);
+  eq("e somam exatamente o total", parcelado.soma, 100);
+  eq("com a sobra de centavos na primeira",
+    [parcelado.primeira, parcelado.ultima], [33.34, 33.33]);
+  eq("cada parcela numa fatura diferente", parcelado.faturas, 3);
+
+  eq("nenhum erro de JavaScript no caminho inteiro", erros, []);
+  await p.close();
+}
+
+/* ==================================================================
+   5. ROLAGEM LATERAL: mobile é primeira classe
    ================================================================== */
 console.log("\nrolagem lateral");
 {
@@ -632,7 +955,7 @@ console.log("\nrolagem lateral");
 
   for (const largura of [320, 360, 390, 768, 1366, 1440]){
     await p.setViewportSize({ width: largura, height: 900 });
-    for (const aba of ["painel", "mes", "contas", "transacoes", "receitas"]){
+    for (const aba of ["painel", "mes", "contas", "cartoes", "transacoes", "receitas"]){
       await vaiPara(p, aba);
       await p.waitForTimeout(120);
       eq(`sem rolagem lateral em ${largura}px na aba ${aba}`,

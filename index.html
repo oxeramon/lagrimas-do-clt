@@ -66,6 +66,7 @@
         <button class="navitem" id="nav-mes" role="tab" aria-selected="false" aria-controls="p-mes"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="17" rx="2"/><path d="M3 9h18M8 2v4M16 2v4"/></svg><span>Mês</span></button>
         <p class="grupo-nav">MEU DINHEIRO</p>
         <button class="navitem" id="nav-contas" role="tab" aria-selected="false" aria-controls="p-contas"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="2.5" y="5.5" width="19" height="13" rx="2.5"/><path d="M2.5 10h19M6 15h4"/></svg><span>Contas</span></button>
+        <button class="navitem" id="nav-cartoes" role="tab" aria-selected="false" aria-controls="p-cartoes"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="2.5" y="5" width="19" height="14" rx="2.5"/><path d="M2.5 9.5h19M6 15h3"/></svg><span>Cartões</span></button>
         <button class="navitem" id="nav-transacoes" role="tab" aria-selected="false" aria-controls="p-transacoes"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h13l-3-3M20 17H7l3 3"/></svg><span>Transações</span></button>
         <button class="navitem" id="nav-receitas" role="tab" aria-selected="false" aria-controls="p-receitas"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7l6 6 4-4 8 8"/><path d="M21 13v4h-4"/></svg><span>Receitas</span></button>
         <p class="grupo-nav">PLANEJAMENTO</p>
@@ -309,6 +310,43 @@
           <h3 class="titulo-card">Por tipo de conta</h3>
           <ul class="pirulitos" id="ctPorTipo"></ul>
         </div>
+      </div>
+    </section>
+
+
+    <!-- ==================== CARTÕES ==================== -->
+    <section class="panel stack" id="p-cartoes" role="tabpanel" aria-labelledby="nav-cartoes" hidden>
+      <div id="cartoesVazio" hidden>
+        <div class="vazio">
+          <div class="emoji" aria-hidden="true">💳</div>
+          <h3>Nenhum cartão por aqui</h3>
+          <p>Cadastre um cartão e o app passa a saber em qual fatura cada compra cai, sem você contar nos dedos.</p>
+          <button class="btn primary" id="btnPrimeiroCartao">Adicionar o primeiro cartão</button>
+        </div>
+      </div>
+
+      <div id="cartoesConteudo" hidden>
+        <div class="lente">
+          <h2>Faturas em aberto</h2>
+          <p class="numerao" id="crAPagar">—</p>
+          <p class="piada" id="crPiada"></p>
+          <div class="fatias">
+            <div class="fatia"><b id="crQuantidade">—</b><span>Cartões ativos</span></div>
+            <div class="fatia"><b id="crAbertas">—</b><span>Faturas a pagar</span></div>
+            <div class="fatia"><b id="crProxima">—</b><span>Próximo vencimento</span></div>
+          </div>
+        </div>
+
+        <p class="hint" id="crVencidas" hidden></p>
+
+        <div class="linha-acoes">
+          <h2 class="titulo-secao">Seus cartões</h2>
+          <span class="sep"></span>
+          <button class="btn ghost sm" id="btnNovaCompra">Lançar compra</button>
+          <button class="btn primary sm" id="btnNovoCartao">Novo cartão</button>
+        </div>
+
+        <div id="listaCartoes"></div>
       </div>
     </section>
 
@@ -794,6 +832,88 @@
      é UMA operação; por dentro continuam sendo entidades diferentes, e é a RPC
      `liquida_compromisso` / `recebe_receita` que junta as escritas numa
      transação só. Ver docs/CONTRATO_PONTE.md. -->
+
+<!-- ==================== CARTÕES · DIÁLOGOS ==================== -->
+<dialog id="dlgCartao">
+  <form id="formCartao">
+    <div class="dlg-h"><h2 id="crTitulo">Novo cartão</h2><button type="button" class="btn ghost" data-fechar="dlgCartao" aria-label="Fechar"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M18 6L6 18M6 6l12 12"/></svg></button></div>
+    <div class="formgrid">
+      <div class="field full"><label for="cr_nome">Nome do cartão</label>
+        <input id="cr_nome" maxlength="60" required placeholder="Cartão do dia a dia"></div>
+      <div class="field"><label for="cr_instituicao">Instituição</label>
+        <select id="cr_instituicao"></select></div>
+      <div class="field"><label for="cr_final">Últimos quatro dígitos</label>
+        <input id="cr_final" maxlength="4" inputmode="numeric" autocomplete="off" placeholder="opcional">
+        <span class="hint">Só os quatro últimos. O app não guarda mais do que isso, e não tem onde guardar.</span></div>
+      <div class="field"><label for="cr_fechamento">Fecha no dia</label>
+        <input type="number" id="cr_fechamento" min="1" max="31" inputmode="numeric" required></div>
+      <div class="field"><label for="cr_vencimento">Vence no dia</label>
+        <input type="number" id="cr_vencimento" min="1" max="31" inputmode="numeric" required></div>
+      <p class="hint full" id="crCiclo" hidden></p>
+      <div class="field"><label for="cr_limite">Limite (R$)</label>
+        <input type="number" id="cr_limite" step="0.01" min="0" inputmode="decimal" placeholder="opcional"></div>
+      <div class="field"><label for="cr_conta">Pago normalmente por</label>
+        <select id="cr_conta"></select></div>
+      <div class="field full"><label for="cr_obs">Observação</label><input id="cr_obs" maxlength="200"></div>
+      <p class="hint full" id="crErro" role="alert" hidden></p>
+    </div>
+    <div class="dlg-f">
+      <button type="button" class="btn ghost" id="crExcluir" hidden>Excluir</button>
+      <span style="flex:1"></span>
+      <button type="button" class="btn" data-fechar="dlgCartao">Cancelar</button>
+      <button type="submit" class="btn primary" id="crSalvar">Salvar</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="dlgCompraCartao">
+  <form id="formCompraCartao">
+    <div class="dlg-h"><h2>Compra no cartão</h2><button type="button" class="btn ghost" data-fechar="dlgCompraCartao" aria-label="Fechar"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M18 6L6 18M6 6l12 12"/></svg></button></div>
+    <div class="formgrid">
+      <p class="hint full">A compra é gasto agora. O dinheiro sai da conta quando a fatura for paga, e o app não conta as duas coisas.</p>
+      <div class="field"><label for="cp_cartao">Cartão</label><select id="cp_cartao" required></select></div>
+      <div class="field"><label for="cp_data">Data da compra</label><input type="date" id="cp_data" required></div>
+      <div class="field full"><label for="cp_descricao">Descrição</label>
+        <input id="cp_descricao" maxlength="120" required></div>
+      <div class="field"><label for="cp_valor">Valor total (R$)</label>
+        <input type="number" id="cp_valor" step="0.01" min="0.01" inputmode="decimal" required></div>
+      <div class="field"><label for="cp_parcelas">Parcelas</label>
+        <input type="number" id="cp_parcelas" min="1" max="72" value="1" inputmode="numeric" required></div>
+      <div class="field full"><label for="cp_categoria">Categoria</label><select id="cp_categoria"></select></div>
+      <p class="hint full" id="cpPrevia" hidden></p>
+      <div class="field full"><label for="cp_obs">Observação</label><input id="cp_obs" maxlength="200"></div>
+      <p class="hint full" id="cpErro" role="alert" hidden></p>
+    </div>
+    <div class="dlg-f">
+      <span style="flex:1"></span>
+      <button type="button" class="btn" data-fechar="dlgCompraCartao">Cancelar</button>
+      <button type="submit" class="btn primary" id="cpSalvar">Lançar</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="dlgFatura">
+  <div class="dlg-h"><h2 id="ftTitulo">Fatura</h2><button type="button" class="btn ghost" data-fechar="dlgFatura" aria-label="Fechar"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M18 6L6 18M6 6l12 12"/></svg></button></div>
+  <div class="formgrid">
+    <p class="hint full" id="ftResumo"></p>
+    <div class="full" id="ftItens"></div>
+    <div class="full formgrid" id="ftPagar" style="padding:0">
+      <div class="field"><label for="ft_conta">Pagar com</label><select id="ft_conta" required></select></div>
+      <div class="field"><label for="ft_valor">Valor (R$)</label>
+        <input type="number" id="ft_valor" step="0.01" min="0.01" inputmode="decimal" required></div>
+      <div class="field"><label for="ft_data">Data do pagamento</label><input type="date" id="ft_data" required></div>
+      <p class="hint full" id="ftAviso" hidden></p>
+    </div>
+    <p class="hint full" id="ftErro" role="alert" hidden></p>
+  </div>
+  <div class="dlg-f">
+    <button type="button" class="btn ghost" id="ftDesfazer" hidden>Desfazer o pagamento</button>
+    <span style="flex:1"></span>
+    <button type="button" class="btn" data-fechar="dlgFatura">Fechar</button>
+    <button type="button" class="btn primary" id="ftPagarBtn">Pagar fatura</button>
+  </div>
+</dialog>
+
 <dialog id="dlgLiquidar">
   <form id="formLiquidar">
     <div class="dlg-h"><h2 id="lqTitulo">Pagar</h2><button type="button" class="btn ghost" data-fechar="dlgLiquidar" aria-label="Fechar"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M18 6L6 18M6 6l12 12"/></svg></button></div>
