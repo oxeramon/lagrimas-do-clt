@@ -10,6 +10,8 @@ em ordem. Este arquivo é o registro; o SQL é a fonte.
 | `20260912192729` | `../supabase/migrations/002_v2_integrity_hardening.sql` | 12/09/2026 | **aplicada** |
 | `20260912193340` | `../supabase/migrations/003_v2_search_path_das_funcoes.sql` | 12/09/2026 | **aplicada** |
 | `20260912200722` | `../supabase/migrations/004_v2_transaction_operations.sql` | 12/09/2026 | **aplicada** |
+| `20260912214852` | `../supabase/migrations/005_v2_settlement_bridge.sql` | 12/09/2026 | **aplicada** |
+| `20260912214949` | `../supabase/migrations/006_v2_trigger_grants.sql` | 12/09/2026 | **aplicada** |
 
 **Migração aplicada não se edita.** Quando o arquivo e o banco discordam, some
 a única fonte confiável sobre o que rodou. Conserto vira migração nova, e é por
@@ -168,6 +170,88 @@ atomicidade (um `status` inválido derruba a operação inteira sem deixar perna
 edição, a exclusão do par, o gatilho rodando para usuário de verdade, e `anon`
 esbarrando no grant.
 
+## 005 · a ponte entre compromisso e movimento
+
+O contrato foi escrito antes do SQL, e está em [`CONTRATO_PONTE.md`](CONTRATO_PONTE.md).
+O problema cabe numa frase: **uma obrigação não é uma movimentação.** "Eu devo
+500" e "500 saíram da conta X em 12/09" podem se relacionar, não são a mesma
+entidade, e somá-las conta o mesmo dinheiro duas vezes.
+
+A decisão: uma tabela de vínculo, `liquidacoes`, e não só `origem`/`origem_id`.
+As duas colunas existem e continuam preenchidas, para filtrar sem `join`, mas
+não bastam como identidade: **um compromisso da V1 não é uma linha, é uma linha
+vezes um mês.** Uma dívida de 24 parcelas é uma linha em `dividas` e vinte e
+quatro obrigações distintas, e `origem_id = <uuid>` não diz qual parcela foi
+paga. `liquidacoes` carrega a competência como coluna.
+
+`item_id` é texto com a MESMA convenção de `pagamentos` da V1 — `<uuid>` para
+dívida, `fx:<uuid>` para conta fixa. É isso que faz a marca da V1 e o vínculo
+da V2 falarem do mesmo item sem tradução. O preço é o banco não conseguir
+garantir que o `item_id` existe; quem garante é a RPC, lendo com o RLS ligado.
+
+### A lacuna da V1 que ela resolve
+
+`receitas` nunca teve marcador de recebimento: `pagamentos` só existe para
+saídas. Em vez de uma tabela `recebimentos` paralela, ou de enfiar recebimento
+numa tabela chamada `pagamentos`, **a existência da linha em `liquidacoes` É o
+marcador.**
+
+### O que entrou
+
+| Objeto | O que faz |
+|---|---|
+| `liquidacoes` | RLS ligada, policy por `auth.uid()`, gatilho `set_user_id`, três índices |
+| `liquidacao_uma_por_competencia` | `unique (user_id, tipo, item_id, competencia)` — pagar duas vezes o mesmo mês é recusado pelo BANCO |
+| `liquidacao_uma_por_transacao` | `unique (user_id, transacao_id)` — uma transação liquida no máximo um compromisso |
+| FK composta | `(user_id, transacao_id) → transacoes (user_id, id)`, `on delete cascade` — a mesma escolha da 002: FK não passa por RLS |
+| `limpa_marca_da_liquidacao()` | `after delete` — apagar a transação leva o vínculo pelo cascade, e o gatilho leva a marca da V1 junto |
+| `confere_liquidacao` | a conferência que as três operações compartilham |
+| `liquida_compromisso` | saída + marca da V1 + vínculo, numa transação |
+| `recebe_receita` | entrada + vínculo. Sem marca: receita não é pagamento |
+| `desfaz_liquidacao` | apaga a transação; o resto vem junto |
+
+Todas as funções são `SECURITY INVOKER`, com `search_path = public`, sem
+parâmetro de `user_id` (quem preenche é o gatilho, com `auth.uid()`), revogadas
+de `public` e `anon` e concedidas só a `authenticated`.
+
+O `check` de `transacoes.origem` foi alargado para aceitar `'fixa'` e
+`'receita'`, que faltavam.
+
+### Pré-condição diferente das anteriores
+
+Da 001 à 004, as tabelas da V2 estavam vazias. Na 005 já não estavam: havia
+contas e categorias cadastradas por gente de verdade. Por isso ela é
+**estritamente aditiva** — cria uma tabela, alarga um `check` numa tabela sem
+linhas, e não toca em mais nada.
+
+### Liquidação parcial ficou de fora, de propósito
+
+A `unique` por competência exclui pagamento e recebimento parciais. A V1 não
+tem onde guardar "quanto ainda falta desta parcela": o compromisso tem um valor
+só e `pagamentos` é booleano. Suportar parcial exigiria mudar o significado de
+um dado que já existe, e isso é bem mais caro do que adiar. O caminho, quando
+for a hora, está escrito no contrato.
+
+### Como foi provada
+
+`supabase/testes/005_ponte.sql`, **34 casos**, rodando como `authenticated` e
+como `anon`, em transação com `rollback`, com dois usuários sintéticos criados
+ali dentro. Última execução no banco real: **34 de 34**, sem resíduo.
+
+Cobre os dois casos do contrato anti-dupla-contagem que passam pelo banco
+(dívida de 500 paga por saída de 500 = 500, e receita de 1.000 recebida uma vez
+= 1.000), a atomicidade das três escritas, a recusa da segunda liquidação da
+mesma competência, o desfazer levando os três lados, o `cascade` e o gatilho, a
+marca feita à mão continuando válida sozinha, compromisso e conta de outro
+usuário recusados, e `anon` esbarrando no grant das duas RPCs.
+
+## 006 · o gatilho que anon não devia poder chamar
+
+Duas linhas. `limpa_marca_da_liquidacao()` nasceu na 005 chamável por `anon` e
+por `authenticated` — sozinha ela não apaga nada sem uma linha em
+`liquidacoes`, mas função de gatilho não é API, e a 002 já tinha estabelecido a
+regra. Migração aplicada não se edita, nem quando o conserto tem duas linhas.
+
 ## O que os advisors dizem agora
 
 Segurança: **uma única ocorrência**, e é configuração de Auth, não de schema —
@@ -187,17 +271,16 @@ Desempenho, tudo informativo e nada novo:
 
 ## Em aberto
 
-**A ponte entre V1 e V2 não existe, e é de propósito.** Marcar dívida como paga
-NÃO cria transação, e lançar transação NÃO marca dívida como paga. A V1
-responde por compromisso e previsão; a V2, por conta e movimento realizado.
-Ligar as duas sem projeto é a maneira mais rápida de contar o mesmo dinheiro
-duas vezes -- e por isso ainda não há "patrimônio líquido" no produto.
-
 **Cartão e fatura na V2 ainda não existem.** Cartão continua sendo `credores`
-na V1. Estorno tem schema e sabe ser renderizado, mas não tem botão: o contrato
-de estorno parcial e múltiplo ainda não foi definido.
+na V1, e a fatura é derivada na tela, não uma entidade. Enquanto for assim, uma
+compra no cartão não tem como ser liquidada pela ponte — quem paga uma compra
+de cartão é a fatura, e pagar item a item registraria a compra e o pagamento
+como duas saídas. A tela já recusa oferecer o botão nesse caso.
 
-**A instalação do zero ainda é um arquivo só.** Com três migrações aplicadas,
+**Estorno tem schema e não tem botão.** O contrato de estorno parcial e
+múltiplo ainda não foi definido.
+
+**A instalação do zero ainda é um arquivo só.** Com seis migrações aplicadas,
 `supabase-setup.sql` sozinho não reconstrói mais o banco inteiro. O
 `supabase/README.md` explica a ordem; separar em `schema.sql` + `seed.sql` +
 `migrations/` passou a fazer sentido e ainda não foi feito.
