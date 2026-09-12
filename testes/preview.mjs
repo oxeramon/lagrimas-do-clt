@@ -164,8 +164,14 @@ const __DB = ${JSON.stringify(DB)};
 function createClient(){
   const resp = (data) => {
     const p = Promise.resolve({ data, error: null });
+    /* Encadeamento inteiro: a V2 filtra por faixa de data (gte/lt), e um dublê
+       que não conhece um método derruba a prévia com "não é função". Aqui
+       nenhum deles FILTRA de verdade -- a prévia é inspeção visual, e o
+       cenário já vem do tamanho certo. */
     const api = {
       select: () => api, order: () => api, eq: () => api, limit: () => api,
+      gte: () => api, lt: () => api, lte: () => api, gt: () => api,
+      in: () => api, neq: () => api, is: () => api, ilike: () => api,
       insert: () => api, update: () => api, upsert: () => api, delete: () => api,
       maybeSingle: () => p, single: () => p,
       then: (a, b) => p.then(a, b),
@@ -174,6 +180,10 @@ function createClient(){
   };
   return {
     from: (t) => resp(__DB[t] ?? []),
+    /* as RPCs da 004 não têm como rodar sem banco; a prévia diz isso em vez de
+       fingir que deu certo */
+    rpc: () => Promise.resolve({ data: null,
+      error: { message: "transferência: a prévia não fala com o banco" } }),
     auth: {
       onAuthStateChange: (cb) => { cb("SIGNED_IN", { user: { id: "u1" } });
         return { data: { subscription: { unsubscribe(){} } } }; },
@@ -215,6 +225,15 @@ function leModulo(rel){
 }
 
 const RE_IMPORT = /^import\s*\{([^}]*)\}\s*from\s*["'](\.[^"']+)["'];?\s*$/gm;
+/* `import * as v2 from "./x.js"`. Ele entra na regra do achatador porque a
+   tradução é EXATA, não chute: no escopo único todos os nomes já existem
+   soltos, então o namespace vira um objeto que aponta para eles. O gerador
+   sabe quais são, porque já lê os `export` de cada módulo para detectar
+   colisão. */
+const RE_NAMESPACE = /^import\s*\*\s*as\s+([A-Za-z_$][\w$]*)\s*from\s*["'](\.[^"']+)["'];?\s*$/gm;
+
+const exportadosDe = (rel) => [...leModulo(rel)
+  .matchAll(/^export\s+(?:async\s+)?(?:const|let|function)\s+([A-Za-z_$][\w$]*)/gm)].map((m) => m[1]);
 
 /* percorre o grafo em profundidade, dependência antes de quem depende */
 function ordena(relInicial, vistos = new Set(), ordem = []){
@@ -226,12 +245,24 @@ function ordena(relInicial, vistos = new Set(), ordem = []){
     const alvo = normalize(join(base, m[2]));
     ordena(alvo, vistos, ordem);
   }
+  for (const m of fonte.matchAll(RE_NAMESPACE)){
+    const alvo = normalize(join(base, m[2]));
+    ordena(alvo, vistos, ordem);
+  }
   ordem.push(relInicial);
   return ordem;
 }
 
 function achata(fonte, rel){
-  const semImport = fonte.replace(RE_IMPORT, "");
+  const base = dirname(rel);
+  /* o namespace é reconstruído como objeto literal apontando para os nomes que
+     já vão estar soltos no escapo único */
+  const semNamespace = fonte.replace(RE_NAMESPACE, (_, apelido, caminho) => {
+    const alvo = normalize(join(base, caminho));
+    const nomes = exportadosDe(alvo);
+    return "const " + apelido + " = { " + nomes.join(", ") + " };";
+  });
+  const semImport = semNamespace.replace(RE_IMPORT, "");
   if (/^\s*export\s+(default|\{)/m.test(semImport)){
     console.error("FALHA: " + rel + " usa `export default` ou `export {}`, que o "
       + "achatamento da prévia não sabe resolver. Use `export const` / `export function`.");
@@ -246,17 +277,24 @@ function achata(fonte, rel){
 }
 
 /* os módulos que o index.html importa, na ordem em que aparecem */
-const doIndex = [...html.matchAll(RE_IMPORT)].map(m => normalize(m[2].replace(/^\.\//, "")));
+const doIndex = [...html.matchAll(RE_IMPORT), ...html.matchAll(RE_NAMESPACE)]
+  .map(m => normalize(m[2].replace(/^\.\//, "")));
 const ordem = [];
 for (const rel of doIndex) ordena(rel, new Set(ordem.map(x => x)), ordem);
 
-/* nome exportado duas vezes viraria colisão silenciosa no escopo único */
+/* Nome de topo repetido vira colisão no escopo único. A checagem olha TODO
+   nome declarado na margem, e não só o exportado: dois módulos tinham um
+   `const sb` privado cada, e o resultado era uma prévia que nem abria, com
+   "Identifier 'sb' has already been declared". Nome privado colide igual. */
+const RE_TOPO = /^(?:export\s+)?(?:async\s+)?(?:const|let|var|function)\s+([A-Za-z_$][\w$]*)/gm;
 const donoDe = new Map();
-for (const rel of ordem){
-  for (const m of leModulo(rel).matchAll(/^export\s+(?:async\s+)?(?:const|let|function)\s+([A-Za-z_$][\w$]*)/gm)){
+for (const rel of [...ordem, "index.html"]){
+  const fonte = rel === "index.html" ? html : leModulo(rel);
+  for (const m of fonte.matchAll(RE_TOPO)){
     if (donoDe.has(m[1])){
-      console.error("FALHA: `" + m[1] + "` é exportado por " + donoDe.get(m[1]) + " e por "
-        + rel + ". No achatamento da prévia os dois caem no mesmo escopo.");
+      console.error("FALHA: `" + m[1] + "` é declarado na margem de " + donoDe.get(m[1])
+        + " e de " + rel + ". No achatamento da prévia os dois caem no mesmo escopo. "
+        + "Renomeie um dos dois.");
       process.exit(1);
     }
     donoDe.set(m[1], rel);
@@ -266,10 +304,20 @@ for (const rel of ordem){
 const embutidos = ordem.map(rel =>
   "/* ===== " + rel + " ===== */\n" + achata(leModulo(rel), rel)).join("\n");
 
+/* O index.html também importa por namespace (`import * as v1 from ...`), e ele
+   precisa do mesmo tratamento que os módulos: sem isto sobrava um import de
+   verdade no arquivo gerado, e o navegador tentava buscá-lo por file:// -- que
+   é exatamente o que a prévia existe para evitar. */
+const namespacesDoIndex = [...html.matchAll(RE_NAMESPACE)].map(([, apelido, caminho]) => {
+  const alvo = normalize(caminho.replace(/^\.\//, ""));
+  return "const " + apelido + " = { " + exportadosDe(alvo).join(", ") + " };";
+}).join("\n");
+
 const corpo = html
   .replace(IMPORT, stub)
   .replace(RE_IMPORT, "")
-  .replace(stub, stub + "\n" + embutidos + "\n");
+  .replace(RE_NAMESPACE, "")
+  .replace(stub, stub + "\n" + embutidos + "\n" + namespacesDoIndex + "\n");
 
 writeFileSync(SAIDA, corpo, "utf8");
 console.log("preview.html gerado: " + credores.length + " credores, "

@@ -12,7 +12,9 @@
  */
 import { conexao, executa, erroLegivel } from "./client.js";
 
-const sb = () => conexao.sb;
+/* nome privado e distinto por arquivo: a prévia achata todos os módulos
+   num escopo só, e dois `const sb` colidiriam. */
+const bancoV2 = () => conexao.sb;
 
 /* ------------------------------------------------------------- tradução --*/
 export const paraCamel = (s) => String(s).replace(/_([a-z0-9])/g, (_, c) => c.toUpperCase());
@@ -53,7 +55,7 @@ async function consulta(promessa, contexto){
    Transações NÃO entram aqui -- elas crescem sem limite e são carregadas por
    mês, com filtro. */
 export async function carregaCadastrosV2(){
-  const c = sb();
+  const c = bancoV2();
   const [inst, ct, cat, sld] = await Promise.all([
     c.from("instituicoes").select("*").order("ordem").order("nome"),
     c.from("contas").select("*").order("ordem").order("nome"),
@@ -75,17 +77,17 @@ export async function carregaCadastrosV2(){
 
 /* --------------------------------------------------------- instituições --*/
 export const salvaInstituicao = (modelo, id) => consulta(
-  id ? sb().from("instituicoes").update(paraBanco(modelo)).eq("id", id)
-     : sb().from("instituicoes").insert(paraBanco(modelo)), "instituição");
+  id ? bancoV2().from("instituicoes").update(paraBanco(modelo)).eq("id", id)
+     : bancoV2().from("instituicoes").insert(paraBanco(modelo)), "instituição");
 export const removeInstituicao = (id) =>
-  consulta(sb().from("instituicoes").delete().eq("id", id), "instituição");
+  consulta(bancoV2().from("instituicoes").delete().eq("id", id), "instituição");
 
 /* ---------------------------------------------------------------contas --*/
 export const salvaConta = (modelo, id) => consulta(
-  id ? sb().from("contas").update(paraBanco(modelo)).eq("id", id)
-     : sb().from("contas").insert(paraBanco(modelo)), "conta");
+  id ? bancoV2().from("contas").update(paraBanco(modelo)).eq("id", id)
+     : bancoV2().from("contas").insert(paraBanco(modelo)), "conta");
 export const removeConta = (id) =>
-  consulta(sb().from("contas").delete().eq("id", id), "conta");
+  consulta(bancoV2().from("contas").delete().eq("id", id), "conta");
 
 /* Quantas transações a conta tem. É o que decide entre desativar e excluir:
    conta com histórico não se apaga, se aposenta.
@@ -94,7 +96,7 @@ export const removeConta = (id) =>
    o embrulho padrão não devolve. */
 export async function contaTemMovimento(contaId){
   try {
-    const r = await sb().from("transacoes")
+    const r = await bancoV2().from("transacoes")
       .select("id", { count: "exact", head: true }).eq("conta_id", contaId);
     if (r.error) return { dados: null, erro: erroLegivel(r.error, "conta") };
     return { dados: Number(r.count) || 0, erro: null };
@@ -105,19 +107,19 @@ export async function contaTemMovimento(contaId){
 
 /* ----------------------------------------------------------- categorias --*/
 export const salvaCategoria = (modelo, id) => consulta(
-  id ? sb().from("categorias").update(paraBanco(modelo)).eq("id", id)
-     : sb().from("categorias").insert(paraBanco(modelo)), "categoria");
+  id ? bancoV2().from("categorias").update(paraBanco(modelo)).eq("id", id)
+     : bancoV2().from("categorias").insert(paraBanco(modelo)), "categoria");
 export const removeCategoria = (id) =>
-  consulta(sb().from("categorias").delete().eq("id", id), "categoria");
+  consulta(bancoV2().from("categorias").delete().eq("id", id), "categoria");
 /* o insert em lote das categorias padrão: uma chamada, não vinte */
 export const criaCategorias = (lista) =>
-  consulta(sb().from("categorias").insert(paraBanco(lista)).select("*"), "categorias");
+  consulta(bancoV2().from("categorias").insert(paraBanco(lista)).select("*"), "categorias");
 
 /* ----------------------------------------------------------- transações --
    Sempre por período. `ate` é exclusivo -- passar o primeiro dia do mês
    seguinte evita ter de saber quantos dias o mês tem. */
 export function listaTransacoes({ de, ate, contaId, categoriaId, tipo, status } = {}){
-  let q = sb().from("transacoes").select("*");
+  let q = bancoV2().from("transacoes").select("*");
   if (de)  q = q.gte("data", de);
   if (ate) q = q.lt("data", ate);
   if (contaId)     q = q.eq("conta_id", contaId);
@@ -128,10 +130,10 @@ export function listaTransacoes({ de, ate, contaId, categoriaId, tipo, status } 
 }
 
 export const salvaTransacao = (modelo, id) => consulta(
-  id ? sb().from("transacoes").update(paraBanco(modelo)).eq("id", id)
-     : sb().from("transacoes").insert(paraBanco(modelo)), "transação");
+  id ? bancoV2().from("transacoes").update(paraBanco(modelo)).eq("id", id)
+     : bancoV2().from("transacoes").insert(paraBanco(modelo)), "transação");
 export const removeTransacao = (id) =>
-  consulta(sb().from("transacoes").delete().eq("id", id), "transação");
+  consulta(bancoV2().from("transacoes").delete().eq("id", id), "transação");
 
 /* ---------------------------------------------------------- transferência --
    As duas pernas precisam nascer e morrer JUNTAS, e duas chamadas HTTP
@@ -139,7 +141,7 @@ export const removeTransacao = (id) =>
    transferência no banco. Por isso vai por RPC, que roda tudo numa transação
    só do lado do Postgres. Ver `supabase/migrations/004_...`. */
 export const criaTransferencia = (p) => consulta(
-  sb().rpc("cria_transferencia", {
+  bancoV2().rpc("cria_transferencia", {
     p_conta_origem:  p.contaOrigemId,
     p_conta_destino: p.contaDestinoId,
     p_valor:         p.valor,
@@ -150,7 +152,7 @@ export const criaTransferencia = (p) => consulta(
   }), "transferência");
 
 export const atualizaTransferencia = (p) => consulta(
-  sb().rpc("atualiza_transferencia", {
+  bancoV2().rpc("atualiza_transferencia", {
     p_transferencia: p.transferenciaId,
     p_conta_origem:  p.contaOrigemId,
     p_conta_destino: p.contaDestinoId,
@@ -162,4 +164,4 @@ export const atualizaTransferencia = (p) => consulta(
   }), "transferência");
 
 export const removeTransferencia = (transferenciaId) => consulta(
-  sb().rpc("remove_transferencia", { p_transferencia: transferenciaId }), "transferência");
+  bancoV2().rpc("remove_transferencia", { p_transferencia: transferenciaId }), "transferência");

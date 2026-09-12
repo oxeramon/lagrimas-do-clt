@@ -6,10 +6,12 @@
  */
 import { conexao, erroLegivel } from "./client.js";
 
-const sb = () => conexao.sb;
+/* nome privado e distinto por arquivo: a prévia achata todos os módulos
+   num escopo só, e dois `const sb` colidiriam. */
+const bancoAuth = () => conexao.sb;
 
 export async function entra(email, senha){
-  const { error } = await sb().auth.signInWithPassword({ email, password: senha });
+  const { error } = await bancoAuth().auth.signInWithPassword({ email, password: senha });
   if (!error) return { erro: null };
   /* credencial errada é o caso comum e merece frase própria: "não deu para
      completar" aqui só faria a pessoa tentar de novo igual. */
@@ -18,14 +20,14 @@ export async function entra(email, senha){
   return { erro: erroLegivel(error) };
 }
 
-export const sai = () => sb().auth.signOut();
+export const sai = () => bancoAuth().auth.signOut();
 
 /* O callback recebe o id do usuário, ou `null` quando não há sessão. */
 export function observaSessao(aoMudar){
-  sb().auth.onAuthStateChange((_evt, sessao) => aoMudar(sessao ? sessao.user.id : null));
+  bancoAuth().auth.onAuthStateChange((_evt, sessao) => aoMudar(sessao ? sessao.user.id : null));
 }
 
 export async function sessaoAtual(){
-  const { data } = await sb().auth.getSession();
+  const { data } = await bancoAuth().auth.getSession();
   return data && data.session ? data.session.user.id : null;
 }

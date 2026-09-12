@@ -78,7 +78,7 @@ function selo(nome, cor, logo){
   return `<span class="selo" style="${estilo}" aria-hidden="true">${mono}${img}</span>`;
 }
 
-function opcoes(lista, selecionado, vazio){
+function listaDeOpcoes(lista, selecionado, vazio){
   const cab = vazio ? `<option value="">${esc(vazio)}</option>` : "";
   return cab + lista.map((o) =>
     `<option value="${esc(o.id)}"${o.id === selecionado ? " selected" : ""}>${esc(o.rotulo)}</option>`
@@ -335,11 +335,11 @@ function abreConta(id){
   const c = id ? contaPorId(id) : null;
   $("cnTitulo").textContent = c ? "Editar conta" : "Nova conta";
   $("cn_nome").value = c ? c.nome : "";
-  $("cn_instituicao").innerHTML = opcoes(
+  $("cn_instituicao").innerHTML = listaDeOpcoes(
     V2.instituicoes.filter((i) => i.ativo !== false).map((i) => ({ id: i.id, rotulo: i.nome })),
     c ? c.instituicaoId : "", "Sem instituição");
-  $("cn_tipo").innerHTML = opcoes(TIPOS_DE_CONTA, c ? c.tipo : "corrente");
-  $("cn_liquidez").innerHTML = opcoes(LIQUIDEZ, c ? c.liquidez : "livre");
+  $("cn_tipo").innerHTML = listaDeOpcoes(TIPOS_DE_CONTA, c ? c.tipo : "corrente");
+  $("cn_liquidez").innerHTML = listaDeOpcoes(LIQUIDEZ, c ? c.liquidez : "livre");
   $("cn_saldo").value = c ? c.saldoInicial : "0";
   $("cn_data").value = c ? c.saldoInicialEm : hojeISO();
   $("cn_ativo").value = c && c.ativo === false ? "nao" : "sim";
@@ -489,7 +489,7 @@ function limpaFormInstituicao(){
 let txEditando = null;
 
 function opcoesDeConta(selecionado){
-  return opcoes(V2.contas.filter((c) => c.ativo !== false)
+  return listaDeOpcoes(V2.contas.filter((c) => c.ativo !== false)
     .map((c) => ({ id: c.id, rotulo: c.nome })), selecionado, "");
 }
 
@@ -498,7 +498,7 @@ function atualizaCategoriasDoForm(){
   const atual = $("tr_categoria").value;
   const lista = categoriasPorFluxo(V2.categorias, fluxo)
     .map((c) => ({ id: c.id, rotulo: caminhoDaCategoria(V2.categorias, c.id) }));
-  $("tr_categoria").innerHTML = opcoes(lista, atual, "Sem categoria");
+  $("tr_categoria").innerHTML = listaDeOpcoes(lista, atual, "Sem categoria");
 }
 
 function abreTransacao(id){
@@ -681,7 +681,7 @@ function renderCategorias(){
 }
 
 function atualizaPaisDoForm(){
-  $("cg_pai").innerHTML = opcoes(
+  $("cg_pai").innerHTML = listaDeOpcoes(
     paisPossiveis(V2.categorias, catEditando)
       .map((c) => ({ id: c.id, rotulo: caminhoDaCategoria(V2.categorias, c.id) })),
     "", "É uma categoria principal");
@@ -770,8 +770,8 @@ async function recarrega(){
 
 export function atualizaFiltrosDeTela(){
   const conta = $("txFiltroConta"), cat = $("txFiltroCategoria");
-  if (conta) conta.innerHTML = opcoes(V2.contas.map((c) => ({ id: c.id, rotulo: c.nome })),
+  if (conta) conta.innerHTML = listaDeOpcoes(V2.contas.map((c) => ({ id: c.id, rotulo: c.nome })),
     filtros.contaId, "Todas");
-  if (cat) cat.innerHTML = opcoes(V2.categorias.map((c) =>
+  if (cat) cat.innerHTML = listaDeOpcoes(V2.categorias.map((c) =>
     ({ id: c.id, rotulo: caminhoDaCategoria(V2.categorias, c.id) })), filtros.categoriaId, "Todas");
 }
