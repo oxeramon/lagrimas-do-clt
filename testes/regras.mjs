@@ -1,36 +1,31 @@
-/* Testa as regras de negócio reais extraídas do index.html.
-   Não há build nem bundler: o teste recorta o trecho puro do arquivo
-   (do estado até o início do RENDER) e executa com um S de mentira.
+/* Testa as regras de negócio do app.
+   Não há build nem bundler: o teste importa EXATAMENTE os mesmos módulos que o
+   navegador carrega. Antes ele recortava um trecho do index.html com new
+   Function, e aquilo tinha um problema de fundo -- o que rodava no teste era
+   uma cópia do que rodava no app, e cópia se descola. Agora não há dois
+   motores financeiros: há um, e o teste usa ele.
 
    A fixture abaixo é 100% sintética e espelha a carga de exemplo do
    supabase-setup.sql. Ela não vem de base nenhuma em uso: os valores são
    redondos de propósito, e nenhum número aqui diz quanto alguém deve. */
 import { readFileSync } from "node:fs";
 
-const HTML = process.argv[2] || new URL("../index.html", import.meta.url);
-/* No Windows o git materializa o arquivo com CRLF, e os marcadores abaixo
-   procuram "\n". Normalizar na leitura deixa o teste igual em qualquer
-   plataforma e em qualquer configuração de core.autocrlf. */
-const html = readFileSync(HTML, "utf8").replaceAll("\r\n", "\n");
-
-const ini = html.indexOf("const S = { dividas:");
-const fim = html.indexOf("/* ====================================================================\n   RENDER");
-if (ini < 0 || fim < 0) { console.error("FALHA: não achei o trecho de regras no index.html"); process.exit(1); }
-
-const trecho = html.slice(ini, fim);
-const api = new Function(trecho + `
-  return { S, restantesDe, ultimoMes, parcelaEm, dividasDoMes, totalDividas, totalFixas,
-           aplicaEm, receitasDoMes, totalReceitas, rendaDoMes, periodoReceita,
-           saldoAberto, abertoDe, totalQuitado, agrupaAberto, parcelasAVencer,
-           fimGeral, saldoAposMes, escolheMesInicial, valorFixa, informado,
-           midx, addM, label };`)();
-
-const {
-  S, restantesDe, parcelaEm, aplicaEm, totalReceitas, rendaDoMes,
-  periodoReceita, saldoAberto, abertoDe, totalQuitado, agrupaAberto,
-  parcelasAVencer, ultimoMes, fimGeral, saldoAposMes, escolheMesInicial,
-  valorFixa, informado, totalFixas, midx, addM,
-} = api;
+import { S } from "../js/core/state.js";
+import { midx, addM, label, HOJE } from "../js/core/dates.js";
+import { money, pct, temValor } from "../js/core/money.js";
+import { esc } from "../js/core/escape.js";
+import {
+  restantesDe, ultimoMes, parcelaEm, pagoId, dividasDoMes, totalDividas,
+  saldoAberto, abertoDe, totalQuitado, agrupaAberto, parcelasAVencer,
+  fimGeral, saldoAposMes, escolheMesInicial, progressoDe, temJuros, meuDe,
+} from "../js/domain/debts.js";
+import { valorFixa, informado, fixasEstimadas, totalFixas } from "../js/domain/fixed.js";
+import {
+  aplicaEm, receitasDoMes, totalReceitas, rendaDoMes, periodoReceita,
+} from "../js/domain/income.js";
+import { credorDe, paiDe, raizDe, filhosDe, nomeCredorDe, nomeBancoDe,
+         credorPorNome } from "../js/domain/creditors.js";
+import { faturaDaCompra } from "../js/domain/billing.js";
 
 let ok = 0, bad = 0;
 const eq = (nome, got, want) => {
@@ -223,6 +218,86 @@ eq("totalFixas soma o real onde há real e a média no resto",
   totalFixas("2026-10"), 612);
 eq("e no mês sem informação soma só as médias", totalFixas("2026-11"), 500);
 S.fixas = []; S.fixasMes = {};
+
+console.log("fatura de cartão: em que mês a compra é paga");
+/* Esta regra só ficou testável quando saiu do index.html. Ela é pura --
+   recebe data e ciclo, devolve mês -- e é a que mais custa caro errar, porque
+   um mês trocado joga a compra para a fatura errada sem nenhum aviso. */
+/* vencimento DEPOIS do fechamento: a fatura é paga no mesmo mês que fecha */
+eq("compra antes do fechamento cai na fatura que fecha naquele mês",
+  faturaDaCompra("2026-03-05", 10, 20), "2026-03");
+eq("compra depois do fechamento cai na fatura seguinte",
+  faturaDaCompra("2026-03-15", 10, 20), "2026-04");
+/* a fronteira, que é o motivo de a comparação ser >= e não > */
+eq("compra NO DIA do fechamento já é do ciclo seguinte",
+  faturaDaCompra("2026-03-10", 10, 20), "2026-04");
+eq("e a véspera do fechamento ainda é do ciclo atual",
+  faturaDaCompra("2026-03-09", 10, 20), "2026-03");
+/* vencimento ANTES do fechamento: o pagamento escorrega um mês */
+eq("vencimento antes do fechamento empurra a fatura um mês",
+  faturaDaCompra("2026-03-05", 25, 8), "2026-04");
+eq("e a compra no dia do fechamento empurra dois",
+  faturaDaCompra("2026-03-25", 25, 8), "2026-05");
+eq("dezembro vira o ano corretamente", faturaDaCompra("2026-12-15", 10, 20), "2027-01");
+eq("sem dia de fechamento não há fatura a deduzir",
+  [faturaDaCompra("2026-03-05", null, 20), faturaDaCompra(null, 10, 20)], [null, null]);
+
+console.log("hierarquia banco e cartão");
+S.credores = [
+  { id: "c0", nome: "Banco Exemplo", paiId: null },
+  { id: "c1", nome: "Cartão Principal", paiId: "c0" },
+  { id: "c2", nome: "Cartão Secundário", paiId: "c0" },
+  { id: "c3", nome: "Loja Exemplo", paiId: null },
+];
+{
+  const noCartao = { credorId: "c1", credor: "Cartão Principal" };
+  const naLoja   = { credorId: "c3", credor: "Loja Exemplo" };
+  eq("credorDe acha pelo id", credorDe(noCartao).nome, "Cartão Principal");
+  eq("credorDe cai no nome quando não há id", credorDe({ credor: "Loja Exemplo" }).nome, "Loja Exemplo");
+  eq("paiDe sobe um nível", paiDe(S.credores[1]).nome, "Banco Exemplo");
+  eq("raizDe de um produto é o banco", raizDe(S.credores[1]).nome, "Banco Exemplo");
+  /* o contrato dos DOIS níveis: a raiz de quem não tem pai é ele mesmo, e não
+     null. Uma implementação que subisse em laço até o topo daria o mesmo
+     resultado aqui e entraria em loop num ciclo -- por isso ela sobe UM só. */
+  eq("raizDe de quem não tem pai é ele mesmo", raizDe(S.credores[0]).nome, "Banco Exemplo");
+  eq("paiDe de quem não tem pai é nulo", paiDe(S.credores[0]), null);
+  eq("filhosDe lista os produtos do banco",
+    filhosDe(S.credores[0]).map(c => c.nome), ["Cartão Principal", "Cartão Secundário"]);
+  eq("filhosDe de um produto é vazio", filhosDe(S.credores[1]), []);
+  /* agrupar pelo produto detalha; pelo banco, junta */
+  eq("nomeCredorDe é o produto", nomeCredorDe(noCartao), "Cartão Principal");
+  eq("nomeBancoDe é o banco", nomeBancoDe(noCartao), "Banco Exemplo");
+  eq("sem hierarquia os dois coincidem",
+    [nomeCredorDe(naLoja), nomeBancoDe(naLoja)], ["Loja Exemplo", "Loja Exemplo"]);
+  eq("credorPorNome ignora caixa e espaço", credorPorNome("  banco exemplo ").id, "c0");
+  eq("credorPorNome não inventa credor", credorPorNome("Não Existe"), undefined);
+}
+S.credores = [];
+
+console.log("progresso da dívida e meios com juros");
+S.dividas = [{ id: "dA", valor: 100, parcelaInicial: 4, totalParcelas: 10,
+               mesInicial: "2026-10", ordem: 10, meio: "Carnê", valorTerceiro: 40 }];
+S.pagos = {};
+eq("progresso conta as anteriores ao cadastro",
+  progressoDe(S.dividas[0]), { quitadas: 3, total: 10, frac: 0.3 });
+S.pagos = { "2026-10": { dA: true }, "2026-11": { dA: true } };
+eq("e soma as marcadas por cima",
+  progressoDe(S.dividas[0]), { quitadas: 5, total: 10, frac: 0.5 });
+/* nunca passa do total, mesmo se as marcas excederem: o cartão mostraria
+   "11 de 10 pagas" e a barra estouraria a caixa */
+S.pagos = { "2026-10": { dA: true }, "2026-11": { dA: true }, "2026-12": { dA: true },
+            "2027-01": { dA: true }, "2027-02": { dA: true }, "2027-03": { dA: true },
+            "2027-04": { dA: true }, "2027-05": { dA: true } };
+eq("quitadas nunca passa do total", progressoDe(S.dividas[0]).quitadas, 10);
+S.pagos = {};
+eq("financiamento e empréstimo são meios com juros",
+  [temJuros({ meio: "Financiamento" }), temJuros({ meio: "Empréstimo" }),
+   temJuros({ meio: "Carnê" }), temJuros({ meio: "Cartão de crédito" })],
+  [true, true, false, false]);
+/* rateio: o que é seu é o que sobra depois do que a outra pessoa devolve */
+eq("meuDe desconta a parte do terceiro", meuDe(S.dividas[0]), 60);
+eq("sem terceiro, tudo é seu", meuDe({ valor: 100 }), 100);
+S.dividas = [];
 
 console.log(`\n${ok} passaram, ${bad} falharam`);
 process.exit(bad ? 1 : 0);

@@ -22,6 +22,7 @@
      · um credor desativado, que sai das listas sem apagar o histórico.  */
 import { readFileSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
+import { join, dirname, normalize } from "node:path";
 
 const raiz = new URL("../", import.meta.url);
 const ENTRADA = fileURLToPath(new URL("index.html", raiz));
@@ -190,6 +191,87 @@ if (!html.includes(IMPORT)) {
   console.error("FALHA: não achei a linha de import do supabase-js no index.html.");
   process.exit(1);
 }
-writeFileSync(SAIDA, html.replace(IMPORT, stub), "utf8");
+
+/* ---- por que a prévia precisa embutir os módulos -----------------------
+   O navegador RECUSA `import` a partir de file://: o módulo vem de origem
+   "null" e a política de CORS barra. No ar isso não existe, porque o Pages
+   serve tudo por HTTPS e o import resolve normalmente -- continua sem bundler
+   e sem passo de build para produção.
+
+   Mas a prévia é feita para ser aberta como arquivo, com dois cliques. Então
+   aqui, e SÓ aqui, o grafo de módulos é achatado num script só. É ferramenta
+   de inspeção local, não empacotamento de produção.
+
+   O achatamento é deliberadamente burro, e pode ser porque o estilo dos
+   módulos do projeto é uniforme: só `import { … } from "./caminho.js"` e só
+   `export const` / `export function`. Nada de default, de `export {}` no fim,
+   de renomeação nem de import dinâmico. Se alguém introduzir uma dessas, o
+   gerador para e diz -- em vez de gerar uma prévia sutilmente errada. */
+const RAIZ_JS = fileURLToPath(raiz);
+
+function leModulo(rel){
+  try { return readFileSync(join(RAIZ_JS, rel), "utf8"); }
+  catch { console.error("FALHA: módulo não encontrado: " + rel); process.exit(1); }
+}
+
+const RE_IMPORT = /^import\s*\{([^}]*)\}\s*from\s*["'](\.[^"']+)["'];?\s*$/gm;
+
+/* percorre o grafo em profundidade, dependência antes de quem depende */
+function ordena(relInicial, vistos = new Set(), ordem = []){
+  if (vistos.has(relInicial)) return ordem;
+  vistos.add(relInicial);
+  const fonte = leModulo(relInicial);
+  const base = dirname(relInicial);
+  for (const m of fonte.matchAll(RE_IMPORT)){
+    const alvo = normalize(join(base, m[2]));
+    ordena(alvo, vistos, ordem);
+  }
+  ordem.push(relInicial);
+  return ordem;
+}
+
+function achata(fonte, rel){
+  const semImport = fonte.replace(RE_IMPORT, "");
+  if (/^\s*export\s+(default|\{)/m.test(semImport)){
+    console.error("FALHA: " + rel + " usa `export default` ou `export {}`, que o "
+      + "achatamento da prévia não sabe resolver. Use `export const` / `export function`.");
+    process.exit(1);
+  }
+  if (/^\s*import\s/m.test(semImport)){
+    console.error("FALHA: sobrou um import em " + rel + " que o gerador não reconheceu. "
+      + "A prévia só entende `import { … } from \"./caminho.js\"`.");
+    process.exit(1);
+  }
+  return semImport.replace(/^export\s+/gm, "");
+}
+
+/* os módulos que o index.html importa, na ordem em que aparecem */
+const doIndex = [...html.matchAll(RE_IMPORT)].map(m => normalize(m[2].replace(/^\.\//, "")));
+const ordem = [];
+for (const rel of doIndex) ordena(rel, new Set(ordem.map(x => x)), ordem);
+
+/* nome exportado duas vezes viraria colisão silenciosa no escopo único */
+const donoDe = new Map();
+for (const rel of ordem){
+  for (const m of leModulo(rel).matchAll(/^export\s+(?:const|let|function)\s+([A-Za-z_$][\w$]*)/gm)){
+    if (donoDe.has(m[1])){
+      console.error("FALHA: `" + m[1] + "` é exportado por " + donoDe.get(m[1]) + " e por "
+        + rel + ". No achatamento da prévia os dois caem no mesmo escopo.");
+      process.exit(1);
+    }
+    donoDe.set(m[1], rel);
+  }
+}
+
+const embutidos = ordem.map(rel =>
+  "/* ===== " + rel + " ===== */\n" + achata(leModulo(rel), rel)).join("\n");
+
+const corpo = html
+  .replace(IMPORT, stub)
+  .replace(RE_IMPORT, "")
+  .replace(stub, stub + "\n" + embutidos + "\n");
+
+writeFileSync(SAIDA, corpo, "utf8");
 console.log("preview.html gerado: " + credores.length + " credores, "
-  + DIVIDAS.length + " lançamentos, " + FIXAS.length + " contas fixas.");
+  + DIVIDAS.length + " lançamentos, " + FIXAS.length + " contas fixas, "
+  + ordem.length + " módulos embutidos.");

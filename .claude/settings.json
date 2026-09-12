@@ -19,6 +19,12 @@
           },
           {
             "type": "command",
+            "command": "node \"${CLAUDE_PROJECT_DIR:-.}/.claude/hooks/checa-modulos.mjs\"",
+            "timeout": 25,
+            "statusMessage": "Conferindo o grafo de módulos…"
+          },
+          {
+            "type": "command",
             "command": "node \"${CLAUDE_PROJECT_DIR:-.}/.claude/hooks/checa-html.mjs\"",
             "timeout": 20,
             "statusMessage": "Conferindo a estrutura do HTML…"

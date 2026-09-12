@@ -1401,6 +1401,35 @@ label.btn{display:inline-flex; align-items:center}
 import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm";
 
 /* ====================================================================
+   MÓDULOS DO PROJETO
+   Núcleo e domínio saíram deste arquivo e viraram ES Modules servidos ao
+   lado dele. Sem bundler: o navegador resolve os caminhos sozinho, e o
+   GitHub Pages entrega tudo por HTTPS.
+
+   O que mora em `js/` não conhece DOM. O que sobra aqui é tela: render,
+   diálogos, navegação e acesso ao Supabase. Uma regra financeira tem um
+   endereço só, e ele é `js/domain/`.
+
+   `docs/ARCHITECTURE_V2.md` tem o mapa de dependências permitidas.
+   ==================================================================== */
+import { S } from "./js/core/state.js";
+import { $ } from "./js/core/dom.js";
+import { esc } from "./js/core/escape.js";
+import { money, pct, moneyRico, curto, temValor } from "./js/core/money.js";
+import { MESES_PT, MES_LONGO, DIA_SEM, mkey, midx, fromIdx, addM, label,
+         labelLong, HOJE, iso, dataLocal, semanaDoMes } from "./js/core/dates.js";
+import { restantesDe, ultimoMes, parcelaEm, pagoId, dividasDoMes, totalDividas,
+         saldoAberto, abertoDe, totalQuitado, agrupaAberto, parcelasAVencer,
+         fimGeral, saldoAposMes, escolheMesInicial, progressoDe, COM_JUROS,
+         temJuros, meuDe } from "./js/domain/debts.js";
+import { valorFixa, informado, fixasEstimadas, totalFixas } from "./js/domain/fixed.js";
+import { aplicaEm, receitasDoMes, totalReceitas, rendaDoMes, periodoReceita,
+         janelaDe, estadoDe } from "./js/domain/income.js";
+import { credorDe, paiDe, raizDe, filhosDe, pessoaDe, nomePessoa, nomeCredorDe,
+         nomeBancoDe, credorPorNome } from "./js/domain/creditors.js";
+import { faturaDaCompra } from "./js/domain/billing.js";
+
+/* ====================================================================
    CONFIGURAÇÃO — projeto Supabase, região São Paulo.
    A chave publicável é pública por design: sozinha ela não abre nada,
    porque as políticas de segurança (RLS) exigem login e limitam cada
@@ -1417,33 +1446,6 @@ const sb = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 /* ====================================================================
    ESTADO E UTILITÁRIOS
    ==================================================================== */
-const S = { dividas: [], fixas: [], credores: [], receitas: [], renda: 0, pagos: {},
-            mes: null, loaded: false, mesFixado: false, uid: null, erroCarga: null,
-            fixasMes: {} };
-const MESES_PT = ["jan","fev","mar","abr","mai","jun","jul","ago","set","out","nov","dez"];
-const BRL = new Intl.NumberFormat("pt-BR", { style:"currency", currency:"BRL" });
-const money = v => BRL.format(Number(v) || 0);
-const pct   = v => (Number(v)*100).toFixed(1).replace(".", ",") + "%";
-/* figura de destaque: centavos recuam para o número cheio ser lido de longe */
-const moneyRico = v => money(v).replace(/(,\d{2})$/, '<span class="cents">$1</span>');
-/* rótulo curto de eixo: 12.500 -> 12,5k */
-function curto(v){
-  const a = Math.abs(v);
-  if (a >= 1000) return (v/1000).toFixed(a >= 10000 ? 0 : 1).replace(".", ",").replace(",0", "") + "k";
-  return String(Math.round(v));
-}
-const $ = id => document.getElementById(id);
-
-const mkey    = d => d.getFullYear() + "-" + String(d.getMonth()+1).padStart(2,"0");
-const midx    = k => { const p = k.split("-"); return (+p[0])*12 + (+p[1]) - 1; };
-const fromIdx = i => Math.floor(i/12) + "-" + String(i%12+1).padStart(2,"0");
-const addM    = (k,n) => fromIdx(midx(k)+n);
-const label   = k => { const p = k.split("-"); return MESES_PT[(+p[1])-1] + "/" + p[0].slice(2); };
-const labelLong = k => { const p = k.split("-"); return MESES_PT[(+p[1])-1] + "/" + p[0]; };
-const HOJE = mkey(new Date());
-
-const esc = s => String(s == null ? "" : s).replace(/[&<>"]/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;" }[c]));
-
 function toast(msg){
   document.querySelectorAll("#toast").forEach(t => t.remove());
   const t = document.createElement("div");
@@ -1457,59 +1459,6 @@ function erro(msg){
   setTimeout(() => { b.hidden = true; }, 6000);
 }
 
-/* regras de negócio ------------------------------------------------- */
-const restantesDe = d => (d.totalParcelas - d.parcelaInicial) + 1;
-const ultimoMes   = d => addM(d.mesInicial, restantesDe(d) - 1);
-
-function parcelaEm(d, k){
-  const i = midx(k) - midx(d.mesInicial);
-  if (i < 0 || i >= restantesDe(d)) return null;
-  return { n: d.parcelaInicial + i, total: d.totalParcelas, valor: d.valor };
-}
-const pagoId = (mes, id) => (S.pagos[mes] || {})[id] === true;
-
-function dividasDoMes(k){
-  return S.dividas
-    .map(d => ({ d, p: parcelaEm(d, k) }))
-    .filter(x => x.p)
-    .sort((a,b) => (a.d.ordem||0) - (b.d.ordem||0));
-}
-const totalDividas = k => dividasDoMes(k).reduce((s,x) => s + x.p.valor, 0);
-/* Quanto a conta fixa vale num mês. Aluguel responde o mesmo sempre; energia
-   responde a média até a fatura chegar, e o valor real depois disso. Informar
-   outubro não reescreve setembro nem muda o palpite de novembro -- é por isso
-   que o real mora numa tabela por mês em vez de sobrescrever o cadastro. */
-const valorFixa = (f, k) => {
-  const real = (S.fixasMes[k] || {})[f.id];
-  return real === undefined ? (Number(f.valor) || 0) : real;
-};
-const informado = (f, k) => (S.fixasMes[k] || {})[f.id] !== undefined;
-/* quanto do mês ainda é palpite: entra na frase da sobra, que sem isso promete
-   uma precisão que não tem */
-const fixasEstimadas = (k) => S.fixas
-  .filter(f => f.variavel && !informado(f, k))
-  .reduce((s,f) => s + (Number(f.valor)||0), 0);
-const totalFixas   = (k) => S.fixas.reduce((s,f) => s + valorFixa(f, k), 0);
-
-/* receitas: como nas parcelas, o mês é derivado do intervalo, não armazenado.
-   Uma receita mensal sem mês inicial vale desde sempre; sem mês final, para sempre. */
-function aplicaEm(r, k){
-  if (r.tipo === "pontual") return r.mesInicial === k;
-  if (r.mesInicial && midx(k) < midx(r.mesInicial)) return false;
-  if (r.mesFinal   && midx(k) > midx(r.mesFinal))   return false;
-  return true;
-}
-const receitasDoMes = k => S.receitas.filter(r => aplicaEm(r, k));
-const totalReceitas = k => receitasDoMes(k).reduce((s,r) => s + r.valor, 0);
-const rendaDoMes    = k => S.renda + totalReceitas(k);
-
-function periodoReceita(r){
-  if (r.tipo === "pontual")           return label(r.mesInicial);
-  if (!r.mesInicial && !r.mesFinal)   return "sem prazo";
-  if (r.mesInicial && !r.mesFinal)    return "desde " + label(r.mesInicial);
-  if (!r.mesInicial && r.mesFinal)    return "até " + label(r.mesFinal);
-  return label(r.mesInicial) + "–" + label(r.mesFinal);
-}
 /* Enquanto S.loaded for false a lista não tem o que mostrar. A frase muda
    conforme o motivo: ainda vindo, ou já tentou e não deu. */
 const vazioDeCarga = () => S.erroCarga
@@ -1520,115 +1469,6 @@ function avisaFalhaNasListas(){
     const el = $(id);
     if (el) el.innerHTML = vazioDeCarga();
   }
-}
-
-const credorDe = d => S.credores.find(c => c.id === d.credorId)
-                   || S.credores.find(c => c.nome === d.credor) || null;
-
-/* Um banco é o credor; cartão é produto dele. Quase toda tela quer os dois:
-   agrupa pelo banco, detalha pelo produto. São dois níveis e só: quem tem pai
-   não pode ser pai de ninguém, o que a tela garante ao oferecer os pais. */
-const paiDe    = c => (c && c.paiId) ? (S.credores.find(x => x.id === c.paiId) || null) : null;
-const raizDe   = c => paiDe(c) || c || null;
-const filhosDe = c => S.credores.filter(x => x.paiId === c.id);
-
-function saldoAberto(filtro){
-  let t = 0;
-  for (const d of S.dividas){
-    if (filtro && !filtro(d)) continue;
-    for (let i = 0; i < restantesDe(d); i++){
-      if (!pagoId(addM(d.mesInicial, i), d.id)) t += d.valor;
-    }
-  }
-  return t;
-}
-/* saldo que a dívida ainda tem em aberto, já descontando o que foi pago */
-function abertoDe(d){
-  let t = 0;
-  for (let i = 0; i < restantesDe(d); i++)
-    if (!pagoId(addM(d.mesInicial, i), d.id)) t += d.valor;
-  return t;
-}
-/* o que já foi pago. Soma mês a mês de propósito, igual a saldoAberto():
-   calcular isto como (valor × parcelas) − aberto misturava multiplicação
-   com soma repetida e sobrava um resto negativo de ponto flutuante, que
-   o formatador exibia como "-R$ 0,00". */
-/* Duas origens, os dois pagamentos de verdade.
-
-   As parcelas anteriores à parcela inicial foram pagas antes de a dívida
-   entrar aqui: não têm marca em `pagamentos` porque o app não existia para
-   elas, mas saíram do bolso do mesmo jeito. Contar só as marcadas dizia
-   "R$ 0,00 já quitados" para quem tinha pago um ano de financiamento -- e
-   ainda desmentia o cartão da dívida, que sempre contou as duas.
-
-   A identidade contratado = aberto + quitado continua exata, sem subtração:
-   (total - pi + 1 - marcadas) + (pi - 1 + marcadas) = total. */
-function totalQuitado(){
-  let t = 0;
-  for (const d of S.dividas){
-    t += (d.parcelaInicial - 1) * d.valor;
-    for (let i = 0; i < restantesDe(d); i++)
-      if (pagoId(addM(d.mesInicial, i), d.id)) t += d.valor;
-  }
-  return t;
-}
-
-/* soma o que está em aberto agrupando por uma chave qualquer, maior primeiro */
-function agrupaAberto(chave){
-  const m = new Map();
-  for (const d of S.dividas){
-    const v = abertoDe(d);
-    if (v <= 0) continue;
-    const c = chave(d) || "—";
-    m.set(c, (m.get(c) || 0) + v);
-  }
-  return [...m.entries()].map(([nome, v]) => ({ nome, v })).sort((a,b) => b.v - a.v);
-}
-
-/* o filtro opcional deixa a aba Dívidas reescopar tudo por credor sem
-   duplicar a regra de negócio */
-function parcelasAVencer(filtro){
-  let n = 0;
-  for (const d of S.dividas){
-    if (filtro && !filtro(d)) continue;
-    for (let i = 0; i < restantesDe(d); i++)
-      if (!pagoId(addM(d.mesInicial, i), d.id)) n++;
-  }
-  return n;
-}
-function fimGeral(filtro){
-  let max = null;
-  for (const d of S.dividas){
-    if (filtro && !filtro(d)) continue;
-    const u = ultimoMes(d);
-    if (max === null || midx(u) > midx(max)) max = u;
-  }
-  return max;
-}
-/* Quanto ainda se deve depois do mês k. Era a única soma de saldo do arquivo
-   que não olhava `pagamentos`, e isso dava uma curva de quitação em que o
-   primeiro ponto (que vem de saldoAberto) descontava o já pago e todos os
-   outros não -- adiantar uma parcela não fazia a curva descer. */
-function saldoAposMes(k, filtro){
-  let t = 0;
-  for (const d of S.dividas){
-    if (filtro && !filtro(d)) continue;
-    for (let i = 0; i < restantesDe(d); i++){
-      const m = addM(d.mesInicial, i);
-      if (midx(m) > midx(k) && !pagoId(m, d.id)) t += d.valor;
-    }
-  }
-  return t;
-}
-function escolheMesInicial(){
-  if (dividasDoMes(HOJE).length) return HOJE;
-  let prox = null;
-  for (const d of S.dividas)
-    for (let i = 0; i < restantesDe(d); i++){
-      const k = addM(d.mesInicial, i);
-      if (midx(k) >= midx(HOJE) && (prox === null || midx(k) < midx(prox))) prox = k;
-    }
-  return prox || HOJE;
 }
 
 /* ====================================================================
@@ -1993,34 +1833,6 @@ const contaPor = (itens, chave) => {
 
 /* ---------- dívidas ---------- */
 
-/* quanto da dívida já foi quitado. parcelaInicial - 1 são as parcelas pagas
-   antes do app existir; as marcadas em pagamentos somam por cima. */
-function progressoDe(d){
-  let marcadas = 0;
-  for (let i = 0; i < restantesDe(d); i++)
-    if (pagoId(addM(d.mesInicial, i), d.id)) marcadas++;
-  const quitadas = Math.min(d.totalParcelas, (d.parcelaInicial - 1) + marcadas);
-  return { quitadas, total: d.totalParcelas, frac: d.totalParcelas ? quitadas / d.totalParcelas : 0 };
-}
-
-const temValor = v => Math.abs(v) >= 0.005;   /* menos que meio centavo é ruído de ponto flutuante */
-
-/* Financiamento e empréstimo são MEIOS, nunca categorias -- a lista de
-   categorias vai de Transporte a Outros e não tem nenhum dos dois. O filtro
-   "sem financiamento" comparava com d.categoria, então a condição era sempre
-   verdadeira e ele não excluía nada: o KPI mostrava o mesmo número do saldo
-   total. Sobra de quando credor, meio e categoria ainda viviam espremidos
-   num campo só. */
-/* Quanto de uma dívida é de outra pessoa e volta para você. É por parcela,
-   igual a `valor`: numa compra de 4x R$ 88 rachada ao meio, R$ 44 por mês. */
-const pessoaDe   = d => S.credores.find(c => c.id === d.pessoaId) || null;
-const nomePessoa = d => (pessoaDe(d) || {}).nome || "";
-const meuDe      = d => d.valor - (d.valorTerceiro || 0);
-
-const COM_JUROS = ["Financiamento", "Empréstimo"];
-const temJuros  = d => COM_JUROS.includes(d.meio);
-const nomeCredorDe = d => (credorDe(d) || {}).nome || d.credor;
-const nomeBancoDe  = d => (raizDe(credorDe(d)) || {}).nome || d.credor;
 /* filtrar pelo banco pega tudo dele; pelo produto, só aquele cartão */
 const passaFiltro  = d => !F.credor
   || nomeCredorDe(d) === F.credor || nomeBancoDe(d) === F.credor;
@@ -2259,17 +2071,6 @@ $("detEditar").addEventListener("click", () => {
    O análogo do progresso de uma parcela é a janela de recorrência: quantos
    meses do intervalo contratado já passaram. Receita sem prazo não tem
    janela, e pontual não tem progresso — tem estado. */
-function janelaDe(r){
-  if (r.tipo !== "mensal" || !r.mesInicial || !r.mesFinal) return null;
-  const total = midx(r.mesFinal) - midx(r.mesInicial) + 1;
-  const decorridos = Math.min(total, Math.max(0, midx(HOJE) - midx(r.mesInicial) + 1));
-  return { decorridos, total, frac: total ? decorridos / total : 0, bruto: r.valor * total };
-}
-function estadoDe(r){
-  if (r.tipo !== "pontual") return null;
-  const d = midx(r.mesInicial) - midx(HOJE);
-  return d < 0 ? "já entrou" : d === 0 ? "entra este mês" : "entra em " + label(r.mesInicial);
-}
 const passaFiltroR = r => (!FR.categoria || r.categoria === FR.categoria)
                        && (!FR.tipo || r.tipo === FR.tipo);
 
@@ -2538,15 +2339,6 @@ function renderPainel(){
 
 /* Em que parte do mês o dinheiro sai. Só conta lançamento com data de
    compra: sem ela não dá para saber o dia, e chutar seria inventar. */
-const DIA_SEM = ["dom","seg","ter","qua","qui","sex","sáb"];
-/* a data vem como 2026-03-07; montar com os números evita o fuso empurrar
-   para o dia anterior, que new Date("2026-03-07") faria em UTC-3 */
-function dataLocal(iso){
-  const p = String(iso).split("-");
-  return new Date(+p[0], +p[1] - 1, +p[2]);
-}
-const semanaDoMes = dia => Math.min(3, Math.floor((dia - 1) / 7));
-
 function renderQuando(){
   const box = $("quando");
   const comData = S.dividas.filter(d => d.dataCompra);
@@ -3227,25 +3019,6 @@ let mesManual = false;
    segundos. Ao digitar a descrição, o app procura o lançamento mais recente com
    o mesmo nome e repete credor, meio e categoria: digitar uma descrição já usada
    preenche credor + meio + categoria sozinho; só resta o valor. */
-/* Em qual fatura uma compra cai.
-   A compra entra na fatura que fecha depois dela; essa fatura é paga no mês
-   seguinte ao fechamento quando o vencimento vem antes do fechamento (fecha
-   25, vence 8), e no mesmo mês quando vem depois (fecha 10, vence 20).
-
-   A comparação é >= e não >: compra feita no próprio dia do fechamento já cai
-   na fatura seguinte, porque o extrato é cortado naquele dia. Foi o que os
-   dados reais mostraram — com >, a compra feita no dia do fechamento caía um
-   mês antes do que o extrato do cartão indicava. */
-function faturaDaCompra(iso, fecha, vence){
-  if (!iso || !fecha) return null;
-  const p = String(iso).split("-");
-  let mesFecha = midx(p[0] + "-" + p[1]);
-  if (+p[2] >= fecha) mesFecha += 1;
-  return fromIdx(mesFecha + ((vence && vence > fecha) ? 0 : 1));
-}
-const credorPorNome = nome => S.credores.find(c =>
-  c.nome.trim().toLowerCase() === String(nome).trim().toLowerCase());
-
 /* Quando dá para deduzir, preenche o mês e mostra a conta feita. Explicar
    o porquê importa: mês trocado sozinho, sem aviso, vira desconfiança. */
 function aplicaFatura(){
@@ -3542,11 +3315,6 @@ document.addEventListener("input", (e) => {
 /* ---------- calendário ----------
    Monta o mês sobre uma data local construída a partir dos números, nunca por
    new Date("2026-03-07"): essa forma é lida como UTC e, em UTC-3, volta um dia. */
-const DIA_CURTO = ["dom","seg","ter","qua","qui","sex","sáb"];
-const MES_LONGO = ["janeiro","fevereiro","março","abril","maio","junho",
-                   "julho","agosto","setembro","outubro","novembro","dezembro"];
-const iso = d => d.getFullYear() + "-" + String(d.getMonth()+1).padStart(2,"0")
-                 + "-" + String(d.getDate()).padStart(2,"0");
 let calMes = null;   /* primeiro dia do mês em exibição */
 
 function desenhaCal(){
@@ -3579,7 +3347,7 @@ function desenhaCal(){
     + '<span class="cal-mes">' + MES_LONGO[mes] + " de " + ano + '</span>'
     + '<button type="button" class="cal-nav" data-cal="1" aria-label="Próximo mês">&#8250;</button>'
     + '</div>'
-    + '<div class="cal-sem">' + DIA_CURTO.map(d => "<span>" + d + "</span>").join("") + '</div>'
+    + '<div class="cal-sem">' + DIA_SEM.map(d => "<span>" + d + "</span>").join("") + '</div>'
     + '<div class="cal-grade">' + dias + '</div>'
     + '<div class="cal-rod"><button type="button" data-dia="' + iso(hoje) + '">Hoje</button>'
     + '<button type="button" id="calLimpa">Sem data</button></div>';
