@@ -767,6 +767,35 @@
   </form>
 </dialog>
 
+
+<!-- Pagar um compromisso da V1, ou receber uma receita prevista. Para quem usa
+     é UMA operação; por dentro continuam sendo entidades diferentes, e é a RPC
+     `liquida_compromisso` / `recebe_receita` que junta as escritas numa
+     transação só. Ver docs/CONTRATO_PONTE.md. -->
+<dialog id="dlgLiquidar">
+  <form id="formLiquidar">
+    <div class="dlg-h"><h2 id="lqTitulo">Pagar</h2><button type="button" class="btn ghost" data-fechar="dlgLiquidar" aria-label="Fechar"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M18 6L6 18M6 6l12 12"/></svg></button></div>
+    <div class="formgrid">
+      <p class="hint full" id="lqSobre"></p>
+      <div class="full formgrid" id="lqCampos" style="padding:0">
+        <div class="field"><label for="lq_conta" id="lqRotConta">De qual conta saiu</label>
+          <select id="lq_conta" required></select></div>
+        <div class="field"><label for="lq_valor">Valor (R$)</label>
+          <input type="number" id="lq_valor" step="0.01" min="0.01" inputmode="decimal" required></div>
+        <div class="field"><label for="lq_data">Data</label><input type="date" id="lq_data" required></div>
+        <div class="field"><label for="lq_categoria">Categoria</label><select id="lq_categoria"></select></div>
+        <div class="field full"><label for="lq_obs">Observação</label><input id="lq_obs" maxlength="200"></div>
+      </div>
+      <p class="hint full" id="lqErro" role="alert" hidden></p>
+    </div>
+    <div class="dlg-f">
+      <button type="button" class="btn ghost" id="lqDesfazer" hidden>Desfazer</button>
+      <span style="flex:1"></span>
+      <button type="button" class="btn" data-fechar="dlgLiquidar">Cancelar</button>
+      <button type="submit" class="btn primary" id="lqSalvar">Pagar</button>
+    </div>
+  </form>
+</dialog>
 <dialog id="dlgCategorias">
   <div class="dlg-h"><h2>Categorias</h2><button type="button" class="btn ghost" data-fechar="dlgCategorias" aria-label="Fechar"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M18 6L6 18M6 6l12 12"/></svg></button></div>
   <div class="formgrid">
@@ -964,8 +993,9 @@ import { ligaNavegacao, vaiParaAba } from "./js/ui/navigation.js";
 import { ligaSupabase } from "./js/data/client.js";
 import * as v1 from "./js/data/v1-repository.js";
 import { entra, sai, observaSessao, sessaoAtual } from "./js/data/session.js";
-import { ligaTelasV2, carregaV2, renderV2, atualizaFiltrosDeTela, V2 }
-  from "./js/ui/v2-screens.js";
+import { ligaTelasV2, carregaV2, renderV2, atualizaFiltrosDeTela, V2,
+         abreLiquidacao, pontePronta, indiceDaPonte } from "./js/ui/v2-screens.js";
+import { chaveDe } from "./js/domain/reconciliation.js";
 
 /* ====================================================================
    CONFIGURAÇÃO — projeto Supabase, região São Paulo.
@@ -1084,6 +1114,27 @@ function itensDoMes(k){
 /* histórico conta como pago sem ter linha em `pagamentos`: foi pago antes de o
    app existir, e é o próprio número da parcela inicial que diz isso */
 const pagoItem = (k, it) => it.historico || pagoId(k, it.id);
+
+/* ------------------------------------------------------------------ ponte --
+   O botão que liga um compromisso da V1 a uma saída de verdade na V2.
+
+   Quem NÃO ganha botão, e por quê:
+   · item histórico -- foi pago antes de o app existir, não há o que registrar;
+   · compra de cartão -- quem paga uma compra de cartão é a FATURA. Pagar item
+     a item registraria a compra e o pagamento como duas saídas, e a mesma
+     despesa apareceria duas vezes no extrato.
+
+   "Pago" no quadradinho e "Pagar" aqui são coisas diferentes, e a tela precisa
+   deixar isso claro: o quadradinho diz que a obrigação foi cumprida; o botão
+   diz de qual conta o dinheiro saiu. */
+function botaoPonte(k, it, ponte){
+  if (!pontePronta() || it.historico || it.naFatura) return "";
+  const ligado = ponte.has(chaveDe(it.id, k));
+  const tipo = it.id.slice(0, 3) === "fx:" ? "fixa" : "divida";
+  return '<button type="button" class="btn ghost sm liq' + (ligado ? " feito" : "")
+    + '" data-liquidar="' + esc(it.id) + '" data-liqtipo="' + tipo + '">'
+    + (ligado ? "Ver sa\u00edda" : "Pagar") + '</button>';
+}
 
 function renderFiltrosMes(k){
   const itens = itensDoMes(k);
@@ -1230,6 +1281,9 @@ function renderMes(){
     b.itens.push(it);
   }
 
+  /* uma vez por render, e não uma vez por linha */
+  const ponte = indiceDaPonte();
+
   box.innerHTML = bancos.map(g => {
     const totalBanco = g.blocos.reduce((t,b) =>
       t + b.itens.reduce((x,it) => x + it.valor, 0), 0);
@@ -1265,6 +1319,7 @@ function renderMes(){
                     + (it.estimado ? '<span class="med">média</span>' : '')
                     + money(it.valor) + '</button>'
                   : '<div class="amt">' + money(it.valor) + '</div>')
+              + botaoPonte(k, it, ponte)
               + '</div>';
           }).join("");
     }
@@ -1681,10 +1736,12 @@ function renderReceitas(){
     return a.categoria.localeCompare(b.categoria, "pt-BR") || (a.ordem||0) - (b.ordem||0);
   });
 
+  const ponte = indiceDaPonte();
+
   box.innerHTML = '<div class="dgrid">' + ord.map(r => {
     const j = janelaDe(r), est = estadoDe(r), ativa = aplicaEm(r, k);
     const mensal = r.tipo === "mensal";
-    return '<button class="dcard rcard' + (ativa ? "" : " off") + '" data-editrec="' + esc(r.id) + '"'
+    return acaoReceita(r, k, ponte, '<button class="dcard rcard' + (ativa ? "" : " off") + '" data-editrec="' + esc(r.id) + '"'
       + ' aria-label="Editar ' + esc(r.descricao) + '">'
       + '<div class="topo"><span class="nome">' + esc(r.descricao)
       + '<span class="cred">' + esc(r.categoria) + ' · ' + (mensal ? "todo mês" : "uma vez só")
@@ -1701,8 +1758,24 @@ function renderReceitas(){
            + '<span>' + money(r.valor * 12) + ' por ano</span></div>'
            : '<div class="pes"><span>' + esc(est || "") + '</span>'
            + '<span>' + (ativa ? "conta em " + label(k) : "fora de " + label(k)) + '</span></div>')
-      + '</button>';
+      + '</button>');
   }).join("") + '</div>';
+}
+
+/* A V1 nunca teve como registrar "esta receita caiu": `pagamentos` só existe
+   para saídas. O vínculo da ponte passa a ser o marcador -- ver a seção "A
+   lacuna da V1 que isto resolve" em docs/CONTRATO_PONTE.md.
+
+   A ação vem FORA do cartão, e não dentro: o cartão inteiro já é um botão, que
+   abre a edição, e botão dentro de botão não existe em HTML. */
+function acaoReceita(r, k, ponte, cartao){
+  if (!pontePronta() || !aplicaEm(r, k)) return cartao;
+  const recebida = ponte.has(chaveDe(r.id, k));
+  return '<div class="dcard-wrap com-acao">' + cartao
+    + '<div class="dcard-acao"><span>'
+    + (recebida ? "Recebido em " + esc(label(k)) : "Previsto para " + esc(label(k)))
+    + '</span><button type="button" class="btn ghost sm" data-receber="' + esc(r.id) + '">'
+    + (recebida ? "Ver entrada" : "Receber") + '</button></div></div>';
 }
 
 /* ====================================================================
@@ -2397,7 +2470,7 @@ async function carregaAgora(){
 /* A navegação virou registro em js/ui/navigation.js: acrescentar uma tela é
    acrescentar uma linha lá, e não mexer aqui. */
 ligaNavegacao();
-ligaTelasV2({ toast, erro });
+ligaTelasV2({ toast, erro, pontemudou });
 
 function vaiPara(k){
   S.mesFixado = true; S.mes = k;
@@ -2531,6 +2604,41 @@ $("listaMes").addEventListener("click", async (e) => {
     erro("Não deu para salvar a marcação. " + r.erro);
   }
 });
+
+/* ------------------------------------------------------------------ ponte --
+   "Pagar" e "Receber". As duas abrem o mesmo diálogo, que mora na V2 -- é lá
+   que estão as contas, e é a RPC que junta as escritas numa transação só. */
+$("listaMes").addEventListener("click", (e) => {
+  const b = e.target.closest("[data-liquidar]");
+  if (!b) return;
+  const k = S.mes, id = b.getAttribute("data-liquidar");
+  const it = itensDoMes(k).find(x => x.id === id);
+  if (!it) return;
+  abreLiquidacao({ tipo: b.getAttribute("data-liqtipo"), itemId: id, competencia: k,
+                   nome: it.nome, valor: it.valor });
+});
+
+$("listaReceitas").addEventListener("click", (e) => {
+  const b = e.target.closest("[data-receber]");
+  if (!b) return;
+  const k = S.mes, id = b.getAttribute("data-receber");
+  const r = S.receitas.find(x => x.id === id);
+  if (!r) return;
+  abreLiquidacao({ tipo: "receita", itemId: id, competencia: k,
+                   nome: r.descricao, valor: r.valor });
+});
+
+/* A RPC escreveu nas duas metades na mesma transação, e a V2 já se recarregou.
+   Da V1 mudou uma coisa só: a marca. Recarregar a V1 inteira por causa de uma
+   linha custaria uma ida ao banco e faria a tela piscar.
+
+   `marcado` vem `null` quando não houve marca nenhuma em jogo -- receita não
+   entra em `pagamentos`, porque receita não é pagamento. */
+function pontemudou({ competencia, itemId, marcado }){
+  if (marcado === true) (S.pagos[competencia] = S.pagos[competencia] || {})[itemId] = true;
+  else if (marcado === false && S.pagos[competencia]) delete S.pagos[competencia][itemId];
+  renderMes(); renderDividas(); renderPainel(); renderReceitas(); renderProj();
+}
 
 /* dívidas */
 const dlg = $("dlgDivida");

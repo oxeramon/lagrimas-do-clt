@@ -97,6 +97,39 @@ const credores = CREDORES.map(([nome, tipo, fecha, vence, ativo, pai], i) => {
            credor_pai_id: pai ? idDe.get(pai) : null };
 });
 
+/* Categorias da V2: duas raízes de saída, uma de entrada, e uma filha em cada
+   -- o bastante para a lista de escolha mostrar caminho de dois níveis. */
+const CATEGORIAS_V2 = [
+  { id: "g1", pai_id: null, nome: "Moradia",   nivel: 1, fluxo: "saida",   cor: "#1F5E52", icone: "", ativo: true, ordem: 10 },
+  { id: "g2", pai_id: null, nome: "Transporte",nivel: 1, fluxo: "saida",   cor: "#2F4858", icone: "", ativo: true, ordem: 20 },
+  { id: "g3", pai_id: null, nome: "Renda",     nivel: 1, fluxo: "entrada", cor: "#4C7A5A", icone: "", ativo: true, ordem: 30 },
+  { id: "g4", pai_id: "g1", nome: "Aluguel",   nivel: 2, fluxo: "saida",   cor: null, icone: "", ativo: true, ordem: 10 },
+  { id: "g5", pai_id: "g1", nome: "Energia",   nivel: 2, fluxo: "saida",   cor: null, icone: "", ativo: true, ordem: 20 },
+  { id: "g6", pai_id: "g2", nome: "Combust\u00edvel", nivel: 2, fluxo: "saida", cor: null, icone: "", ativo: true, ordem: 10 },
+  { id: "g7", pai_id: "g3", nome: "Sal\u00e1rio",  nivel: 2, fluxo: "entrada", cor: null, icone: "", ativo: true, ordem: 10 },
+];
+
+/* Movimento de setembro. `t3`/`t4` são as duas pernas de UMA transferência:
+   elas compartilham `transferencia_id` e se anulam no patrimônio. `t5` é a
+   saída que liquidou a primeira conta fixa do mês. */
+const TRANSACOES_V2 = [
+  { id: "t1", conta_id: "ct1", categoria_id: "g7", tipo: "entrada", natureza: "normal",
+    descricao: "Sal\u00e1rio", valor: 7400, data: "2026-09-05", status: "realizada",
+    origem: null, origem_id: null, obs: "", transferencia_id: null },
+  { id: "t2", conta_id: "ct1", categoria_id: "g6", tipo: "saida", natureza: "normal",
+    descricao: "Combust\u00edvel", valor: 300, data: "2026-09-08", status: "realizada",
+    origem: null, origem_id: null, obs: "", transferencia_id: null },
+  { id: "t3", conta_id: "ct1", categoria_id: null, tipo: "saida", natureza: "transferencia",
+    descricao: "Para a reserva", valor: 500, data: "2026-09-10", status: "realizada",
+    origem: null, origem_id: null, obs: "", transferencia_id: "tr1" },
+  { id: "t4", conta_id: "ct2", categoria_id: null, tipo: "entrada", natureza: "transferencia",
+    descricao: "Da conta corrente", valor: 500, data: "2026-09-10", status: "realizada",
+    origem: null, origem_id: null, obs: "", transferencia_id: "tr1" },
+  { id: "t5", conta_id: "ct1", categoria_id: "g4", tipo: "saida", natureza: "normal",
+    descricao: "Aluguel Exemplo", valor: 1333, data: "2026-09-05", status: "realizada",
+    origem: "fixa", origem_id: "fx:f0", obs: "", transferencia_id: null },
+];
+
 const DB = {
   dividas: DIVIDAS.map(([credor, descricao, categoria, meio, valor, pi, tot, mes, data, quem, quanto], i) => ({
     id: "d" + i, credor, credor_id: idDe.get(credor), descricao, categoria, meio,
@@ -126,7 +159,48 @@ const DB = {
     { mes: "2026-09", item_id: "fx:f0" }, { mes: "2026-09", item_id: "fx:f2" },
   ],
   config: { renda: 7400 },
+
+  /* ---------------------------------------------------------------- V2 ----
+     Contas, categorias e movimento. Fictício como o resto do arquivo: nome
+     genérico, valor redondo, nada vindo de base em uso. */
+  instituicoes: [
+    { id: "i1", nome: "Banco Exemplo",    tipo: "Banco",    logo: "", cor: "#1F5E52", ativo: true, obs: "", ordem: 10 },
+    { id: "i2", nome: "Fintech Exemplo",  tipo: "Fintech",  logo: "", cor: "#2F4858", ativo: true, obs: "", ordem: 20 },
+  ],
+  contas: [
+    { id: "ct1", instituicao_id: "i1", nome: "Conta corrente", tipo: "corrente",
+      saldo_inicial: 2000, saldo_inicial_em: "2026-01-01", liquidez: "livre",
+      moeda: "BRL", ativo: true, obs: "", ordem: 10 },
+    { id: "ct2", instituicao_id: "i2", nome: "Reserva", tipo: "poupanca",
+      saldo_inicial: 5000, saldo_inicial_em: "2026-01-01", liquidez: "livre",
+      moeda: "BRL", ativo: true, obs: "", ordem: 20 },
+    { id: "ct3", instituicao_id: "i1", nome: "FGTS", tipo: "fgts",
+      saldo_inicial: 3000, saldo_inicial_em: "2026-01-01", liquidez: "restrita",
+      moeda: "BRL", ativo: true, obs: "", ordem: 30 },
+  ],
+  categorias: CATEGORIAS_V2,
+  transacoes: TRANSACOES_V2,
+  /* A única liquidação do cenário: a primeira conta fixa de setembro, paga
+     pela conta corrente. A marca correspondente já está em `pagamentos` --
+     a conferência abaixo cobra isso. */
+  liquidacoes: [
+    { id: "lq1", tipo: "fixa", item_id: "fx:f0", competencia: "2026-09",
+      transacao_id: "t5", valor: 1333, criado_em: "2026-09-05T12:00:00Z" },
+  ],
 };
+
+/* A view do banco soma; aqui o dublê precisa entregar o MESMO número. Calcular
+   em vez de digitar é o que impede a prévia de mostrar um saldo que o banco
+   nunca produziria. */
+DB.saldos_de_conta = DB.contas.map(c => ({
+  conta_id: c.id, nome: c.nome, tipo: c.tipo, liquidez: c.liquidez,
+  saldo_inicial: c.saldo_inicial, saldo_inicial_em: c.saldo_inicial_em,
+  saldo: DB.transacoes
+    .filter(t => t.conta_id === c.id && (t.status === "realizada" || t.status === "conciliada"))
+    .reduce((v, t) => v + (t.tipo === "saida" ? -t.valor : t.valor), c.saldo_inicial),
+}));
+
+
 
 /* ---- conferência: o mês declarado tem que bater com o ciclo do cartão ----
    Dado de exemplo errado é pior que dado nenhum: a tela fica plausível e
@@ -153,8 +227,31 @@ for (const [credor, desc, , meio, , pi, , mes, data] of DIVIDAS) {
     erros++;
   }
 }
+/* Liquidação de dívida ou fixa sem a marca da V1 é estado impossível: a RPC
+   escreve as duas na mesma transação. Cenário incoerente esconde defeito. */
+for (const l of DB.liquidacoes) {
+  if (l.tipo === "receita") continue;
+  if (!DB.pagamentos.some(p => p.mes === l.competencia && p.item_id === l.item_id)) {
+    console.error("  INCOERENTE: liquidação de " + l.item_id + " em " + l.competencia
+      + " sem a marca correspondente em `pagamentos`.");
+    erros++;
+  }
+  const t = DB.transacoes.find(x => x.id === l.transacao_id);
+  if (!t) {
+    console.error("  INCOERENTE: liquidação aponta para a transação "
+      + l.transacao_id + ", que não existe no cenário.");
+    erros++;
+  } else if (t.valor !== l.valor) {
+    /* a RPC escreve os dois a partir do MESMO parâmetro. Diferir aqui é
+       inventar um estado que o banco não produz. */
+    console.error("  INCOERENTE: a liquidação de " + l.item_id + " diz " + l.valor
+      + " e a transação diz " + t.valor + ".");
+    erros++;
+  }
+}
+
 if (erros) {
-  console.error("\n" + erros + " linha(s) com mês fora do ciclo do cartão.");
+  console.error("\n" + erros + " linha(s) incoerentes no cenário de exemplo.");
   process.exit(1);
 }
 

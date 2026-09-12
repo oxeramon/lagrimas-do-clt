@@ -226,6 +226,16 @@ tr.isnow.negativa td{background:var(--critical-soft)}
 .dcard-edit:hover{color:var(--brand); background:var(--surface-2)}
 .dcard-edit:focus-visible{outline:2px solid var(--brand); outline-offset:1px}
 
+/* A ação de receber fica FORA do cartão: o cartão inteiro já é um botão, e
+   botão dentro de botão não existe em HTML. Colada embaixo, ela continua
+   lendo como parte da mesma peça. */
+.dcard-wrap.com-acao .dcard{border-radius:var(--raio-2) var(--raio-2) 0 0}
+.dcard-acao{display:flex; align-items:center; justify-content:space-between; gap:var(--e-2);
+  padding:7px 10px 7px var(--e-4); border:1px solid var(--line); border-top:0;
+  border-radius:0 0 var(--raio-2) var(--raio-2); background:var(--surface-2);
+  font-size:11.5px; color:var(--ink-3)}
+.dcard-acao > span{min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+
 /* detalhe da dívida */
 .det-kpis{display:grid; grid-template-columns:repeat(3, 1fr); gap:10px; padding:16px 18px 0}
 .det-kpi{background:var(--surface-2); border-radius:var(--raio-2); padding:11px 13px}
@@ -423,6 +433,11 @@ svg.chart{display:block; width:100%; height:auto; overflow:visible}
 .row .amt{font-weight:var(--peso-forte); white-space:nowrap; font-variant-numeric:tabular-nums}
 .row.paid .desc b, .row.paid .amt{color:var(--ink-3); text-decoration:line-through; text-decoration-thickness:1px}
 .row.off .desc b, .row.off .amt{opacity:.48}
+/* O botão da ponte. `flex-shrink:0` porque quem encolhe numa linha apertada é
+   a descrição, que tem `min-width:0` para isso -- e não o alvo de clique. */
+.row .liq{flex-shrink:0}
+.row .liq.feito{color:var(--ink-3)}
+.row.paid .liq{text-decoration:none}
 .amt.in{color:var(--good)}
 .check{appearance:none; width:24px; height:24px; flex:none; border-radius:8px; cursor:pointer;
   border:1.5px solid var(--line-strong); background:var(--surface); display:grid; place-items:center;

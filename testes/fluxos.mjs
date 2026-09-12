@@ -74,7 +74,7 @@ await new Promise((ok) => servidor.listen(PORTA, "127.0.0.1", ok));
 
 /* --------------------------------------------------------------- dublê --*/
 const DUBLE = `
-const T = { instituicoes:[], contas:[], categorias:[], transacoes:[],
+const T = { instituicoes:[], contas:[], categorias:[], transacoes:[], liquidacoes:[],
             dividas:[], fixas:[], credores:[], receitas:[], pagamentos:[], fixas_mes:[], config:[] };
 let seq = 0;
 const uid = () => "id-" + (++seq);
@@ -101,6 +101,7 @@ export function createClient(){
       select:()=>api, order:()=>api, limit:()=>api,
       gte:(k,v)=>{filtros.push(r=>r[k]>=v); return api;},
       lt:(k,v)=>{filtros.push(r=>r[k]<v); return api;},
+      lte:(k,v)=>{filtros.push(r=>r[k]<=v); return api;},
       eq:(k,v)=>{filtros.push(r=>r[k]===v); return api;},
       in:(k,v)=>{filtros.push(r=>v.includes(r[k])); return api;},
       insert:(x)=>{
@@ -161,6 +162,61 @@ export function createClient(){
           descricao:a.p_descricao, obs:a.p_obs, status:a.p_status,
           conta_id: t.tipo === "saida" ? a.p_conta_origem : a.p_conta_destino }));
         return Promise.resolve({ data:a.p_transferencia, error:null });
+      }
+      /* --- a ponte com a V1, mesma regra da 005 --- */
+      const confere = (tipo, itemId, competencia, conta, valor) => {
+        if (!conta) return "liquidação: escolha a conta";
+        if (!(valor > 0)) return "liquidação: o valor precisa ser maior que zero";
+        if (!/^[0-9]{4}-(0[1-9]|1[0-2])$/.test(competencia||""))
+          return "liquidação: a competência precisa estar no formato AAAA-MM";
+        if (!T.contas.some(c => c.id === conta)) return "liquidação: conta não encontrada";
+        const achou = tipo === "divida"  ? T.dividas.some(d => d.id === itemId)
+                    : tipo === "fixa"    ? (itemId.slice(0,3) === "fx:"
+                                            && T.fixas.some(f => f.id === itemId.slice(3)))
+                    : tipo === "receita" ? T.receitas.some(r => r.id === itemId)
+                    : null;
+        if (achou === null) return "liquidação: tipo desconhecido";
+        if (!achou) return "liquidação: compromisso não encontrado";
+        /* a unique (user_id, tipo, item_id, competencia): pagar duas vezes o
+           mesmo mês do mesmo compromisso é recusado pelo BANCO, não pela tela */
+        if (T.liquidacoes.some(l => l.tipo === tipo && l.item_id === itemId
+                                 && l.competencia === competencia))
+          return "duplicate key value violates unique constraint \\"liquidacao_uma_por_competencia\\"";
+        return null;
+      };
+      const liquida = (tipo, itemId, a2, entrada) => {
+        const ruim = confere(tipo, itemId, a2.p_competencia, a2.p_conta, a2.p_valor);
+        if (ruim) return Promise.resolve({ data:null, error:{ message:ruim } });
+        const t = { id:uid(), user_id:"u1", conta_id:a2.p_conta, categoria_id:a2.p_categoria||null,
+                    tipo: entrada ? "entrada" : "saida", natureza:"normal",
+                    descricao:a2.p_descricao, valor:a2.p_valor, data:a2.p_data,
+                    status:"realizada", origem:tipo, origem_id:itemId, obs:a2.p_obs||"",
+                    transferencia_id:null };
+        T.transacoes.push(t);
+        /* receita NAO entra em pagamentos: receita não é pagamento */
+        if (!entrada && !T.pagamentos.some(x => x.mes === a2.p_competencia && x.item_id === itemId))
+          T.pagamentos.push({ id:uid(), user_id:"u1", mes:a2.p_competencia, item_id:itemId });
+        T.liquidacoes.push({ id:uid(), user_id:"u1", tipo, item_id:itemId,
+                             competencia:a2.p_competencia, transacao_id:t.id, valor:a2.p_valor });
+        return Promise.resolve({ data:t.id, error:null });
+      };
+      if (nome === "liquida_compromisso"){
+        if (!["divida","fixa"].includes(a.p_tipo))
+          return Promise.resolve({ data:null, error:{ message:"liquidação: use recebe_receita para receita" } });
+        return liquida(a.p_tipo, a.p_item_id, a, false);
+      }
+      if (nome === "recebe_receita") return liquida("receita", a.p_receita, a, true);
+      if (nome === "desfaz_liquidacao"){
+        const l = T.liquidacoes.find(x => x.tipo === a.p_tipo && x.item_id === a.p_item_id
+                                       && x.competencia === a.p_competencia);
+        if (!l) return Promise.resolve({ data:null, error:{ message:"liquidação: não encontrei o que desfazer" } });
+        /* apagar a transação leva o vínculo pelo cascade, e o gatilho leva a
+           marca da V1 junto -- as três coisas numa chamada */
+        T.transacoes = T.transacoes.filter(t => t.id !== l.transacao_id);
+        T.liquidacoes = T.liquidacoes.filter(x => x !== l);
+        if (l.tipo !== "receita")
+          T.pagamentos = T.pagamentos.filter(x => !(x.mes === l.competencia && x.item_id === l.item_id));
+        return Promise.resolve({ data:1, error:null });
       }
       return Promise.resolve({ data:null, error:{ message:"rpc desconhecida: " + nome } });
     },
@@ -335,16 +391,206 @@ console.log("\numa conta só");
 }
 
 /* ==================================================================
-   3. ROLAGEM LATERAL: mobile é primeira classe
+   3. A PONTE: pagar um compromisso e receber uma receita
+   ==================================================================
+   Aqui mora o risco que a ponte cria. Ligar compromisso e movimento é o que
+   deixa o app somar o mesmo dinheiro duas vezes -- e o defeito não aparece
+   como erro, aparece como número plausível.
+
+   Os dois casos do contrato anti-dupla-contagem que passam por tela:
+
+     CASO B  dívida/fixa de 200 + o pagamento dela = 200 no mês, nunca 400
+     CASO D  receita de 300 + o recebimento dela   = 300 no mês, nunca 600
+   ================================================================== */
+console.log("\nponte: pagar e receber");
+{
+  const { p, erros } = await abreApp(1440);
+  await criaConta(p, "Conta Alfa", 1000, true);
+
+  /* uma conta fixa de 200, criada pela tela, como qualquer pessoa faria */
+  await vaiPara(p, "dividas");
+  await p.waitForTimeout(150);
+  await p.click("#novaFixa");
+  await p.waitForTimeout(250);
+  await p.fill("#x_nome", "Aluguel Teste");
+  await p.fill("#x_valor", "200");
+  await p.click("#formFixa button[type=submit]");
+  await p.waitForTimeout(400);
+
+  await vaiPara(p, "mes");
+  await p.waitForTimeout(200);
+
+  const antes = await p.evaluate(() => ({
+    total: document.getElementById("kTotal").textContent,
+    falta: document.getElementById("kFalta").textContent,
+    botoes: document.querySelectorAll("#listaMes [data-liquidar]").length,
+    rotulo: (document.querySelector("#listaMes [data-liquidar]") || {}).textContent,
+  }));
+  eq("o compromisso do mês ganha o botão da ponte", antes.botoes, 1);
+  eq("e ele diz Pagar enquanto ninguém pagou", antes.rotulo, "Pagar");
+
+  await p.click("#listaMes [data-liquidar]");
+  await p.waitForTimeout(300);
+  const noDialogo = await p.evaluate(() => ({
+    aberto: document.getElementById("dlgLiquidar").open,
+    valor: document.getElementById("lq_valor").value,
+    conta: document.getElementById("lq_conta").value !== "",
+    titulo: document.getElementById("lqTitulo").textContent,
+  }));
+  eq("o diálogo abre", noDialogo.aberto, true);
+  eq("com o valor do compromisso já preenchido", noDialogo.valor, "200.00");
+  eq("e com uma conta escolhida, não em branco", noDialogo.conta, true);
+  eq("o título fala de pagar", noDialogo.titulo, "Pagar");
+
+  await p.click("#lqSalvar");
+  await p.waitForTimeout(500);
+
+  const depois = await p.evaluate(() => ({
+    aberto: document.getElementById("dlgLiquidar").open,
+    total: document.getElementById("kTotal").textContent,
+    falta: document.getElementById("kFalta").textContent,
+    rotulo: (document.querySelector("#listaMes [data-liquidar]") || {}).textContent,
+    marcado: (document.querySelector("#listaMes .check") || {}).getAttribute?.("aria-pressed"),
+    saidas: globalThis.__T.transacoes.filter((t) => t.tipo === "saida").length,
+    valor: globalThis.__T.transacoes.map((t) => t.valor),
+    marcas: globalThis.__T.pagamentos.length,
+    vinculos: globalThis.__T.liquidacoes.length,
+  }));
+  eq("o diálogo fecha sozinho ao dar certo", depois.aberto, false);
+  eq("nasceu UMA saída, e só uma", depois.saidas, 1);
+  eq("com o valor do compromisso", depois.valor, [200]);
+  eq("a marca da V1 veio junto, na mesma operação", depois.marcas, 1);
+  eq("e o vínculo entre os dois", depois.vinculos, 1);
+  eq("o quadradinho da V1 aparece marcado", depois.marcado, "true");
+  eq("o botão passa a oferecer ver a saída", depois.rotulo, "Ver saída");
+
+  /* ---- CASO B: o total do mês NÃO dobra ---- */
+  eq("CASO B · o total do mês continua o mesmo depois de pagar",
+    depois.total, antes.total);
+  eq("CASO B · e o que falta pagar zerou", depois.falta.replace(/ /g, " "), "R$ 0,00");
+
+  /* ---- e o saldo da conta caiu exatamente uma vez ---- */
+  await vaiPara(p, "contas");
+  await p.waitForTimeout(250);
+  eq("o saldo da conta caiu 200, uma vez só",
+    (await p.textContent("#ctSaldoTotal")).replace(/ /g, " "), "R$ 800,00");
+
+  /* ---- desfazer apaga as TRÊS coisas ---- */
+  await vaiPara(p, "mes");
+  await p.waitForTimeout(200);
+  await p.click("#listaMes [data-liquidar]");
+  await p.waitForTimeout(300);
+  eq("no que já foi pago, o diálogo oferece desfazer",
+    await p.evaluate(() => !document.getElementById("lqDesfazer").hidden), true);
+  eq("e não oferece pagar de novo",
+    await p.evaluate(() => document.getElementById("lqSalvar").hidden), true);
+  /* dois cliques no mesmo botão, como todo o resto do app */
+  await p.click("#lqDesfazer");
+  await p.waitForTimeout(120);
+  await p.click("#lqDesfazer");
+  await p.waitForTimeout(500);
+
+  const desfeito = await p.evaluate(() => ({
+    transacoes: globalThis.__T.transacoes.length,
+    marcas: globalThis.__T.pagamentos.length,
+    vinculos: globalThis.__T.liquidacoes.length,
+    rotulo: (document.querySelector("#listaMes [data-liquidar]") || {}).textContent,
+  }));
+  eq("desfazer apaga a transação", desfeito.transacoes, 0);
+  eq("desfazer apaga a marca da V1 junto", desfeito.marcas, 0);
+  eq("desfazer apaga o vínculo", desfeito.vinculos, 0);
+  eq("e o botão volta a oferecer pagar", desfeito.rotulo, "Pagar");
+
+  /* ================= RECEITA ================= */
+  await vaiPara(p, "receitas");
+  await p.waitForTimeout(200);
+  await p.click("#novaReceita");
+  await p.waitForTimeout(250);
+  await p.fill("#r_desc", "Extra Teste");
+  await p.fill("#r_valor", "300");
+  await p.selectOption("#r_tipo", "mensal");
+  await p.click("#formReceita button[type=submit]");
+  await p.waitForTimeout(400);
+
+  const rAntes = await p.evaluate(() => ({
+    total: document.getElementById("rTotal").textContent,
+    botoes: document.querySelectorAll("#listaReceitas [data-receber]").length,
+    rotulo: (document.querySelector("#listaReceitas [data-receber]") || {}).textContent,
+  }));
+  eq("a receita do mês ganha o botão de receber", rAntes.botoes, 1);
+  eq("e ele diz Receber enquanto não caiu", rAntes.rotulo, "Receber");
+
+  await p.click("#listaReceitas [data-receber]");
+  await p.waitForTimeout(300);
+  eq("o diálogo abre falando de receber",
+    await p.textContent("#lqTitulo"), "Receber");
+  eq("e pergunta em qual conta caiu, não de qual saiu",
+    await p.textContent("#lqRotConta"), "Em qual conta caiu");
+
+  await p.click("#lqSalvar");
+  await p.waitForTimeout(500);
+
+  const rDepois = await p.evaluate(() => ({
+    total: document.getElementById("rTotal").textContent,
+    rotulo: (document.querySelector("#listaReceitas [data-receber]") || {}).textContent,
+    entradas: globalThis.__T.transacoes.filter((t) => t.tipo === "entrada").length,
+    marcas: globalThis.__T.pagamentos.length,
+    vinculos: globalThis.__T.liquidacoes.length,
+  }));
+  eq("nasceu UMA entrada", rDepois.entradas, 1);
+  eq("receita NÃO vira linha em pagamentos: receita não é pagamento",
+    rDepois.marcas, 0);
+  eq("o vínculo é o próprio marcador de recebimento", rDepois.vinculos, 1);
+  eq("e o botão passa a oferecer ver a entrada", rDepois.rotulo, "Ver entrada");
+
+  /* ---- CASO D: a receita não conta duas vezes ---- */
+  eq("CASO D · o previsto do mês continua o mesmo depois de receber",
+    rDepois.total, rAntes.total);
+
+  await vaiPara(p, "contas");
+  await p.waitForTimeout(250);
+  eq("o saldo subiu 300, uma vez só",
+    (await p.textContent("#ctSaldoTotal")).replace(/ /g, " "), "R$ 1.300,00");
+
+  eq("nenhum erro de JavaScript no caminho inteiro", erros, []);
+  await p.close();
+}
+
+/* ==================================================================
+   4. ROLAGEM LATERAL: mobile é primeira classe
    ================================================================== */
 console.log("\nrolagem lateral");
 {
   const { p } = await abreApp(1440);
   await criaConta(p, "Conta Alfa", 1000, true);
   await criaConta(p, "Conta Beta", 500, false);
+
+  /* A linha do Mês e o cartão de Receitas ganharam um botão cada. `1fr` de
+     grid cresce até o filho mais largo, e a linha do Mês é flex com quatro
+     filhos: o defeito não aparece no monitor, só em 320px. Por isso as duas
+     telas entram aqui COM conteúdo -- tela vazia não mede nada. */
+  await vaiPara(p, "dividas");
+  await p.waitForTimeout(150);
+  await p.click("#novaFixa");
+  await p.waitForTimeout(250);
+  await p.fill("#x_nome", "Conta Fixa de Nome Razoavelmente Longo");
+  await p.fill("#x_valor", "1234.56");
+  await p.click("#formFixa button[type=submit]");
+  await p.waitForTimeout(400);
+
+  await vaiPara(p, "receitas");
+  await p.waitForTimeout(150);
+  await p.click("#novaReceita");
+  await p.waitForTimeout(250);
+  await p.fill("#r_desc", "Receita de Nome Razoavelmente Longo");
+  await p.fill("#r_valor", "9876.54");
+  await p.selectOption("#r_tipo", "mensal");
+  await p.click("#formReceita button[type=submit]");
+  await p.waitForTimeout(400);
+
   for (const largura of [320, 360, 390, 768, 1366, 1440]){
     await p.setViewportSize({ width: largura, height: 900 });
-    for (const aba of ["painel", "contas", "transacoes"]){
+    for (const aba of ["painel", "mes", "contas", "transacoes", "receitas"]){
       await vaiPara(p, aba);
       await p.waitForTimeout(120);
       eq(`sem rolagem lateral em ${largura}px na aba ${aba}`,

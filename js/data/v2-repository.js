@@ -165,3 +165,55 @@ export const atualizaTransferencia = (p) => consulta(
 
 export const removeTransferencia = (transferenciaId) => consulta(
   bancoV2().rpc("remove_transferencia", { p_transferencia: transferenciaId }), "transferência");
+
+/* ------------------------------------------------------------ liquidações --
+   A ponte com a V1: qual compromisso, de qual competência, foi liquidado por
+   qual transação. Ver `docs/CONTRATO_PONTE.md` e a migração 005.
+
+   O filtro é por COMPETÊNCIA e não por data: a competência é o mês a que a
+   obrigação pertence, e pagar em 03/10 a parcela de setembro é normal. Mês em
+   texto "AAAA-MM" ordena igual à data, então `gte`/`lte` bastam. `ate` aqui é
+   INCLUSIVO, ao contrário do de `listaTransacoes` -- lá o corte é um dia, aqui
+   é um mês inteiro, e "até setembro" que exclui setembro seria armadilha. */
+export function listaLiquidacoes({ de, ate, tipo } = {}){
+  let q = bancoV2().from("liquidacoes").select("*");
+  if (de)   q = q.gte("competencia", de);
+  if (ate)  q = q.lte("competencia", ate);
+  if (tipo) q = q.eq("tipo", tipo);
+  return consulta(q.order("competencia", { ascending: false }), "liquidações");
+}
+
+/* Uma chamada, uma transação de banco, tudo ou nada. Duas chamadas HTTP não
+   servem pela mesma razão da transferência: a segunda pode falhar e deixar
+   "marcou pago mas não criou a saída". */
+export const liquidaCompromisso = (p) => consulta(
+  bancoV2().rpc("liquida_compromisso", {
+    p_tipo:        p.tipo,
+    p_item_id:     p.itemId,
+    p_competencia: p.competencia,
+    p_conta:       p.contaId,
+    p_valor:       p.valor,
+    p_data:        p.data,
+    p_descricao:   p.descricao,
+    p_categoria:   p.categoriaId || null,
+    p_obs:         p.obs || "",
+  }), "pagamento");
+
+export const recebeReceita = (p) => consulta(
+  bancoV2().rpc("recebe_receita", {
+    p_receita:     p.receitaId,
+    p_competencia: p.competencia,
+    p_conta:       p.contaId,
+    p_valor:       p.valor,
+    p_data:        p.data,
+    p_descricao:   p.descricao,
+    p_categoria:   p.categoriaId || null,
+    p_obs:         p.obs || "",
+  }), "recebimento");
+
+/* Apaga a transação; o cascade leva o vínculo e o gatilho leva a marca da V1.
+   Uma chamada desfaz as três coisas. */
+export const desfazLiquidacao = (p) => consulta(
+  bancoV2().rpc("desfaz_liquidacao", {
+    p_tipo: p.tipo, p_item_id: p.itemId, p_competencia: p.competencia,
+  }), "desfazer");
