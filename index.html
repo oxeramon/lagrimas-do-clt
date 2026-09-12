@@ -1429,6 +1429,9 @@ import { credorDe, paiDe, raizDe, filhosDe, pessoaDe, nomePessoa, nomeCredorDe,
          nomeBancoDe, credorPorNome } from "./js/domain/creditors.js";
 import { faturaDaCompra } from "./js/domain/billing.js";
 import { ligaNavegacao, vaiParaAba } from "./js/ui/navigation.js";
+import { ligaSupabase } from "./js/data/client.js";
+import * as v1 from "./js/data/v1-repository.js";
+import { entra, sai, observaSessao, sessaoAtual } from "./js/data/session.js";
 
 /* ====================================================================
    CONFIGURAÇÃO — projeto Supabase, região São Paulo.
@@ -1443,6 +1446,10 @@ const SUPABASE_URL      = "https://adadphekrhfzezfwjxor.supabase.co";
 const SUPABASE_ANON_KEY = "sb_publishable_7hyNn_DFQqG03XI4etYlmw_TUSA90CB";
 
 const sb = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+/* daqui para baixo quem fala com o banco é `js/data/`. O cliente nasce aqui
+   porque a URL e a chave moram aqui, e porque a prévia troca o import do CDN
+   por um dublê procurando exatamente esta linha. */
+ligaSupabase(sb);
 
 /* ====================================================================
    ESTADO E UTILITÁRIOS
@@ -1972,9 +1979,8 @@ $("fecharFixaMes").addEventListener("click", () => $("dlgFixaMes").close());
 $("fmCancelar").addEventListener("click", () => $("dlgFixaMes").close());
 
 $("fmVoltarMedia").addEventListener("click", async () => {
-  const r = await sb.from("fixas_mes").delete()
-    .eq("fixa_id", fixaMesId).eq("mes", S.mes);
-  if (r.error){ erro("Não deu para voltar à média: " + r.error.message); return; }
+  const r = await v1.voltaParaMedia(fixaMesId, S.mes);
+  if (r.erro){ erro("Não deu para voltar à média. " + r.erro); return; }
   $("dlgFixaMes").close();
   await carregar();
   toast("Voltou a usar a média em " + labelLong(S.mes));
@@ -1984,10 +1990,8 @@ $("formFixaMes").addEventListener("submit", async (e) => {
   e.preventDefault();
   const v = Number($("fm_valor").value) || 0;
   if (!temValor(v)){ erro("Informe um valor maior que zero."); return; }
-  const r = await sb.from("fixas_mes")
-    .upsert({ user_id: S.uid, fixa_id: fixaMesId, mes: S.mes, valor: v },
-            { onConflict: "user_id,fixa_id,mes" });
-  if (r.error){ erro("Não deu para salvar: " + r.error.message); return; }
+  const r = await v1.informaValorDoMes(S.uid, fixaMesId, S.mes, v);
+  if (r.erro){ erro("Não deu para salvar. " + r.erro); return; }
   $("dlgFixaMes").close();
   await carregar();
   toast("Valor de " + labelLong(S.mes) + " informado");
@@ -2770,15 +2774,7 @@ function carregar(){
 }
 
 async function carregaAgora(){
-  const [dv, fx, cr, rc, pg, fm, cf] = await Promise.all([
-    sb.from("dividas").select("*").order("ordem"),
-    sb.from("fixas").select("*").order("ordem"),
-    sb.from("credores").select("*").order("ordem"),
-    sb.from("receitas").select("*").order("ordem"),
-    sb.from("pagamentos").select("mes,item_id"),
-    sb.from("fixas_mes").select("mes,fixa_id,valor"),
-    sb.from("config").select("renda").maybeSingle()
-  ]);
+  const carga = await v1.carregaTudoV1();
   /* `fixas_mes` fica fora da lista fatal de propósito. O site publica antes da
      migração rodar -- foi o que aconteceu, e o app inteiro parou de carregar
      por uma tabela que só guarda ajuste de valor. Sem ela, conta variável
@@ -2787,21 +2783,21 @@ async function carregaAgora(){
 
      `pagamentos` não pode entrar nesta lista: sem ela tudo apareceria como não
      pago, e aí o app mentiria em vez de saber menos. */
-  const falha = [dv, fx, cr, rc, pg, cf].find(r => r.error);
-  if (falha){
+  if (carga.fatal){
     /* Aplicar só o que veio seria pior que não aplicar nada: se `pagamentos`
        falhar, tudo aparece como não pago, e a pessoa acha que deve o que já
        pagou. Então a carga continua sendo tudo ou nada -- o que muda é que a
        tela para de mentir "Carregando…" para sempre e passa a dizer o que
        houve, com um jeito de tentar de novo. */
-    S.erroCarga = falha.error.message;
-    erro("Não deu para carregar os dados: " + falha.error.message);
+    S.erroCarga = carga.erro;
+    erro("Não deu para carregar os dados: " + carga.erro);
     avisaFalhaNasListas();
     return;
   }
   S.erroCarga = null;
+  const b = carga.dados;
 
-  S.dividas = (dv.data || []).map(r => ({
+  S.dividas = b.dividas.map(r => ({
     id: r.id, credor: r.credor, descricao: r.descricao, categoria: r.categoria,
     valor: Number(r.valor) || 0,
     parcelaInicial: Number(r.parcela_inicial) || 1,
@@ -2811,7 +2807,7 @@ async function carregaAgora(){
     dataCompra: r.data_compra || null,
     pessoaId: r.pessoa_id || null, valorTerceiro: Number(r.valor_terceiro) || 0 
   }));
-  S.fixas = (fx.data || []).map(r => ({
+  S.fixas = b.fixas.map(r => ({
     id: r.id, nome: r.nome, valor: Number(r.valor) || 0, obs: r.obs || "",
     ordem: Number(r.ordem) || 0, categoria: r.categoria || "Moradia",
     meio: r.meio || "Débito automático", credor: r.credor || "",
@@ -2819,14 +2815,14 @@ async function carregaAgora(){
   }));
   /* valor real de uma conta variável num mês; o do cadastro segue sendo a média */
   S.fixasMes = {};
-  if (fm.error){
-    console.warn("fixas_mes indisponível, usando as médias:", fm.error.message);
+  if (carga.erroFixasMes){
+    console.warn("fixas_mes indisponível, usando as médias:", carga.erroFixasMes);
   } else {
-    for (const r of (fm.data || [])){
+    for (const r of b.fixasMes){
       (S.fixasMes[r.mes] = S.fixasMes[r.mes] || {})[r.fixa_id] = Number(r.valor) || 0;
     }
   }
-  S.credores = (cr.data || []).map(r => ({
+  S.credores = b.credores.map(r => ({
     id: r.id, nome: r.nome, tipo: r.tipo || "Pessoa", contato: r.contato || "",
     obs: r.obs || "", ordem: Number(r.ordem) || 0,
     ativo: r.ativo !== false,  /* banco antigo, sem a coluna, conta como ativo */
@@ -2835,17 +2831,17 @@ async function carregaAgora(){
     fecha: Number(r.dia_fechamento) || null, vence: Number(r.dia_vencimento) || null,
     paiId: r.credor_pai_id || null
   }));
-  S.receitas = (rc.data || []).map(r => ({
+  S.receitas = b.receitas.map(r => ({
     id: r.id, descricao: r.descricao, categoria: r.categoria || "Extra",
     valor: Number(r.valor) || 0, tipo: r.tipo || "pontual",
     mesInicial: r.mes_inicial || null, mesFinal: r.mes_final || null,
     obs: r.obs || "", ordem: Number(r.ordem) || 0
   }));
   S.pagos = {};
-  for (const p of (pg.data || [])){
+  for (const p of b.pagamentos){
     (S.pagos[p.mes] = S.pagos[p.mes] || {})[p.item_id] = true;
   }
-  S.renda = Number(cf.data?.renda) || 0;
+  S.renda = Number(b.renda) || 0;
   S.loaded = true;
   S.erroCarga = null;
   renderAll();
@@ -2963,13 +2959,11 @@ $("listaMes").addEventListener("click", async (e) => {
   ids.forEach(id => { if (estava) delete S.pagos[k][id]; else S.pagos[k][id] = true; });
   renderMes(); renderDividas(); renderPainel();
 
-  const r = estava
-    ? await sb.from("pagamentos").delete().eq("mes", k).in("item_id", ids)
-    : await sb.from("pagamentos").insert(ids.map(id => ({ mes: k, item_id: id })));
-  if (r.error){
+  const r = estava ? await v1.desmarcaPagos(k, ids) : await v1.marcaPagos(k, ids);
+  if (r.erro){
     ids.forEach(id => { if (estava) S.pagos[k][id] = true; else delete S.pagos[k][id]; });
     renderMes(); renderDividas(); renderPainel();
-    erro("Não deu para salvar a fatura: " + r.error.message);
+    erro("Não deu para salvar a fatura. " + r.erro);
   }
 });
 
@@ -2984,14 +2978,12 @@ $("listaMes").addEventListener("click", async (e) => {
   if (estava) delete S.pagos[k][id]; else S.pagos[k][id] = true;
   renderMes(); renderDividas(); renderPainel();
 
-  const r = estava
-    ? await sb.from("pagamentos").delete().eq("mes", k).eq("item_id", id)
-    : await sb.from("pagamentos").insert({ mes: k, item_id: id });
+  const r = estava ? await v1.desmarcaPago(k, id) : await v1.marcaPago(k, id);
 
-  if (r.error){
+  if (r.erro){
     if (estava) S.pagos[k][id] = true; else delete S.pagos[k][id];
     renderMes(); renderDividas(); renderPainel();
-    erro("Não deu para salvar a marcação: " + r.error.message);
+    erro("Não deu para salvar a marcação. " + r.erro);
   }
 });
 
@@ -3720,11 +3712,9 @@ $("formDivida").addEventListener("submit", async (e) => {
       ? (S.dividas.find(z => z.id === editandoId)?.ordem || 0)
       : (S.dividas.length + 1) * 10
   };
-  const r = editandoId
-    ? await sb.from("dividas").update(body).eq("id", editandoId)
-    : await sb.from("dividas").insert(body);
+  const r = await v1.salvaDivida(body, editandoId);
   btn.disabled = false;
-  if (r.error){ erro("Não deu para salvar: " + r.error.message); return; }
+  if (r.erro){ erro("Não deu para salvar. " + r.erro); return; }
   dlg.close();
   await carregar();
   toast(editandoId ? "Dívida atualizada" : "Dívida cadastrada");
@@ -3737,12 +3727,12 @@ $("excluirDivida").addEventListener("click", async function(){
     return;
   }
   confirmando = false;
-  const r = await sb.from("dividas").delete().eq("id", editandoId);
-  if (r.error){ erro("Não deu para excluir: " + r.error.message); return; }
+  const r = await v1.removeDivida(editandoId);
+  if (r.erro){ erro("Não deu para excluir. " + r.erro); return; }
   /* `pagamentos.item_id` é texto livre, não chave estrangeira -- guarda o id da
      dívida ou "fx:<id da fixa>", e o banco não sabe ligar os dois. Sem esta
      linha, as marcas de pago da dívida excluída ficariam para sempre. */
-  await sb.from("pagamentos").delete().eq("item_id", editandoId);
+  await v1.limpaPagamentosDe(editandoId);
   dlg.close();
   await carregar();
   toast("Dívida excluída");
@@ -3758,11 +3748,9 @@ async function garanteCredor(nome){
   if (!nome) return null;
   const achou = S.credores.find(c => c.nome.toLowerCase() === nome.toLowerCase());
   if (achou) return achou.id;
-  const r = await sb.from("credores")
-    .insert({ nome, tipo: "Pessoa", ativo: true, ordem: (S.credores.length + 1) * 10 })
-    .select("id").single();
-  if (r.error){ erro("Não deu para criar o credor: " + r.error.message); return false; }
-  return r.data.id;
+  const r = await v1.criaCredorRapido(nome, (S.credores.length + 1) * 10);
+  if (r.erro){ erro("Não deu para criar o credor. " + r.erro); return false; }
+  return r.dados.id;
 }
 
 /* Só credor de primeiro nível pode ser pai — é o que mantém a árvore em dois
@@ -3861,10 +3849,8 @@ $("formCredor").addEventListener("submit", async (e) => {
                         : (S.credores.length + 1) * 10
   };
   const antigo = editandoCred ? S.credores.find(z => z.id === editandoCred) : null;
-  const r = editandoCred
-    ? await sb.from("credores").update(body).eq("id", editandoCred)
-    : await sb.from("credores").insert(body);
-  if (r.error){
+  const r = await v1.salvaCredor(body, editandoCred);
+  if (r.erro){
     erro(r.error.code === "23505"
       ? "Já existe um credor com esse nome."
       : "Não deu para salvar: " + r.error.message);
@@ -3872,7 +3858,7 @@ $("formCredor").addEventListener("submit", async (e) => {
   }
   /* mantém o texto em dividas alinhado com o nome novo */
   if (antigo && antigo.nome !== body.nome){
-    await sb.from("dividas").update({ credor: body.nome }).eq("credor_id", editandoCred);
+    await v1.renomeiaCredorNasDividas(editandoCred, body.nome);
   }
   dlgC.close();
   await carregar();
@@ -3886,8 +3872,8 @@ $("excluirCredor").addEventListener("click", async function(){
     return;
   }
   confCred = false;
-  const r = await sb.from("credores").delete().eq("id", editandoCred);
-  if (r.error){ erro("Não deu para excluir: " + r.error.message); return; }
+  const r = await v1.removeCredor(editandoCred);
+  if (r.erro){ erro("Não deu para excluir. " + r.erro); return; }
   dlgC.close();
   await carregar();
   toast("Credor excluído. As dívidas continuam cadastradas.");
@@ -3968,10 +3954,8 @@ $("formReceita").addEventListener("submit", async (e) => {
     ordem: editandoRec ? (S.receitas.find(z => z.id === editandoRec)?.ordem || 0)
                        : (S.receitas.length + 1) * 10
   };
-  const r = editandoRec
-    ? await sb.from("receitas").update(body).eq("id", editandoRec)
-    : await sb.from("receitas").insert(body);
-  if (r.error){ erro("Não deu para salvar: " + r.error.message); return; }
+  const r = await v1.salvaReceita(body, editandoRec);
+  if (r.erro){ erro("Não deu para salvar. " + r.erro); return; }
   dlgR.close();
   await carregar();
   toast(editandoRec ? "Receita atualizada" : "Receita cadastrada");
@@ -3984,8 +3968,8 @@ $("excluirReceita").addEventListener("click", async function(){
     return;
   }
   confRec = false;
-  const r = await sb.from("receitas").delete().eq("id", editandoRec);
-  if (r.error){ erro("Não deu para excluir: " + r.error.message); return; }
+  const r = await v1.removeReceita(editandoRec);
+  if (r.erro){ erro("Não deu para excluir. " + r.erro); return; }
   dlgR.close();
   await carregar();
   toast("Receita excluída");
@@ -4060,10 +4044,8 @@ $("formFixa").addEventListener("submit", async (e) => {
     obs: $("x_obs").value.trim(),
     ordem: editandoFix ? (S.fixas.find(z => z.id === editandoFix)?.ordem || 0) : (S.fixas.length + 1) * 10
   };
-  const r = editandoFix
-    ? await sb.from("fixas").update(body).eq("id", editandoFix)
-    : await sb.from("fixas").insert(body);
-  if (r.error){ erro("Não deu para salvar: " + r.error.message); return; }
+  const r = await v1.salvaFixa(body, editandoFix);
+  if (r.erro){ erro("Não deu para salvar. " + r.erro); return; }
   dlgF.close();
   await carregar();
   toast("Conta fixa salva");
@@ -4076,9 +4058,9 @@ $("excluirFixa").addEventListener("click", async function(){
     return;
   }
   confFix = false;
-  const r = await sb.from("fixas").delete().eq("id", editandoFix);
-  if (r.error){ erro("Não deu para excluir: " + r.error.message); return; }
-  await sb.from("pagamentos").delete().eq("item_id", "fx:" + editandoFix);
+  const r = await v1.removeFixa(editandoFix);
+  if (r.erro){ erro("Não deu para excluir. " + r.erro); return; }
+  await v1.limpaPagamentosDe("fx:" + editandoFix);
   dlgF.close();
   await carregar();
   toast("Conta fixa excluída");
@@ -4092,9 +4074,9 @@ $("renda").addEventListener("input", function(){
   $("rendaStatus").textContent = "salvando…";
   clearTimeout(rendaTimer);
   rendaTimer = setTimeout(async () => {
-    const r = await sb.from("config").upsert({ user_id: S.uid, renda: S.renda }, { onConflict: "user_id" });
-    $("rendaStatus").textContent = r.error ? "não deu para salvar" : "salvo";
-    if (!r.error) setTimeout(() => { $("rendaStatus").textContent = ""; }, 1800);
+    const r = await v1.salvaRenda(S.uid, S.renda);
+    $("rendaStatus").textContent = r.erro ? "não deu para salvar" : "salvo";
+    if (!r.erro) setTimeout(() => { $("rendaStatus").textContent = ""; }, 1800);
   }, 700);
 });
 
@@ -4285,10 +4267,10 @@ $("importResumo").addEventListener("click", async (e) => {
     data_compra: x.data,
     obs: "", ordem: base + i * 10,
   }));
-  const r = await sb.from("dividas").insert(linhas);
-  if (r.error){
+  const r = await v1.importaDividas(linhas);
+  if (r.erro){
     btn.disabled = false; btn.textContent = "Tentar de novo";
-    erro("Não deu para importar: " + r.error.message);
+    erro("Não deu para importar. " + r.erro);
     return;
   }
   const n = linhas.length;
@@ -4334,20 +4316,12 @@ $("formLogin").addEventListener("submit", async (e) => {
   e.preventDefault();
   const btn = $("btnEntrar"), err = $("loginErro");
   btn.disabled = true; btn.textContent = "Entrando…"; err.hidden = true;
-  const { error } = await sb.auth.signInWithPassword({
-    email: $("email").value.trim(),
-    password: $("senha").value
-  });
+  const { erro: falha } = await entra($("email").value.trim(), $("senha").value);
   btn.disabled = false; btn.textContent = "Entrar";
-  if (error){
-    err.textContent = error.message === "Invalid login credentials"
-      ? "E-mail ou senha incorretos."
-      : "Não deu para entrar: " + error.message;
-    err.hidden = false;
-  }
+  if (falha){ err.textContent = falha; err.hidden = false; }
 });
 
-const sair = async () => { await sb.auth.signOut(); location.reload(); };
+const sair = async () => { await sai(); location.reload(); };
 $("btnSair").addEventListener("click", sair);
 $("btnSairM")?.addEventListener("click", sair);
 
@@ -4364,15 +4338,15 @@ if (SUPABASE_URL.startsWith("COLE_AQUI")){
     + '<code>SUPABASE_ANON_KEY</code> com os dados do seu projeto, em Project Settings &gt; API. '
     + 'O passo a passo completo está no <code>README.md</code>.</p></div>';
 } else {
-  sb.auth.onAuthStateChange((_evt, session) => {
-    S.uid = session?.user?.id || null;
-    mostrar(!!session);
-    if (session && !S.loaded) carregar();
+  observaSessao((uid) => {
+    S.uid = uid;
+    mostrar(!!uid);
+    if (uid && !S.loaded) carregar();
   });
-  sb.auth.getSession().then(({ data }) => {
-    S.uid = data.session?.user?.id || null;
-    mostrar(!!data.session);
-    if (data.session) carregar();
+  sessaoAtual().then((uid) => {
+    S.uid = uid;
+    mostrar(!!uid);
+    if (uid) carregar();
   });
 }
 </script>

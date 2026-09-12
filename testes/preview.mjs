@@ -253,7 +253,7 @@ for (const rel of doIndex) ordena(rel, new Set(ordem.map(x => x)), ordem);
 /* nome exportado duas vezes viraria colisão silenciosa no escopo único */
 const donoDe = new Map();
 for (const rel of ordem){
-  for (const m of leModulo(rel).matchAll(/^export\s+(?:const|let|function)\s+([A-Za-z_$][\w$]*)/gm)){
+  for (const m of leModulo(rel).matchAll(/^export\s+(?:async\s+)?(?:const|let|function)\s+([A-Za-z_$][\w$]*)/gm)){
     if (donoDe.has(m[1])){
       console.error("FALHA: `" + m[1] + "` é exportado por " + donoDe.get(m[1]) + " e por "
         + rel + ". No achatamento da prévia os dois caem no mesmo escopo.");

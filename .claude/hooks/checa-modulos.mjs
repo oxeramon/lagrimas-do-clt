@@ -35,7 +35,7 @@ const bloqueia = (motivo) => {
 
 const problemas = [];
 const RE_IMPORT = /^import\s*\{([^}]*)\}\s*from\s*["'](\.[^"']+)["'];?\s*$/gm;
-const RE_EXPORT = /^export\s+(?:const|let|var|function|class)\s+([A-Za-z_$][\w$]*)/gm;
+const RE_EXPORT = /^export\s+(?:async\s+)?(?:const|let|var|function|class)\s+([A-Za-z_$][\w$]*)/gm;
 
 /* ---- 1. os módulos compilam ------------------------------------------- */
 function todosOsModulos(dir = join(RAIZ, "js"), fora = []) {
