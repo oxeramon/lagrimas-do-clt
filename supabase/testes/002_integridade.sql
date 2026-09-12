@@ -29,30 +29,37 @@ create temporary table resultado (
 ) on commit drop;
 
 -- Os casos 22 em diante rodam com `set local role`, e um papel que não é dono
--- da tabela temporária não escreveria nela. As duas ajudantes vão de
--- `security definer` por isso, e só por isso: o VALOR que elas recebem é
--- calculado antes da chamada, no papel de quem chamou, então o RLS dos casos
--- de leitura continua valendo de verdade.
+-- da tabela temporária não escreveria nela. É por isso que a tabela recebe
+-- `insert` para `authenticated` e `anon` logo abaixo.
 -- `pg_temp` é apelido de sessão e não serve num `grant`: ele precisa do nome
 -- real do esquema temporário, que muda a cada conexão.
 do $$
 begin
   execute format('grant usage on schema %s to authenticated, anon',
                  pg_my_temp_schema()::regnamespace::text);
+  execute format('grant select, insert on %s.resultado to authenticated, anon',
+                 pg_my_temp_schema()::regnamespace::text);
 end $$;
+
+-- As duas ajudantes são SECURITY INVOKER, e isso NÃO é detalhe: com
+-- `security definer` elas rodariam como `postgres`, que é dono das tabelas,
+-- ignora RLS e tem todo grant. Um caso de "anon não pode" passaria sozinho,
+-- provando nada. Foi o que aconteceu antes de este comentário existir. O preço
+-- de ser invoker é precisar dar `insert` na tabela temporária aos papéis que
+-- escrevem nela, logo acima.
 
 -- ---------------------------------------------------------------------
 -- utilitários
 -- ---------------------------------------------------------------------
 create function pg_temp.confere(n int, caso text, obtido anyelement, esperado anyelement)
-returns void language plpgsql security definer as $$
+returns void language plpgsql as $$
 begin
   insert into resultado values (n, caso, obtido is not distinct from esperado,
     'obtido ' || coalesce(obtido::text, 'null') || ' · esperado ' || coalesce(esperado::text, 'null'));
 end $$;
 
 create function pg_temp.deve_falhar(n int, caso text, comando text)
-returns void language plpgsql security definer as $$
+returns void language plpgsql as $$
 begin
   begin
     execute comando;
