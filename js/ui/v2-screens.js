@@ -596,6 +596,22 @@ function abreTransferencia(grupoId){
   $("tfTitulo").textContent = grupoId ? "Editar transferência" : "Transferir entre contas";
   $("tf_origem").innerHTML  = opcoesDeConta(saida ? saida.contaId : "");
   $("tf_destino").innerHTML = opcoesDeConta(entrada ? entrada.contaId : "");
+
+  /* DEFEITO QUE BLOQUEOU A PRIMEIRA TRANSFERÊNCIA DE VERDADE
+     ---------------------------------------------------------------
+     Dois `select` com a mesma lista abrem os dois na PRIMEIRA opção. Numa
+     transferência nova, isso é a mesma conta dos dois lados -- e o guarda
+     estava ligado só ao evento `change`, que não dispara ao abrir. Resultado:
+     formulário com cara de válido, botão habilitado, e a recusa só aparecia
+     depois de preencher o valor e clicar.
+
+     O conserto é de duas pontas: escolher um destino DIFERENTE ao abrir, e
+     rodar o guarda na abertura em vez de esperar o `change`. As duas juntas,
+     porque a primeira sozinha quebraria se existisse só uma conta. */
+  if (!grupoId){
+    const outras = V2.contas.filter((c) => c.ativo !== false && c.id !== $("tf_origem").value);
+    if (outras.length) $("tf_destino").value = outras[0].id;
+  }
   $("tf_valor").value = saida ? saida.valor : "";
   $("tf_data").value = saida ? saida.data : hojeISO();
   $("tf_descricao").value = saida ? saida.descricao : "";
@@ -605,6 +621,21 @@ function abreTransferencia(grupoId){
   $("tfSalvar").textContent = grupoId ? "Salvar" : "Transferir";
   mostraErro($("tfErro"), "");
   $("dlgTransferencia").showModal();
+  confereContasDiferentes();
+}
+
+/* A mesma conta dos dois lados é recusada pelo banco. A tela impede antes,
+   porque descobrir isso depois de preencher tudo é perda de tempo -- e roda na
+   ABERTURA, não só no `change`: foi por não rodar na abertura que a
+   transferência ficou bloqueada. */
+function confereContasDiferentes(){
+  const o = $("tf_origem"), d = $("tf_destino"), b = $("tfSalvar");
+  if (!o || !d || !b) return;
+  const igual = o.value && o.value === d.value;
+  mostraErro($("tfErro"), igual
+    ? "Origem e destino precisam ser contas diferentes. Dinheiro não muda de gaveta ficando na mesma."
+    : "");
+  b.disabled = !!igual;
 }
 
 function ligaTransferencia(){
@@ -616,15 +647,8 @@ function ligaTransferencia(){
     abreTransferencia(null);
   });
 
-  /* a mesma conta dos dois lados é recusada pelo banco; a tela impede antes,
-     porque descobrir isso depois de preencher tudo é perda de tempo */
-  const impedeIgual = () => {
-    const igual = $("tf_origem").value && $("tf_origem").value === $("tf_destino").value;
-    mostraErro($("tfErro"), igual ? "Origem e destino precisam ser contas diferentes." : "");
-    $("tfSalvar").disabled = !!igual;
-  };
-  $("tf_origem")?.addEventListener("change", impedeIgual);
-  $("tf_destino")?.addEventListener("change", impedeIgual);
+  $("tf_origem")?.addEventListener("change", confereContasDiferentes);
+  $("tf_destino")?.addEventListener("change", confereContasDiferentes);
 
   $("formTransferencia")?.addEventListener("submit", async (e) => {
     e.preventDefault();
