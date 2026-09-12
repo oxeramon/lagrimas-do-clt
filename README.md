@@ -100,19 +100,29 @@ const SUPABASE_ANON_KEY = "eyJhbGciOi...";
 ### 6. Publicar no GitHub
 
 1. Crie um repositório **público** chamado `lagrimas-do-clt`.
-2. Suba os três arquivos mantendo a estrutura:
+2. Suba os arquivos mantendo a estrutura:
 
 ```
 lagrimas-do-clt/
-├── index.html            o site inteiro: tela, lógica e estilo
-├── supabase-setup.sql    tabelas, segurança e migrações
+├── index.html            tela: CSS, HTML e o JavaScript de interface
+├── js/                   o cálculo, em ES Modules que o navegador carrega
+│   ├── core/             datas, dinheiro, escape, estado
+│   ├── domain/           dívidas, receitas, credores, contas fixas, fatura
+│   └── ui/               navegação
+├── supabase-setup.sql    instalação limpa: tabelas, segurança e migrações
+├── supabase/
+│   ├── README.md         qual arquivo é o quê
+│   └── migrations/       o que ainda não foi executado no banco
 ├── README.md
 ├── CLAUDE.md             restrições do projeto, para quem for mexer
 ├── docs/
-│   └── CODEBASE_MAP.md   a planta do código
+│   ├── CODEBASE_MAP.md   a planta do código
+│   ├── ARCHITECTURE_V2.md  módulos, dependências e o modelo da V2
+│   └── CONTRATOS_V1.md   o que não pode mudar de comportamento
 ├── testes/
 │   ├── regras.mjs        confere as contas
-│   └── preview.mjs       gera uma prévia com dados falsos
+│   ├── preview.mjs       gera uma prévia com dados falsos
+│   └── audita.mjs        confere que nada privado entrou no repositório
 └── .github/
     └── workflows/
         └── keepalive.yml
@@ -208,17 +218,21 @@ segurança de uma existente antes de qualquer outra coisa.
 
 ## Mexer no código
 
-Não há build, bundler nem `npm install`: `index.html` é o site inteiro. Os dois
+Não há build, bundler nem `npm install`. O `index.html` guarda a tela, e o
+cálculo mora em ES Modules dentro de `js/`, que o navegador carrega direto. Os
 scripts abaixo precisam só do Node.
+
+**O `index.html` não abre mais com dois cliques no disco**: o navegador recusa
+`import` a partir de `file://`. Para olhar a tela localmente, use a prévia.
 
 ```bash
 node testes/regras.mjs
 ```
 
-Recorta as funções de cálculo do próprio `index.html` e roda 33 casos: parcelas,
-intervalos de receita, renda do mês e a regressão que amarra o saldo devedor ao
-valor de conferência do `supabase-setup.sql`. Rode depois de mexer em qualquer
-conta.
+Roda 79 casos sobre os mesmos módulos que o navegador carrega: parcelas,
+intervalos de receita, renda do mês, contas fixas variáveis, fatura de cartão,
+hierarquia banco/cartão e a regressão que amarra o saldo devedor ao valor de
+conferência do `supabase-setup.sql`. Rode depois de mexer em qualquer conta.
 
 ```bash
 node testes/preview.mjs

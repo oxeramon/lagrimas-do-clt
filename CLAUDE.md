@@ -97,18 +97,31 @@ antes e depois de uma migração, não como constante do projeto.
 o schema tabela a tabela, as peças de interface escritas à mão, as armadilhas e
 onde mexer para cada tipo de mudança. Leia antes de uma alteração grande.
 
-Resumindo: `index.html` é o site inteiro (CSS 35–784, HTML 786–1399, JS
-1400–4617), com uma única dependência de CDN. O JS tem oito seções nomeadas por
-comentário de banner; `testes/regras.mjs` recorta a de cálculo e roda em Node.
-Há um segundo `<script>`, de 15 linhas, no `<head>`: ele resolve o tema antes da
-primeira pintura e não faz mais nada.
+`docs/ARCHITECTURE_V2.md` tem o mapa de módulos e o que cada camada pode
+importar. `docs/CONTRATOS_V1.md` tem o que não pode mudar de comportamento.
+
+Resumindo: `index.html` guarda CSS (35–784), HTML (786–1399) e o JS de tela
+(1400–4378), com uma única dependência de CDN. O cálculo NÃO está mais aqui:
+núcleo e domínio são ES Modules em `js/`, e `testes/regras.mjs` importa
+exatamente os mesmos. Há um segundo `<script>`, de 15 linhas, no `<head>`: ele
+resolve o tema antes da primeira pintura e não faz mais nada.
 
 ## Restrições que não são negociáveis
 
-**`index.html` é o site inteiro.** Sem build, sem bundler, sem `npm install`,
-sem dependência local. Bibliotecas só por CDN com ESM, e hoje só há uma
-(`supabase-js`). Gráficos, calendário e listas suspensas são escritos à mão. Se
-uma mudança parecer pedir um passo de build, ela está errada para este projeto.
+**Sem build, sem bundler, sem `npm install`, sem dependência local.**
+Bibliotecas só por CDN com ESM, e hoje só há uma (`supabase-js`). Os módulos de
+`js/` são servidos como arquivos, e o navegador resolve os caminhos sozinho.
+Gráficos, calendário e listas suspensas são escritos à mão. Se uma mudança
+parecer pedir um passo de build para produção, ela está errada para este
+projeto.
+
+**Regra financeira mora em `js/domain/`, e só lá.** Nada de uma cópia no
+`index.html` por conveniência. Módulo de domínio não toca DOM; é isso que o
+deixa testável sem navegador. O hook `checa-modulos.mjs` cobra o grafo.
+
+**`index.html` não abre mais direto do disco.** O navegador recusa `import` a
+partir de `file://`. Para olhar a tela localmente, use `node testes/preview.mjs`,
+que achata os módulos num arquivo só.
 
 **RLS é a única proteção dos dados.** O repositório é público (exigência do
 plano grátis do Pages) e a chave publicável fica visível no HTML. Toda tabela
@@ -168,10 +181,11 @@ tem a tabela o erro passa despercebido e só aparece numa instalação nova.
 ```bash
 node testes/regras.mjs
 ```
-52 casos recortados do próprio `index.html`, sobre uma fixture sintética. Inclui
-a regressão que amarra `saldoAberto()` ao valor de conferência do SQL, lido do
-próprio `supabase-setup.sql`: se a carga de exemplo mudar e a fixture não
-acompanhar, o teste acusa. **Rode depois de mexer em
+79 casos sobre uma fixture sintética, importando os mesmos módulos que o
+navegador carrega -- não uma cópia deles. Inclui a regressão que amarra
+`saldoAberto()` ao valor de conferência do SQL, lido do próprio
+`supabase-setup.sql`: se a carga de exemplo mudar e a fixture não acompanhar, o
+teste acusa. **Rode depois de mexer em
 qualquer conta** — erro aqui não quebra nada, só mostra o número errado. Um teste
 novo só vale se você confirmar que ele falha com o defeito antigo de volta.
 
@@ -183,11 +197,18 @@ tela sem tocar no banco real. Fica fora do git. Ele se recusa a gerar com seed
 incoerente: recalcula a fatura de cada compra de cartão e aborta se o mês
 declarado não bater com o fechamento.
 
-Três hooks rodam sozinhos depois de cada Write/Edit:
+```bash
+node testes/audita.mjs
+```
+Auditoria de repositório público. Crítico bloqueia commit e push.
+
+Cinco hooks rodam sozinhos depois de cada Write/Edit:
 
 | Hook | O que cobra |
 |---|---|
-| `checa-sintaxe.mjs` | o JS compila e todo `$("id")` existe no HTML |
+| `checa-publico.mjs` | nenhum dado privado entrou no arquivo editado |
+| `checa-sintaxe.mjs` | cada arquivo JS compila e todo `$("id")` existe no HTML |
+| `checa-modulos.mjs` | import aponta para arquivo existente, nome é exportado, sem ciclo |
 | `checa-html.mjs` | tags fecham na ordem certa, nenhum id repete |
 | `checa-rls.mjs` | RLS, policy, trigger, ordem das FKs, sem `raise exception` |
 

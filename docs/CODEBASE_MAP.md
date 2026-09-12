@@ -52,7 +52,8 @@ suspensas são escritos à mão.
 
 | Caminho | Papel | Linhas |
 |---|---|---|
-| `index.html` | O site inteiro | 4619 |
+| `index.html` | CSS, HTML e o JS de tela | 4380 |
+| `js/` | núcleo, domínio e navegação, como ES Modules | 445 |
 | `supabase-setup.sql` | Fonte única do schema, em 5 seções, re-executável | 429 |
 | `testes/preview.mjs` | Gera `preview.html` com Supabase dublado | 190 |
 | `README.md` | Instalação e uso | 190 |
@@ -70,7 +71,10 @@ suspensas são escritos à mão.
 | 18–33 | o único script fora do módulo: resolve o tema antes da primeira pintura |
 | 35–784 | `<style>` — tokens em três camadas, componentes, temas |
 | 786–1399 | `<body>` — login, shell, 6 seções, 6 diálogos |
-| 1400–4617 | `<script type="module">` |
+| 1400–4378 | `<script type="module">` — imports, render, diálogos, dados, sessão |
+
+O cálculo não está mais aqui. Núcleo e domínio são ES Modules em `js/`, e
+`docs/ARCHITECTURE_V2.md` tem o mapa de quem pode importar quem.
 
 O JS tem oito seções nomeadas por comentário de banner (a de DADOS faltava nesta
 tabela, embora sempre tenha existido no arquivo):
