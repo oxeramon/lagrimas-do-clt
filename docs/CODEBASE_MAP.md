@@ -23,7 +23,7 @@ graph TB
     end
     subgraph "Supabase (São Paulo)"
         Auth["Auth — e-mail e senha"]
-        PG[("Postgres · 8 tabelas<br/>RLS por auth.uid()")]
+        PG[("Postgres · 12 tabelas<br/>RLS por auth.uid()")]
     end
     subgraph GitHub
         Pages["Pages — deploy no push"]
@@ -187,7 +187,10 @@ vira botão: com etiqueta "média" enquanto é palpite, sem ela depois de inform
 
 ## Schema
 
-8 tabelas. 5 seções: TABELAS, SEGURANÇA, CARGA INICIAL, MIGRAÇÃO, CONFERÊNCIA.
+8 tabelas da V1. 5 seções: TABELAS, SEGURANÇA, CARGA INICIAL, MIGRAÇÃO,
+CONFERÊNCIA. As 4 tabelas da V2 vieram depois, por
+`supabase/migrations/001_v2_foundation.sql`; o registro está em
+`MIGRACOES.md`.
 
 | Tabela | RLS | Policy | Trigger |
 |---|---|---|---|

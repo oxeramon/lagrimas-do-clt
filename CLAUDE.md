@@ -78,8 +78,13 @@ completo, está em `.claude/skills/public-repo-hygiene/SKILL.md`. A auditoria é
 | Repositório | `github.com/oxeramon/lagrimas-do-clt`, branch `main` |
 | Projeto Supabase | região São Paulo; a URL e a chave publicável ficam no topo do `<script type="module">` do `index.html`, que é a fonte para qualquer coisa que precise delas |
 
-Estrutura do banco: **8 tabelas**, todas com RLS ligada, 1 policy e 1 trigger
-cada — `ping` sem trigger, como sempre.
+Estrutura do banco: **12 tabelas e 1 view**, todas com RLS ligada, 1 policy e 1
+trigger cada — `ping` sem trigger, como sempre. São as 8 da V1 mais as 4 que a
+migração `001` acrescentou em 12/09/2026; a view `saldos_de_conta` roda com
+`security_invoker`. O que já rodou no banco está em `docs/MIGRACOES.md`.
+
+As 4 tabelas da V2 estão criadas e vazias: **o app ainda não consulta nenhuma
+delas.** Ligar a tela é passo seguinte, não consequência da migração.
 
 As três fontes de dado de exemplo do projeto são a carga da seção 3 do SQL, a
 fixture de `testes/regras.mjs` e o cenário de `testes/preview.mjs`. Todas são

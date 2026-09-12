@@ -41,6 +41,14 @@ const PERMITIDO = [
   /troque@pelo-seu-email\.com/,            /* placeholder de instalação */
   /noreply@[\w.-]+/,                       /* trailer de atribuição, não é caixa de ninguém */
   /[\w.+-]+@(?:example|exemplo)\.[a-z]+/i, /* domínios reservados para documentação */
+  /* Carimbo de versão de migração do Supabase: YYYYMMDDHHMMSS, 14 dígitos. Cai
+     na faixa da regra de cartão (13 a 16) e não é dado de ninguém -- é a chave
+     de `supabase_migrations.schema_migrations`, e o registro em
+     `docs/MIGRACOES.md` precisa citá-la. A exceção é ancorada e confere mês,
+     dia, hora, minuto e segundo, então só libera o que é mesmo um instante:
+     um cartão de 14 dígitos teria de começar em 20 E formar uma data válida, e
+     as bandeiras de 14 dígitos não emitem com esse prefixo. */
+  /^20\d{2}(?:0[1-9]|1[0-2])(?:0[1-9]|[12]\d|3[01])(?:[01]\d|2[0-3])[0-5]\d[0-5]\d$/,
 ];
 const ehPermitido = (trecho) => PERMITIDO.some((re) => re.test(trecho));
 

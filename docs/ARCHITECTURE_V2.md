@@ -37,7 +37,7 @@ js/
 
 supabase/
   migrations/
-    001_v2_foundation.sql   335 · tabelas da V2, AINDA NÃO EXECUTADA
+    001_v2_foundation.sql   335 · tabelas da V2, aplicada em 12/09/2026
   README.md               qual arquivo é o quê
 supabase-setup.sql        429 · instalação limpa da V1, fonte única do schema
 
@@ -165,7 +165,8 @@ não paga a conta de luz. Como receita ele apareceria todo mês, o que é falso.
 
 ## Tabelas preparadas
 
-`supabase/migrations/001_v2_foundation.sql`, **ainda não executada**:
+`supabase/migrations/001_v2_foundation.sql`, **aplicada em 12/09/2026**
+(versão `20260912185920`; o registro está em `MIGRACOES.md`):
 
 | Tabela | Guarda |
 |---|---|
@@ -228,8 +229,9 @@ proibidos seria publicar os dados.
 **Agora:** extrair o acesso ao Supabase para `js/data/`, e depois o render em
 `js/ui/render-*.js`. É o que falta para o `index.html` virar só a casca.
 
-**Depois:** aplicar `001_v2_foundation.sql`, e então contas e transações na
-tela, com o saldo derivado.
+**Depois:** contas e transações na tela, com o saldo derivado. A `001` já
+rodou, então o banco não é mais o que falta: falta a interface. Enquanto ela
+não existe, as quatro tabelas ficam criadas e vazias, e nada no app as lê.
 
 **Em seguida:** cartões e faturas como entidade própria, saindo de `credores`;
 calendário financeiro; metas.

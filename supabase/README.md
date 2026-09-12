@@ -5,7 +5,7 @@ Qual arquivo é o quê, e em que ordem eles entram.
 | Arquivo | Papel | Já foi executado? |
 |---|---|---|
 | `../supabase-setup.sql` | **Instalação limpa da V1.** Tabelas, segurança, carga de exemplo, migrações e conferência, num arquivo só, para colar inteiro no SQL Editor | sim, é o banco em uso |
-| `migrations/001_v2_foundation.sql` | **Migração da V2.** Acrescenta instituições, contas, categorias e transações | **não** |
+| `migrations/001_v2_foundation.sql` | **Migração da V2.** Acrescenta instituições, contas, categorias e transações | **sim**, em 12/09/2026, versão `20260912185920` |
 
 ## Por que a instalação continua num arquivo só
 
@@ -22,10 +22,16 @@ duas são piores do que esperar:
 - transformar a instalação em "cole três arquivos nesta ordem", trocando um
   passo por três num fluxo que hoje funciona e que o README descreve.
 
-A separação vale a pena quando a V2 for de fato aplicada, porque aí existe uma
-segunda migração e o arquivo único deixa de dar conta sozinho. Até lá,
-`supabase-setup.sql` continua sendo a fonte única do schema da V1, como o
-`CLAUDE.md` manda, e `migrations/` guarda o que ainda não rodou.
+A separação passa a valer a pena agora que a 001 rodou, porque existe uma
+segunda fonte e o arquivo único deixa de dar conta sozinho. Ela ainda não foi
+feita: até que seja, `supabase-setup.sql` continua sendo a fonte única do
+schema da V1, como o `CLAUDE.md` manda, e `migrations/` guarda o resto. O que
+já rodou está em `../docs/MIGRACOES.md`.
+
+O cabeçalho da 001 ainda diz que ela não foi executada. Ficou assim de
+propósito, para o arquivo continuar idêntico ao texto gravado em
+`supabase_migrations.schema_migrations`; quem quer saber o que rodou olha o
+registro, não o comentário.
 
 Quando a hora chegar, a ordem é: `schema.sql` (tabelas e segurança da V1),
 `migrations/001_…` em diante, e `seed.sql` por último, só em instalação nova.
