@@ -1428,6 +1428,7 @@ import { aplicaEm, receitasDoMes, totalReceitas, rendaDoMes, periodoReceita,
 import { credorDe, paiDe, raizDe, filhosDe, pessoaDe, nomePessoa, nomeCredorDe,
          nomeBancoDe, credorPorNome } from "./js/domain/creditors.js";
 import { faturaDaCompra } from "./js/domain/billing.js";
+import { ligaNavegacao, vaiParaAba } from "./js/ui/navigation.js";
 
 /* ====================================================================
    CONFIGURAÇÃO — projeto Supabase, região São Paulo.
@@ -2853,23 +2854,9 @@ async function carregaAgora(){
 /* ====================================================================
    INTERAÇÃO
    ==================================================================== */
-const TABS = ["painel","mes","dividas","receitas","proj","ajustes"];
-/* o mesmo estado alimenta a lateral, o rodapé do celular e o botão de
-   ajustes do topo; um só lugar decide quem está selecionado */
-function vaiParaAba(t){
-  for (const o of TABS){
-    const sel = String(o === t);
-    ["nav-", "navm-"].forEach(p => $(p + o)?.setAttribute("aria-selected", sel));
-    $("p-" + o).hidden = o !== t;
-  }
-  $("nav-ajustesM")?.setAttribute("aria-selected", String(t === "ajustes"));
-  /* re-dispara a animação de entrada do painel que acabou de aparecer */
-  const p = $("p-" + t);
-  p.style.animation = "none"; void p.offsetWidth; p.style.animation = "";
-}
-TABS.forEach(t => ["nav-", "navm-"].forEach(p =>
-  $(p + t)?.addEventListener("click", () => vaiParaAba(t))));
-$("nav-ajustesM")?.addEventListener("click", () => vaiParaAba("ajustes"));
+/* A navegação virou registro em js/ui/navigation.js: acrescentar uma tela é
+   acrescentar uma linha lá, e não mexer aqui. */
+ligaNavegacao();
 
 function vaiPara(k){
   S.mesFixado = true; S.mes = k;
