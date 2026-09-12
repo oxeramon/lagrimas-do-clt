@@ -183,7 +183,11 @@ function varreArquivo(rel, baseline) {
     const ate = (p) => texto.slice(0, p).split("\n").length;
     return [ate(ini), ate(fim)];
   })();
-  const ehCss = (n) => n >= faixaCss[0] && n <= faixaCss[1];
+  /* O CSS saiu do `<style>` do index.html para `css/*.css`, e a exclusão
+     precisou acompanhar: o arquivo inteiro agora é CSS. A faixa do `<style>`
+     continua valendo para quando sobrar estilo embutido em algum HTML. */
+  const arquivoEhCss = /\.css$/i.test(rel);
+  const ehCss = (n) => arquivoEhCss || (n >= faixaCss[0] && n <= faixaCss[1]);
 
   texto.split("\n").forEach((linha, i) => {
     /* UUID não é cartão. A regra de cartão casa com 13 a 16 dígitos separados

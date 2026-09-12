@@ -1,0 +1,317 @@
+/* AS TELAS DA V2 · Contas, Transações e as peças que elas estreiam.
+ *
+ * Só var(). Nenhuma cor literal, nenhum segundo bloco escuro: o tema sai de
+ * `tokens.css` e nada aqui precisa saber em qual deles está.
+ *
+ * O vidro aparece em quatro lugares e em mais nenhum: barra de filtro, folha,
+ * lente do topo e o botão flutuante. São os que ficam POR CIMA do conteúdo, e
+ * é essa a informação que o desfoque passa.
+ */
+
+/* ==================================================================
+   LENTE · o bloco de topo das telas de dinheiro
+   ================================================================== */
+.lente{
+  position:relative; overflow:hidden;
+  padding:var(--e-6) var(--e-5);
+  border-radius:var(--r-lg);
+  border:1px solid var(--line);
+  background:
+    radial-gradient(120% 140% at 12% -10%, var(--brand-soft) 0%, transparent 58%),
+    var(--surface);
+}
+/* o brilho que caminha devagar. É a única animação contínua do produto, e ela
+   some inteira em prefers-reduced-motion, mais abaixo. */
+.lente::after{
+  content:""; position:absolute; inset:-40% -10% auto -10%; height:180%;
+  background:radial-gradient(45% 60% at 30% 40%,
+    color-mix(in srgb, var(--brand) 12%, transparent) 0%, transparent 70%);
+  animation:respira 14s var(--curva) infinite alternate;
+  pointer-events:none;
+}
+@keyframes respira{ from{ transform:translate3d(-6%,0,0) scale(1) } to{ transform:translate3d(8%,3%,0) scale(1.12) } }
+
+.lente h2{ margin:0; font-size:12px; letter-spacing:.09em; text-transform:uppercase;
+  color:var(--ink-3); font-weight:var(--peso-medio) }
+.lente .numerao{ font-family:"IBM Plex Mono",ui-monospace,monospace; font-variant-numeric:tabular-nums;
+  font-size:clamp(30px, 7vw, 44px); font-weight:var(--peso-medio); letter-spacing:-.03em;
+  color:var(--ink); margin:var(--e-2) 0 0; line-height:1.05 }
+.lente .piada{ margin:var(--e-2) 0 0; color:var(--ink-3); font-size:13px; max-width:46ch }
+
+/* as três fatias de liquidez, embaixo do número grande */
+.fatias{ display:grid; grid-template-columns:repeat(3,1fr); gap:var(--e-2);
+  margin-top:var(--e-5); position:relative }
+.fatia{ padding:var(--e-3); border-radius:var(--r-sm); background:var(--surface-2);
+  border:1px solid var(--line); min-width:0 }
+.fatia b{ display:block; font-family:"IBM Plex Mono",ui-monospace,monospace;
+  font-variant-numeric:tabular-nums; font-weight:var(--peso-medio); font-size:15px;
+  color:var(--ink); white-space:nowrap; overflow:hidden; text-overflow:ellipsis }
+.fatia span{ display:block; font-size:11px; color:var(--ink-3); margin-top:2px }
+
+/* ==================================================================
+   CONTAS
+   ================================================================== */
+.contas-grade{ display:grid; gap:var(--e-3);
+  grid-template-columns:repeat(auto-fill,minmax(260px,1fr)) }
+
+.conta-card{
+  display:grid; grid-template-columns:auto 1fr; gap:var(--e-3);
+  align-items:start; padding:var(--e-4); min-width:0;
+  border:1px solid var(--line); border-radius:var(--r); background:var(--surface);
+  box-shadow:var(--sh-1); text-align:left; width:100%; cursor:pointer;
+  transition:transform var(--t-rapido) var(--curva), box-shadow var(--t-rapido) var(--curva);
+}
+.conta-card:hover{ transform:translateY(-1px); box-shadow:var(--sh-2) }
+.conta-card[data-inativa="sim"]{ opacity:.62 }
+
+/* O monograma. `--marca` vem do style inline da linha, e é o único lugar onde
+   cor literal aparece no projeto: ela é dado do usuário, não decisão de
+   design, então não pode virar token. */
+.selo{
+  width:40px; height:40px; border-radius:12px; flex:none; display:grid; place-items:center;
+  font-weight:var(--peso-forte); font-size:14px; letter-spacing:-.02em;
+  background:var(--marca, var(--brand)); color:var(--marca-ink, var(--brand-ink));
+  overflow:hidden;
+}
+.selo img{ width:100%; height:100%; object-fit:cover; display:block }
+
+.conta-card .nome{ font-weight:var(--peso-medio); color:var(--ink); font-size:14px;
+  overflow:hidden; text-overflow:ellipsis; white-space:nowrap }
+.conta-card .meta{ font-size:12px; color:var(--ink-3); margin-top:1px }
+.conta-card .saldo{ font-family:"IBM Plex Mono",ui-monospace,monospace;
+  font-variant-numeric:tabular-nums; font-size:19px; font-weight:var(--peso-medio);
+  color:var(--ink); margin-top:var(--e-2); letter-spacing:-.02em }
+.conta-card .saldo.negativo{ color:var(--critical) }
+.conta-card .saldo.desconhecido{ color:var(--ink-3); font-size:14px }
+
+.etiqueta{ display:inline-block; font-size:10.5px; padding:2px 7px; border-radius:var(--raio-cheio);
+  background:var(--surface-3); color:var(--ink-2); letter-spacing:.02em }
+.etiqueta.restrita{ background:var(--warn-soft); color:var(--warn) }
+.etiqueta.bloqueada{ background:var(--critical-soft); color:var(--critical) }
+
+/* ==================================================================
+   PIRULITO · comparação entre contas, instituições e categorias
+   ------------------------------------------------------------------
+   Barra inteira é peso demais para comparar oito coisas, e pizza com oito
+   fatias não se lê. O talo fino com a bolinha na ponta compara pela POSIÇÃO,
+   que é o que o olho faz melhor.
+   ================================================================== */
+.pirulitos{ display:grid; gap:var(--e-3); margin:0; padding:0; list-style:none }
+.pirulito{ display:grid; grid-template-columns:minmax(64px,28%) 1fr auto; gap:var(--e-3);
+  align-items:center; min-width:0 }
+.pirulito .rot{ font-size:12px; color:var(--ink-2); overflow:hidden;
+  text-overflow:ellipsis; white-space:nowrap }
+.pirulito .talo{ position:relative; height:10px; min-width:0 }
+.pirulito .talo::before{ content:""; position:absolute; left:0; top:50%; height:1px;
+  width:100%; background:var(--grid) }
+.pirulito .haste{ position:absolute; left:0; top:50%; height:2px; border-radius:2px;
+  background:var(--cor, var(--brand)); transform:translateY(-50%);
+  width:var(--frac,0%); transition:width var(--t-lento) var(--curva) }
+.pirulito .bola{ position:absolute; top:50%; width:9px; height:9px; border-radius:50%;
+  background:var(--cor, var(--brand)); transform:translate(-50%,-50%);
+  left:var(--frac,0%); transition:left var(--t-lento) var(--curva);
+  box-shadow:0 0 0 3px var(--surface) }
+.pirulito .val{ font-family:"IBM Plex Mono",ui-monospace,monospace;
+  font-variant-numeric:tabular-nums; font-size:12.5px; color:var(--ink-2); white-space:nowrap }
+
+/* ==================================================================
+   LINHA + ÁREA · evolução do saldo
+   ================================================================== */
+.figura{ width:100%; height:auto; display:block; overflow:visible }
+.figura .area{ fill:var(--brand); opacity:.10 }
+.figura .linha{ fill:none; stroke:var(--brand); stroke-width:2; stroke-linecap:round;
+  stroke-linejoin:round }
+.figura .ponto{ fill:var(--surface); stroke:var(--brand); stroke-width:2 }
+.figura .eixo{ stroke:var(--grid); stroke-width:1 }
+.figura text{ font-size:10px; fill:var(--ink-3) }
+/* o traço se desenha uma vez, na entrada */
+.figura .linha.anima{ stroke-dasharray:var(--comprimento); stroke-dashoffset:var(--comprimento);
+  animation:tracar 900ms var(--curva) forwards }
+@keyframes tracar{ to{ stroke-dashoffset:0 } }
+
+/* ==================================================================
+   TRANSAÇÕES
+   ================================================================== */
+.barra-filtro{
+  position:sticky; top:0; z-index:10; display:flex; flex-wrap:wrap; gap:var(--e-2);
+  padding:var(--e-3); margin:0 0 var(--e-4);
+  border:1px solid var(--vidro-linha); border-radius:var(--r);
+  background:var(--vidro); backdrop-filter:var(--desfoque);
+  -webkit-backdrop-filter:var(--desfoque);
+}
+.barra-filtro .cresce{ flex:1 1 150px; min-width:0 }
+
+.dia{ margin:0 0 var(--e-5) }
+.dia-cab{ display:flex; align-items:baseline; gap:var(--e-3); padding:0 var(--e-1) var(--e-2) }
+.dia-cab h3{ margin:0; font-size:12px; font-weight:var(--peso-medio); color:var(--ink-2);
+  letter-spacing:.02em }
+.dia-cab .tot{ margin-left:auto; font-family:"IBM Plex Mono",ui-monospace,monospace;
+  font-variant-numeric:tabular-nums; font-size:12px; color:var(--ink-3) }
+
+.linhas{ list-style:none; margin:0; padding:0; display:grid; gap:1px;
+  background:var(--line); border:1px solid var(--line); border-radius:var(--r);
+  overflow:hidden }
+.lanc{
+  display:grid; grid-template-columns:auto 1fr auto; gap:var(--e-3);
+  align-items:center; padding:var(--e-3) var(--e-4); background:var(--surface);
+  width:100%; text-align:left; min-width:0; border:none; cursor:pointer;
+  transition:background var(--t-rapido) var(--curva);
+}
+.lanc:hover{ background:var(--surface-2) }
+.lanc .ico{ width:30px; height:30px; border-radius:9px; display:grid; place-items:center;
+  background:var(--surface-3); color:var(--ink-2); flex:none }
+.lanc .ico svg{ width:15px; height:15px; fill:none; stroke:currentColor; stroke-width:2;
+  stroke-linecap:round; stroke-linejoin:round }
+.lanc[data-tipo="entrada"] .ico{ background:var(--good-soft); color:var(--good) }
+.lanc[data-natureza="transferencia"] .ico{ background:var(--apoio-soft); color:var(--apoio) }
+.lanc[data-natureza="estorno"] .ico{ background:var(--warn-soft); color:var(--warn) }
+
+.lanc .desc{ font-size:13.5px; color:var(--ink); overflow:hidden; text-overflow:ellipsis;
+  white-space:nowrap }
+.lanc .sub{ font-size:11.5px; color:var(--ink-3); margin-top:1px; overflow:hidden;
+  text-overflow:ellipsis; white-space:nowrap }
+.lanc .vlr{ font-family:"IBM Plex Mono",ui-monospace,monospace; font-variant-numeric:tabular-nums;
+  font-size:14px; color:var(--ink); white-space:nowrap; text-align:right }
+.lanc[data-tipo="entrada"] .vlr{ color:var(--good) }
+/* Previsto e cancelado NÃO mudam de cor: mudam de peso e de opacidade. Cor
+   aqui viraria semáforo, e o olho passaria a ler "vermelho = ruim" onde só
+   quer dizer "ainda não aconteceu". */
+.lanc[data-status="prevista"]{ opacity:.72 }
+.lanc[data-status="prevista"] .vlr{ font-style:italic }
+.lanc[data-status="cancelada"]{ opacity:.5 }
+.lanc[data-status="cancelada"] .desc{ text-decoration:line-through }
+
+/* ==================================================================
+   VAZIO · a primeira vez
+   ================================================================== */
+.vazio{ text-align:center; padding:var(--e-12) var(--e-5); border:1px dashed var(--line-strong);
+  border-radius:var(--r-lg); background:var(--surface-2) }
+.vazio .emoji{ font-size:30px; line-height:1; margin-bottom:var(--e-3); opacity:.8 }
+.vazio h3{ margin:0 0 var(--e-2); font-size:16px; font-weight:var(--peso-medio); color:var(--ink) }
+.vazio p{ margin:0 auto var(--e-5); color:var(--ink-3); font-size:13.5px; max-width:44ch }
+
+/* ==================================================================
+   FOLHA · o "Mais" do celular e as operações rápidas
+   ================================================================== */
+.folha{ border:none; padding:0; background:transparent; max-width:none; width:100%;
+  margin:auto auto 0 }
+.folha::backdrop{ background:color-mix(in srgb, var(--pedra-900) 42%, transparent) }
+.folha .corpo{
+  background:var(--vidro); backdrop-filter:var(--desfoque);
+  -webkit-backdrop-filter:var(--desfoque);
+  border-top:1px solid var(--vidro-linha);
+  border-radius:var(--r-lg) var(--r-lg) 0 0;
+  padding:var(--e-5) var(--e-4) calc(var(--e-6) + env(safe-area-inset-bottom));
+  animation:sobe var(--t-medio) var(--curva);
+}
+@keyframes sobe{ from{ transform:translateY(14px); opacity:0 } to{ transform:none; opacity:1 } }
+.folha .puxador{ width:36px; height:4px; border-radius:2px; background:var(--line-strong);
+  margin:0 auto var(--e-4) }
+.folha .opcoes{ display:grid; gap:var(--e-1) }
+.folha .opcoes button{ display:flex; align-items:center; gap:var(--e-3); width:100%;
+  padding:var(--e-3); border-radius:var(--r-sm); border:none; background:transparent;
+  color:var(--ink); font-size:14.5px; text-align:left; cursor:pointer }
+.folha .opcoes button:hover{ background:var(--surface-2) }
+.folha .opcoes button[aria-selected="true"]{ background:var(--brand-soft); color:var(--brand) }
+.folha .opcoes svg{ width:18px; height:18px; flex:none; fill:none; stroke:currentColor;
+  stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round }
+
+/* ==================================================================
+   BOTÃO FLUTUANTE · lançar
+   ================================================================== */
+.flutua{
+  position:fixed; right:var(--e-4); z-index:40;
+  bottom:calc(var(--rodape-alt) + var(--e-4) + env(safe-area-inset-bottom));
+  width:52px; height:52px; border-radius:var(--raio-cheio); border:1px solid var(--vidro-linha);
+  background:var(--brand); color:var(--brand-ink); box-shadow:var(--sh-2);
+  display:none; place-items:center; cursor:pointer;
+  transition:transform var(--t-rapido) var(--curva);
+}
+.flutua:hover{ transform:scale(1.05) }
+.flutua:active{ transform:scale(.96) }
+.flutua svg{ width:22px; height:22px; fill:none; stroke:currentColor; stroke-width:2.2;
+  stroke-linecap:round }
+
+/* ==================================================================
+   RESPONSIVO
+   ================================================================== */
+@media (max-width:760px){
+  .contas-grade{ grid-template-columns:1fr }
+  .fatias{ grid-template-columns:1fr; gap:var(--e-1) }
+  .fatia{ display:flex; align-items:baseline; justify-content:space-between; gap:var(--e-3) }
+  .fatia span{ margin-top:0 }
+  .barra-filtro{ position:static }
+  .pirulito{ grid-template-columns:minmax(56px,34%) 1fr auto }
+  .flutua{ display:grid }
+}
+
+/* ==================================================================
+   MOVIMENTO REDUZIDO
+   ------------------------------------------------------------------
+   Não é "menos animação": é tirar tudo que se mexe sozinho e manter só o
+   retorno do que a pessoa fez. Parallax, respiração e traçado somem; o
+   realce do que acabou de mudar fica, porque ele informa.
+   ================================================================== */
+@media (prefers-reduced-motion:reduce){
+  .lente::after{ animation:none }
+  .figura .linha.anima{ animation:none; stroke-dasharray:none; stroke-dashoffset:0 }
+  .folha .corpo{ animation:none }
+  .pirulito .haste, .pirulito .bola{ transition:none }
+  .conta-card, .flutua, .lanc{ transition:none }
+  .conta-card:hover{ transform:none }
+}
+
+/* ==================================================================
+   PEÇAS COMPARTILHADAS QUE AS TELAS NOVAS ESTREIAM
+   ================================================================== */
+
+/* rótulo de grupo da lateral: separa sem desenhar caixa */
+.grupo-nav{
+  margin:var(--e-4) 0 var(--e-1); padding:0 var(--e-3);
+  font-size:10px; letter-spacing:.12em; text-transform:uppercase;
+  color:var(--ink-3); font-weight:var(--peso-medio);
+}
+.grupo-nav:first-child{ margin-top:0 }
+
+/* campo compacto da barra de filtro */
+.campo{ display:flex; flex-direction:column; gap:3px; min-width:0 }
+.campo .rot{ font-size:10px; letter-spacing:.08em; text-transform:uppercase;
+  color:var(--ink-3); font-weight:var(--peso-medio) }
+.campo input, .campo select{ font-size:13px; padding:7px 10px; border-radius:var(--r-sm);
+  min-width:0; width:100% }
+.campo select{ padding-right:28px }
+
+.linha-acoes{ display:flex; align-items:center; gap:var(--e-2); flex-wrap:wrap }
+.linha-acoes .sep{ flex:1; min-width:0 }
+.mes-atual{ font-size:14px; font-weight:var(--peso-medio); color:var(--ink);
+  min-width:11ch; text-align:center }
+
+.titulo-secao{ margin:0; font-size:14px; font-weight:var(--peso-medio); color:var(--ink) }
+.titulo-secao .cont{ color:var(--ink-3); font-weight:var(--peso); font-size:13px }
+.titulo-card{ margin:0 0 var(--e-4); font-size:13px; font-weight:var(--peso-medio);
+  color:var(--ink-2) }
+
+/* a lista de instituições e a de categorias dentro dos diálogos */
+.mini-lista{ display:grid; gap:1px; background:var(--line); border:1px solid var(--line);
+  border-radius:var(--r-sm); overflow:hidden; max-height:min(46vh, 340px); overflow-y:auto }
+.mini-item{ display:flex; align-items:center; gap:var(--e-3); padding:var(--e-2) var(--e-3);
+  background:var(--surface); min-width:0 }
+.mini-item .txt{ flex:1; min-width:0; font-size:13px; color:var(--ink);
+  overflow:hidden; text-overflow:ellipsis; white-space:nowrap }
+.mini-item .sub{ font-size:11px; color:var(--ink-3) }
+.mini-item[data-nivel="2"] .txt{ padding-left:var(--e-4) }
+.mini-item[data-nivel="3"] .txt{ padding-left:var(--e-8) }
+.mini-item[data-inativo="sim"]{ opacity:.55 }
+.ponto-cor{ width:10px; height:10px; border-radius:3px; flex:none; background:var(--cor,var(--brand)) }
+
+/* o foco precisa ser visível em tudo que a nova tela introduziu: é a única
+   forma de quem navega por teclado saber onde está */
+.conta-card:focus-visible, .lanc:focus-visible, .flutua:focus-visible,
+.folha .opcoes button:focus-visible, .mini-item button:focus-visible{
+  outline:2px solid var(--brand); outline-offset:2px;
+}
+
+/* o número dos dois cartões da V2 no Painel */
+.num-destaque{ font-family:"IBM Plex Mono",ui-monospace,monospace;
+  font-variant-numeric:tabular-nums; font-size:22px; font-weight:var(--peso-medio);
+  color:var(--ink); letter-spacing:-.02em }

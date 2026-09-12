@@ -10,7 +10,7 @@
  * Nada aqui toca DOM, e nada aqui decide texto de tela. Toda função devolve
  * `{ dados, erro }`.
  */
-import { conexao, executa } from "./client.js";
+import { conexao, executa, erroLegivel } from "./client.js";
 
 const sb = () => conexao.sb;
 
@@ -88,12 +88,19 @@ export const removeConta = (id) =>
   consulta(sb().from("contas").delete().eq("id", id), "conta");
 
 /* Quantas transações a conta tem. É o que decide entre desativar e excluir:
-   conta com histórico não se apaga, se aposenta. */
+   conta com histórico não se apaga, se aposenta.
+   `head: true` não traz linha nenhuma -- a resposta vem em `count`, e não em
+   `data`. Por isso esta função não usa `executa`: ela precisa de um campo que
+   o embrulho padrão não devolve. */
 export async function contaTemMovimento(contaId){
-  const r = await executa(
-    sb().from("transacoes").select("id", { count: "exact", head: true }).eq("conta_id", contaId),
-    "conta");
-  return r;
+  try {
+    const r = await sb().from("transacoes")
+      .select("id", { count: "exact", head: true }).eq("conta_id", contaId);
+    if (r.error) return { dados: null, erro: erroLegivel(r.error, "conta") };
+    return { dados: Number(r.count) || 0, erro: null };
+  } catch (e){
+    return { dados: null, erro: erroLegivel(e, "conta") };
+  }
 }
 
 /* ----------------------------------------------------------- categorias --*/

@@ -1,0 +1,125 @@
+/* TOKENS · a única fonte de cor, espaço, raio, sombra e tempo.
+ *
+ * Três camadas, e a ordem importa:
+ *   1. PRIMITIVA   o valor cru, sem opinião sobre onde é usado
+ *   2. SEMÂNTICA   o papel: --bg, --ink, --brand. É o que o componente lê
+ *   3. COMPONENTE  medida de peça específica
+ *
+ * Regra que não se negocia: componente NUNCA escreve cor literal. Escreve
+ * `var(--ink-2)`. É o que faz o tema escuro sair de graça -- e é por isso que
+ * existe UM bloco escuro, no fim deste arquivo, e não um por componente.
+ */
+/* =====================================================================
+   Sistema visual. As cores de série saem da paleta validada para
+   daltonismo e contraste (ver README): adjacentes passam nos dois temas.
+   O tema escuro tem passos próprios, não é inversão automática.
+   ===================================================================== */
+/* =====================================================================
+   TOKENS EM TRÊS CAMADAS
+     primitiva  valor cru, muda quase nunca
+     semântica  o papel que o valor cumpre; é só ela que troca no tema
+     componente medidas de uma peça específica
+   Regra: nada no CSS abaixo usa um valor primitivo direto. Trocar o tema
+   é reescrever a camada semântica, e só ela.
+   ===================================================================== */
+:root{
+  /* ---------- 1. PRIMITIVA ---------- */
+  --verde-50:#E0F2EB;  --verde-500:#12A47A; --verde-600:#0E7A5F; --verde-300:#2BBF8E;
+  --pedra-0:#FFFFFF;   --pedra-50:#F7F9F8;  --pedra-100:#EFF3F1; --pedra-200:#E4EAE8;
+  --pedra-300:#CCD8D4; --pedra-500:#63756F; --pedra-700:#4A5A56; --pedra-900:#0D1614;
+  --noite-950:#090D0C; --noite-900:#141B19; --noite-800:#1A2320; --noite-700:#232E2A;
+  --noite-600:#2B3733; --noite-300:#778A85; --noite-200:#A2B3AE; --noite-50:#EAF1EE;
+
+  /* Marfim: o fundo deixou de ser cinza-pedra e passou a ser quente. Papel,
+     não tela de sistema. É a mudança de uma linha que mais muda a cara. */
+  --marfim-0:#FFFDFA;  --marfim-50:#FBF8F3; --marfim-100:#F5F1EA;
+  --marfim-200:#E9E3D8; --marfim-300:#D8D0C2;
+
+  /* Petróleo: o verde principal, mais fundo e menos saturado que o antigo.
+     Verde vivo em app de dinheiro vira semáforo; este é editorial. */
+  --petroleo-900:#0C2E29; --petroleo-700:#14524A; --petroleo-600:#1A6459;
+  --petroleo-500:#22796C; --petroleo-100:#DCEBE7; --petroleo-300:#4FA795;
+
+  /* Cobalto: o apoio. Segunda voz para o que não é a principal -- previsto,
+     comparação, eixo secundário. */
+  --cobalto-700:#1E4B8F; --cobalto-500:#2E6BC4; --cobalto-300:#6AA0E8;
+  --cobalto-100:#DEE9F8;
+
+  /* séries validadas para daltonismo e contraste, claro / escuro */
+  --serie-1:#12A47A; --serie-2:#EB6834; --serie-3:#2A78D6; --serie-4:#E87BA4; --serie-5:#4A3AA7;
+  --serie-1-d:#199E70; --serie-2-d:#D95926; --serie-3-d:#3987E5; --serie-4-d:#D55181; --serie-5-d:#9085E9;
+
+  --bom-500:#0CA30C;  --aviso-500:#B4770B; --aviso-500-d:#FAB219; --grave-500:#D03B3B;
+  --bom-50:#E2F4E2;   --aviso-50:#FBF0DA;  --grave-50:#FBE7E7;
+  --bom-950:#0C2410;  --aviso-950:#2A2110; --grave-950:#2C1414;
+
+  /* escala de 4px */
+  --e-1:4px; --e-2:8px; --e-3:12px; --e-4:16px; --e-5:20px; --e-6:24px; --e-8:32px; --e-12:48px;
+  --raio-1:6px; --raio-2:12px; --raio-3:18px; --raio-4:24px; --raio-cheio:999px;
+  --sombra-1:0 1px 2px rgba(13,22,20,.05), 0 1px 3px rgba(13,22,20,.04);
+  --sombra-2:0 2px 4px rgba(13,22,20,.03), 0 14px 32px rgba(13,22,20,.08);
+  --sombra-1-d:0 1px 2px rgba(0,0,0,.5);
+  --sombra-2-d:0 2px 4px rgba(0,0,0,.4), 0 14px 32px rgba(0,0,0,.45);
+
+  /* tres pesos, só. Forte é reservado ao que precisa ser achado de
+     relance: título, figura e valor. O resto se distingue por tamanho,
+     cor e espaçamento, que cansam menos a leitura. */
+  --peso:400; --peso-medio:500; --peso-forte:600;
+  --t-rapido:140ms; --t-medio:220ms; --t-lento:380ms;
+  --curva:cubic-bezier(.22,.8,.28,1);
+
+  /* ---------- 2. SEMÂNTICA ---------- */
+  --bg:var(--marfim-100); --surface:var(--marfim-0); --surface-2:var(--marfim-50); --surface-3:var(--marfim-200);
+  --ink:var(--pedra-900); --ink-2:var(--pedra-700); --ink-3:var(--pedra-500);
+  --line:var(--marfim-200); --line-strong:var(--marfim-300);
+  --brand:var(--petroleo-700); --brand-ink:var(--marfim-0); --brand-soft:var(--petroleo-100);
+  --apoio:var(--cobalto-500); --apoio-soft:var(--cobalto-100);
+
+  /* Vidro: translúcido discreto, e só onde flutua sobre conteúdo -- barra,
+     folha, modal, lente. Card comum NÃO leva vidro: vinte superfícies
+     borradas viram sopa, e o efeito perde o sentido de "está por cima". */
+  --vidro:color-mix(in srgb, var(--marfim-0) 72%, transparent);
+  --vidro-linha:color-mix(in srgb, var(--pedra-900) 8%, transparent);
+  --desfoque:saturate(150%) blur(14px);
+  --s1:var(--serie-1); --s2:var(--serie-2); --s3:var(--serie-3); --s4:var(--serie-4); --s5:var(--serie-5);
+  --good:var(--bom-500); --warn:var(--aviso-500); --critical:var(--grave-500);
+  --good-soft:var(--bom-50); --warn-soft:var(--aviso-50); --critical-soft:var(--grave-50);
+  --grid:var(--marfim-200); --axis:var(--marfim-300);
+  --sh-1:var(--sombra-1); --sh-2:var(--sombra-2);
+  --r-sm:var(--raio-1); --r:var(--raio-3); --r-lg:var(--raio-4);
+
+  /* ---------- 3. COMPONENTE ---------- */
+  --lateral-larg:232px;
+  --rodape-alt:60px;
+  --nav-raio:var(--raio-2);
+  --ico-check:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='3.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M20 6L9 17l-5-5'/%3E%3C/svg%3E");
+  /* a seta da lista suspensa: background-image não entende currentColor, então
+     a cor vai embutida e cada tema traz a sua */
+  --ico-seta:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2363756F' stroke-width='2.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+
+  color-scheme:light;
+}
+/* O escuro responde ao atributo, não ao sistema, e por isso continua sendo um
+   bloco só. Quem lê o sistema é o script do <head>, que resolve "automático"
+   antes da primeira pintura e escreve aqui o resultado. Fazer o contrário --
+   uma media query para o automático mais um bloco igual para a escolha manual
+   -- obrigaria a manter a camada semântica em duplicata, e a primeira cor que
+   alguém esquecesse de trocar nos dois lugares abriria um tema pela metade. */
+:root[data-tema="escuro"]{
+  /* só a camada semântica troca */
+  --bg:var(--noite-950); --surface:var(--noite-900); --surface-2:var(--noite-800); --surface-3:var(--noite-700);
+  --ink:var(--noite-50); --ink-2:var(--noite-200); --ink-3:var(--noite-300);
+  --line:var(--noite-700); --line-strong:var(--noite-600);
+  --brand:var(--petroleo-300); --brand-ink:var(--noite-950); --brand-soft:#10302A;
+  --apoio:var(--cobalto-300); --apoio-soft:#152740;
+  --vidro:color-mix(in srgb, var(--noite-900) 72%, transparent);
+  --vidro-linha:color-mix(in srgb, var(--noite-50) 10%, transparent);
+  --s1:var(--serie-1-d); --s2:var(--serie-2-d); --s3:var(--serie-3-d);
+  --s4:var(--serie-4-d); --s5:var(--serie-5-d);
+  --warn:var(--aviso-500-d);
+  --good-soft:var(--bom-950); --warn-soft:var(--aviso-950); --critical-soft:var(--grave-950);
+  --grid:#1F2825; --axis:var(--noite-600);
+  --sh-1:var(--sombra-1-d); --sh-2:var(--sombra-2-d);
+  --ico-seta:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23778A85' stroke-width='2.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+  color-scheme:dark;
+}

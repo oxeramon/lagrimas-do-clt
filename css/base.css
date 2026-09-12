@@ -1,0 +1,666 @@
+/* BASE · reset, tipografia, shell, componentes e as telas da V1.
+ *
+ * Continua sendo o arquivo grande do projeto, e sai daqui aos poucos: os
+ * tokens já saíram para `tokens.css` e as telas da V2 nasceram em
+ * `views-v2.css`. Nada aqui escreve cor literal -- tudo passa por var().
+ */
+
+*{box-sizing:border-box}
+html,body{margin:0}
+body{
+  background:var(--bg); color:var(--ink);
+  font-family:Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  font-size:14.5px; font-weight:var(--peso); line-height:1.5; -webkit-font-smoothing:antialiased;
+  font-feature-settings:"cv05" 1, "ss01" 1;
+}
+img{max-width:100%}
+/* o padrão do navegador para <b> é 700, fora da escala */
+b,strong{font-weight:var(--peso-forte)}
+[hidden]{display:none !important}
+h1,h2,h3{margin:0; font-weight:var(--peso-forte); letter-spacing:-.017em; text-wrap:balance}
+
+/* Números: proporcionais quando são figura solta (herói, KPI), tabulares
+   só onde precisam alinhar em coluna (listas, eixos, tabelas). */
+.fig{font-weight:var(--peso-forte); letter-spacing:-.03em; font-variant-numeric:proportional-nums}
+.num{font-variant-numeric:tabular-nums; font-feature-settings:"tnum" 1}
+.cents{opacity:.5; font-weight:var(--peso-medio)}
+
+.eyebrow{font-size:10.5px; letter-spacing:.11em; text-transform:uppercase;
+  color:var(--ink-3); font-weight:var(--peso-medio)}
+
+/* ---------- login ---------- */
+#login{min-height:100vh; display:grid; place-items:center; padding:24px 16px}
+.loginbox{width:min(390px,100%); background:var(--surface); border:1px solid var(--line);
+  border-radius:var(--r-lg); box-shadow:var(--sh-2); padding:30px 26px}
+.loginbox h1{font-size:25px; margin-bottom:5px}
+.loginbox p.sub{color:var(--ink-3); font-size:13.5px; margin:0 0 22px}
+.loginbox .field + .field{margin-top:13px}
+.loginbox button{width:100%; margin-top:20px}
+#loginErro{margin-top:13px; font-size:13.5px; color:var(--critical)}
+
+/* do 11º em diante todos compartilham o último degrau: sem isso caíam no
+   delay padrão, zero, e entravam junto com o primeiro bloco */
+.bento > .tile:nth-child(n+11){animation-delay:400ms}
+
+/* ---------- shell ---------- */
+/* A navegação virou lateral no desktop e rodapé no celular. O CSS da topbar
+   antiga (.topbar-in, .brand, .tabs, .tab) saiu daqui: nenhuma dessas classes
+   existia mais no HTML. Junto dele ia o estilo do "Q" da marca, que era
+   `.brand .dot` -- e o HTML usa `.marca`, então o quadrado verde não pintava
+   em lugar nenhum desde a troca. O seletor abaixo nomeia os dois lugares onde
+   a marca aparece de verdade; `.dot` sozinho pegaria também o ponto inicial
+   da curva de quitação, que é outro elemento com o mesmo nome. */
+.marca .dot, .topo-movel .dot{width:22px; height:22px; border-radius:7px; flex:none;
+  background:linear-gradient(140deg, var(--brand), color-mix(in srgb, var(--brand) 60%, #000));
+  display:grid; place-items:center; color:var(--brand-ink); font-size:12px; font-weight:var(--peso-forte)}
+
+main{max-width:1160px; margin:0 auto; padding:22px 20px 72px}
+.panel[hidden]{display:none !important}
+.stack{display:flex; flex-direction:column; gap:16px}
+
+/* ---------- cards ---------- */
+.card{background:var(--surface); border:1px solid var(--line); border-radius:var(--r);
+  box-shadow:var(--sh-1)}
+.card-h{display:flex; justify-content:space-between; align-items:baseline; gap:12px;
+  padding:15px 18px 12px; flex-wrap:wrap}
+.card-h h2{font-size:14px; letter-spacing:-.01em}
+.card-h .hint-r{font-size:12px; color:var(--ink-3)}
+
+/* ---------- herói ---------- */
+.hero{background:var(--surface); border:1px solid var(--line); border-radius:var(--r-lg);
+  box-shadow:var(--sh-2); padding:22px 24px; position:relative; overflow:hidden}
+.hero::before{content:""; position:absolute; inset:0 0 auto 0; height:3px;
+  background:linear-gradient(90deg, var(--brand), var(--s3))}
+.hero-grid{display:flex; justify-content:space-between; align-items:flex-start; gap:24px; flex-wrap:wrap}
+.hero .big{font-size:clamp(30px,5.2vw,44px); line-height:1.02; margin-top:7px}
+.hero .mid{font-size:clamp(22px,3.4vw,30px); line-height:1.06; margin-top:7px}
+.hero .note{font-size:12.5px; color:var(--ink-3); margin-top:6px}
+.track{height:7px; background:var(--surface-3); border-radius:var(--raio-cheio); overflow:hidden; margin-top:20px}
+.track > i{display:block; height:100%; border-radius:var(--raio-cheio);
+  background:linear-gradient(90deg, var(--brand), var(--s1)); transition:width .45s cubic-bezier(.2,.8,.2,1)}
+
+
+/* ---------- casca: lateral no desktop, rodapé no celular ---------- */
+.app{display:grid; grid-template-columns:var(--lateral-larg) 1fr; min-height:100vh}
+/* A coluna de conteúdo precisa poder ser menor que o que há dentro dela. Sem
+   isto o `1fr` vira "o tamanho do filho mais largo": a tabela da Projeção
+   esticava a página inteira em vez de rolar dentro do .tablewrap, e no celular
+   bastavam os quatro botões do topo para a página ganhar rolagem lateral. */
+.app > div{min-width:0}
+
+.lateral{position:sticky; top:0; align-self:start; height:100vh; display:flex; flex-direction:column;
+  gap:var(--e-1); padding:var(--e-5) var(--e-3); background:var(--surface);
+  border-right:1px solid var(--line)}
+.lateral .marca{display:flex; align-items:center; gap:var(--e-2); padding:0 var(--e-2) var(--e-5)}
+.lateral .marca h1{font-size:16px; letter-spacing:-.02em; font-weight:var(--peso-forte)}
+.lateral nav{display:flex; flex-direction:column; gap:2px}
+.lateral .sep{flex:1}
+.lateral .rodape{display:flex; flex-direction:column; gap:2px; padding-top:var(--e-3);
+  border-top:1px solid var(--line)}
+
+.navitem{appearance:none; border:0; background:none; font:inherit; font-size:13.5px; font-weight:var(--peso-medio);
+  color:var(--ink-2); cursor:pointer; text-align:left; width:100%;
+  display:flex; align-items:center; gap:var(--e-3); padding:9px var(--e-3);
+  border-radius:var(--nav-raio); position:relative;
+  transition:background var(--t-rapido) var(--curva), color var(--t-rapido) var(--curva)}
+.navitem svg{width:18px; height:18px; flex:none; stroke:currentColor; fill:none;
+  stroke-width:1.7; stroke-linecap:round; stroke-linejoin:round}
+.navitem:hover{background:var(--surface-2); color:var(--ink)}
+.navitem:focus-visible{outline:2px solid var(--brand); outline-offset:2px}
+.navitem[aria-selected="true"]{background:var(--brand-soft); color:var(--brand); font-weight:var(--peso-forte)}
+/* marcador do item ativo: desliza entre os itens em vez de piscar */
+.navitem[aria-selected="true"]::before{content:""; position:absolute; left:calc(var(--e-3) * -1); top:50%; transform:translateY(-50%);
+  width:3px; height:18px; border-radius:0 3px 3px 0; background:var(--brand)}
+
+/* rodapé fixo do celular: 5 itens, o limite recomendado */
+.rodapenav{display:none}
+
+main{max-width:1280px; margin:0 auto; padding:var(--e-6) var(--e-6) var(--e-12); width:100%}
+.topo-movel{display:none}
+
+@media (max-width:900px){
+  .app{grid-template-columns:1fr}
+  .lateral{display:none}
+  /* o mesmo respiro da marca na lateral. Com quatro botões de ação a 12px a
+     barra passava 3px da tela num aparelho de 360px, e a página inteira ganhava
+     rolagem lateral por causa do topo. */
+  .topo-movel{display:flex; align-items:center; gap:var(--e-2); position:sticky; top:0; z-index:30;
+    padding:var(--e-3) var(--e-4); background:var(--surface); border-bottom:1px solid var(--line)}
+  /* último recurso em tela muito estreita: o nome encurta para os botões nunca
+     saírem da tela. Item de flex não encolhe sozinho sem o min-width:0. */
+  .topo-movel h1{font-size:15px; font-weight:var(--peso-forte); letter-spacing:-.02em;
+    min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+  .topo-movel .sep{flex:1}
+  main{padding:var(--e-4) var(--e-4) calc(var(--rodape-alt) + var(--e-8))}
+  .rodapenav{display:grid; grid-template-columns:repeat(5,1fr); position:fixed; inset:auto 0 0 0;
+    z-index:40; height:var(--rodape-alt); background:var(--surface);
+    border-top:1px solid var(--line); padding-bottom:env(safe-area-inset-bottom)}
+  .rodapenav .navitem{flex-direction:column; gap:3px; justify-content:center; padding:6px 2px;
+    font-size:10.5px; font-weight:var(--peso-medio); border-radius:0; text-align:center}
+  .rodapenav .navitem svg{width:20px; height:20px}
+  .rodapenav .navitem[aria-selected="true"]{background:none; color:var(--brand)}
+  .rodapenav .navitem[aria-selected="true"]::before{left:50%; top:0; transform:translateX(-50%);
+    width:26px; height:2.5px; border-radius:0 0 3px 3px}
+}
+
+/* ---------- movimento ----------
+   Regra: a animação só existe quando comunica algo — de onde o painel
+   veio, que o número está sendo apurado, que a curva desce. Nada roda
+   duas vezes na mesma sessão sem o usuário ter pedido. */
+.panel{animation:entra var(--t-medio) var(--curva) both}
+@keyframes entra{ from{opacity:0; transform:translateY(6px)} to{opacity:1; transform:none} }
+
+.tile{animation:sobe var(--t-lento) var(--curva) both}
+.bento > .tile:nth-child(1){animation-delay:0ms}    .bento > .tile:nth-child(2){animation-delay:40ms}
+.bento > .tile:nth-child(3){animation-delay:80ms}   .bento > .tile:nth-child(4){animation-delay:120ms}
+.bento > .tile:nth-child(5){animation-delay:160ms}  .bento > .tile:nth-child(6){animation-delay:200ms}
+.bento > .tile:nth-child(7){animation-delay:240ms}  .bento > .tile:nth-child(8){animation-delay:280ms}
+.bento > .tile:nth-child(9){animation-delay:320ms}  .bento > .tile:nth-child(10){animation-delay:360ms}
+@keyframes sobe{ from{opacity:0; transform:translateY(10px)} to{opacity:1; transform:none} }
+
+/* curva do gráfico desenha da esquerda para a direita */
+.chart .traco{stroke-dasharray:var(--len); stroke-dashoffset:var(--len);
+  animation:desenha 900ms var(--curva) forwards}
+@keyframes desenha{ to{stroke-dashoffset:0} }
+.chart .area-anim{opacity:0; animation:aparece 500ms 320ms var(--curva) forwards}
+@keyframes aparece{ to{opacity:1} }
+/* barras crescem a partir da linha do zero */
+.chart .barra{transform-box:fill-box; transform-origin:var(--org,bottom); animation:cresce 420ms var(--curva) both;
+  animation-delay:calc(var(--i,0) * 26ms)}
+@keyframes cresce{ from{transform:scaleY(.02)} to{transform:scaleY(1)} }
+
+@media (prefers-reduced-motion: reduce){
+  .panel,.tile,.chart .traco,.chart .area-anim,.chart .barra{animation:none !important}
+  .chart .traco{stroke-dashoffset:0}
+  .chart .area-anim{opacity:1}
+}
+/* ---------- filtros e cartões de dívida ---------- */
+.filtros{display:flex; gap:var(--e-2); flex-wrap:wrap; align-items:center;
+  padding:var(--e-3) var(--e-4); border-bottom:1px solid var(--line)}
+.filtros .rot{font-size:11px; letter-spacing:.1em; text-transform:uppercase;
+  color:var(--ink-3); font-weight:var(--peso-medio); margin-right:var(--e-1)}
+.filtros .dir{margin-left:auto; display:flex; align-items:center; gap:var(--e-2)}
+/* Mesmo desenho, só menor: o filtro mora numa barra estreita e não pode ter a
+   altura de um campo de formulário. Virou lista suspensa porque, com muitos
+   credores, a fileira de botões quebrava em várias linhas e empurrava a lista
+   para baixo. */
+.filtros select{width:auto; min-width:168px; max-width:100%;
+  font-size:13px; padding:7px 30px 7px 11px; border-radius:var(--raio-1);
+  background-position:right 10px center; background-size:10px}
+.filtros select:focus{background-position:right 10px calc(50% + 1px)}
+
+/* barra dentro da célula: permite varrer a coluna % da renda de olho,
+   sem ler número por número */
+.pctcell{display:inline-flex; align-items:center; gap:7px; justify-content:flex-end}
+.pctcell .mini{width:46px; height:5px; background:var(--surface-3); border-radius:var(--raio-cheio);
+  overflow:hidden; flex:none}
+.pctcell .mini > i{display:block; height:100%; border-radius:var(--raio-cheio); background:var(--s1)}
+.pctcell.alto .mini > i{background:var(--critical)}
+tr.negativa td{background:var(--critical-soft)}
+tr.isnow.negativa td{background:var(--critical-soft)}
+.fig.critical{color:var(--critical)}
+
+.dgrid{display:grid; grid-template-columns:repeat(auto-fill,minmax(262px,1fr));
+  gap:var(--e-3); padding:var(--e-4)}
+
+.dcard{appearance:none; font:inherit; text-align:left; cursor:pointer; width:100%;
+  background:var(--surface); border:1px solid var(--line); border-radius:var(--raio-2);
+  padding:var(--e-4); display:flex; flex-direction:column; gap:var(--e-2); color:var(--ink);
+  transition:border-color var(--t-rapido) var(--curva), background var(--t-rapido) var(--curva)}
+.dcard:hover{border-color:var(--line-strong); background:var(--surface-2)}
+.dcard:focus-visible{outline:2px solid var(--brand); outline-offset:2px}
+.dcard .topo{display:flex; justify-content:space-between; align-items:flex-start; gap:var(--e-2)}
+.dcard .nome{font-weight:var(--peso-medio); font-size:14px; overflow-wrap:anywhere; line-height:1.3}
+.dcard .cred{display:block; font-weight:var(--peso); font-size:11.5px; color:var(--ink-3); margin-top:2px}
+.dcard .saldo{font-weight:var(--peso-forte); font-size:15px; white-space:nowrap; font-variant-numeric:tabular-nums}
+.dcard .saldo.in{color:var(--good)}
+.dcard.off{opacity:.62}
+/* Abrir e editar são ações diferentes e precisam de alvos diferentes: clicar
+   no cartão para só olhar caía direto no formulário de edição, com o botão de
+   excluir à mão. O cartão inteiro agora abre o detalhe; editar é um botão. */
+.dcard-wrap{position:relative}
+.dcard-wrap .dcard .topo{padding-right:32px}
+.dcard-edit{position:absolute; top:10px; right:10px; width:26px; height:26px;
+  display:grid; place-items:center; border:0; background:none; cursor:pointer;
+  color:var(--ink-3); border-radius:var(--raio-1); z-index:1}
+.dcard-edit:hover{color:var(--brand); background:var(--surface-2)}
+.dcard-edit:focus-visible{outline:2px solid var(--brand); outline-offset:1px}
+
+/* detalhe da dívida */
+.det-kpis{display:grid; grid-template-columns:repeat(3, 1fr); gap:10px; padding:16px 18px 0}
+.det-kpi{background:var(--surface-2); border-radius:var(--raio-2); padding:11px 13px}
+.det-kpi .rot{font-size:10.5px; text-transform:uppercase; letter-spacing:.05em;
+  color:var(--ink-3); display:block; margin-bottom:3px}
+.det-kpi .val{font-size:16px; font-weight:var(--peso-forte);
+  font-variant-numeric:tabular-nums; overflow-wrap:anywhere}
+.det-linha{padding:14px 18px 0; font-size:12.5px; color:var(--ink-2)}
+.det-hist{padding:6px 18px 0}
+.det-hist h3{font-size:11px; text-transform:uppercase; letter-spacing:.05em;
+  color:var(--ink-3); font-weight:var(--peso-medio); padding:12px 0 6px}
+.det-lista{max-height:240px; overflow-y:auto; border:1px solid var(--line);
+  border-radius:var(--raio-2)}
+.det-item{display:grid; grid-template-columns:34px 1fr auto auto; gap:10px; align-items:center;
+  padding:8px 12px; border-bottom:1px solid var(--line); font-size:12.5px}
+.det-item:last-child{border-bottom:0}
+.det-item .n{color:var(--ink-3); font-variant-numeric:tabular-nums}
+.det-item .v{font-variant-numeric:tabular-nums}
+.det-item.antes{background:var(--surface-2); color:var(--ink-3)}
+.det-item.pago .m, .det-item.pago .v{text-decoration:line-through; color:var(--ink-3)}
+.det-item.agora{box-shadow:inset 3px 0 0 var(--brand)}
+.rcard .prog > i{background:var(--good)}
+
+/* progresso: a informação que existia no modelo e nunca aparecia na tela */
+.dcard .prog{height:5px; border-radius:var(--raio-cheio); background:var(--surface-3); overflow:hidden}
+.dcard .prog > i{display:block; height:100%; border-radius:var(--raio-cheio); background:var(--s1);
+  transition:width var(--t-lento) var(--curva)}
+.dcard.quase .prog > i{background:var(--good)}
+.dcard .pes{display:flex; justify-content:space-between; gap:var(--e-2);
+  font-size:11.5px; color:var(--ink-3); font-variant-numeric:tabular-nums}
+.dcard .sel{display:flex; gap:6px; flex-wrap:wrap; margin-top:2px}
+
+@media (max-width:600px){
+  .dgrid{grid-template-columns:1fr; padding:var(--e-3); gap:var(--e-2)}
+  .filtros{padding:var(--e-3)}
+  .filtros .dir{margin-left:0; width:100%}
+}
+/* ---------- fatura: várias compras, uma linha só ---------- */
+.fatura{display:flex; align-items:center; gap:var(--e-3); padding:12px 16px;
+  background:var(--surface-2); border-bottom:1px solid var(--line)}
+.fatura .desc{flex:1; min-width:0}
+.fatura .desc b{display:block; font-weight:var(--peso-medio); font-size:14px}
+.fatura .meta{font-size:12px; color:var(--ink-3)}
+.fatura .amt{font-weight:var(--peso-forte); white-space:nowrap; font-variant-numeric:tabular-nums}
+.fatura.paid .desc b, .fatura.paid .amt{color:var(--ink-3); text-decoration:line-through}
+.abrir{appearance:none; border:1px solid var(--line-strong); background:var(--surface);
+  color:var(--ink-2); cursor:pointer; border-radius:var(--raio-1); padding:3px 9px;
+  font:inherit; font-size:11.5px; font-weight:var(--peso-medio); white-space:nowrap}
+.abrir:hover{background:var(--surface-3); color:var(--ink)}
+.abrir:focus-visible{outline:2px solid var(--brand); outline-offset:2px}
+.lanc{display:flex; align-items:center; gap:var(--e-3); padding:8px 16px 8px 52px;
+  border-bottom:1px solid var(--line); font-size:13px}
+.lanc .desc{flex:1; min-width:0}
+.lanc .cat{font-size:11.5px; color:var(--ink-3)}
+.lanc .amt{font-variant-numeric:tabular-nums; color:var(--ink-2); white-space:nowrap}
+.lanc .parc{font-size:11px; font-weight:var(--peso-medio); color:var(--s3);
+  background:var(--surface-3); border-radius:var(--raio-cheio); padding:1px 7px; margin-left:6px}
+.rodape-fat{padding:9px 16px 11px 52px; font-size:12px; color:var(--ink-3);
+  border-bottom:1px solid var(--line); background:var(--surface-2)}
+.rodape-fat b{color:var(--ink-2); font-variant-numeric:tabular-nums}
+
+/* ---------- bento: grade assimétrica de blocos ---------- */
+.bento{display:grid; grid-template-columns:repeat(4,1fr); grid-auto-rows:minmax(132px,auto); gap:14px}
+.bento > *{min-width:0; min-height:0}
+.b-2x2{grid-column:span 2; grid-row:span 2}
+.b-3x2{grid-column:span 3; grid-row:span 2}
+.b-2x1{grid-column:span 2}
+.b-1x2{grid-row:span 2}
+
+.tile{background:var(--surface); border:1px solid var(--line); border-radius:var(--r-lg);
+  box-shadow:var(--sh-1); padding:17px 19px; display:flex; flex-direction:column; overflow:hidden}
+.tile .grow{flex:1; min-height:0}
+.tile-h{display:flex; justify-content:space-between; align-items:baseline; gap:10px;
+  flex-wrap:wrap; margin-bottom:6px}
+.tile-h h2{font-size:13.5px; letter-spacing:-.01em}
+.tile-h .hint-r{font-size:11.5px; color:var(--ink-3)}
+/* sem hover de escala: estes blocos não são clicáveis, e um efeito de
+   levantar prometeria uma interação que não existe */
+
+.tile.hero{min-height:158px; border-color:var(--brand-soft); background:
+  linear-gradient(168deg, var(--brand-soft) 0%, var(--surface) 46%)}
+.tile.hero .eyebrow{color:var(--ink-2)}   /* o degrade tingido derruba o
+   contraste do --ink-3 para 4,36:1; --ink-2 resolve e ainda melhora a hierarquia */
+.tile.hero .big{font-size:clamp(30px,4.6vw,42px); line-height:1.03; margin-top:8px}
+.tile.hero .note{font-size:12.5px; color:var(--ink-2); margin-top:7px}
+.tile .mid{font-size:clamp(19px,2.6vw,25px); line-height:1.08; margin-top:8px}
+.tile .note{font-size:12px; color:var(--ink-3); margin-top:5px}
+.tile .d{font-size:11.5px; color:var(--ink-3); margin-top:5px}
+.tile .chartbox{padding:0; margin-top:2px; display:flex; align-items:flex-end}
+.tile .chartbox > div:first-child{width:100%}
+.tile .barlist{padding:0; overflow-y:auto}
+.tile .compo{margin:0 0 10px}
+.tile .legend{padding:0}
+#kpiSobra.is-critical .v, #kpiPct.is-critical .v{color:var(--critical)}
+#kpiSobra.is-good .v, #kpiPct.is-good .v, #kpiEntra.is-good .v{color:var(--good)}
+#kpiPct.is-warn .v{color:var(--warn)}
+
+@media (max-width:980px){
+  .bento{grid-template-columns:repeat(2,1fr)}
+  .b-3x2{grid-column:span 2; grid-row:span 2}
+  .b-2x2{grid-column:span 2; grid-row:span 1}
+  .b-1x2{grid-row:span 1}
+}
+@media (max-width:600px){
+  .bento{grid-template-columns:1fr; grid-auto-rows:auto; gap:11px}
+  .b-2x2,.b-3x2,.b-2x1,.b-1x2{grid-column:span 1; grid-row:span 1}
+  .tile{padding:15px 16px}
+}
+
+/* ---------- KPIs ---------- */
+.kpis{display:grid; grid-template-columns:repeat(auto-fit,minmax(178px,1fr)); gap:12px}
+.kpi{background:var(--surface); border:1px solid var(--line); border-radius:var(--r);
+  box-shadow:var(--sh-1); padding:15px 17px}
+/* valor de destaque; também usado solto fora de .kpi */
+.v{font-weight:var(--peso-forte); letter-spacing:-.03em; font-size:22px; line-height:1.15; margin-top:7px}
+.kpi .v{font-size:23px}
+.v.ok{color:var(--good)} .v.warn{color:var(--warn)} .v.critical{color:var(--critical)}
+.v.dim{color:var(--ink-3); font-size:13.5px; font-weight:var(--peso-medio); letter-spacing:0; margin-top:9px}
+.kpi .d{font-size:12px; color:var(--ink-3); margin-top:5px}
+.kpi.is-good .v{color:var(--good)}
+.kpi.is-critical .v{color:var(--critical)}
+.kpi.is-warn .v{color:var(--warn)}
+
+/* status sempre com rótulo, nunca só cor */
+.chip{display:inline-flex; align-items:center; gap:5px; font-size:11px; font-weight:var(--peso-medio);
+  padding:3px 9px; border-radius:var(--raio-cheio); white-space:nowrap; margin-top:8px}
+.chip.good{background:var(--good-soft); color:var(--good)}
+.chip.warn{background:var(--warn-soft); color:var(--warn)}
+.chip.critical{background:var(--critical-soft); color:var(--critical)}
+.chip::before{content:""; width:6px; height:6px; border-radius:50%; background:currentColor; flex:none}
+
+/* ---------- gráficos ---------- */
+.duo{display:grid; grid-template-columns:1fr 1fr; gap:16px; align-items:start}
+.chartbox{padding:4px 10px 12px; position:relative}
+svg.chart{display:block; width:100%; height:auto; overflow:visible}
+.chart text{font-family:inherit; font-size:10px; fill:var(--ink-3); font-variant-numeric:tabular-nums}
+.chart .grid{stroke:var(--grid); stroke-width:1}
+.chart .glabel{fill:var(--ink-3)}
+.chart .axis{stroke:var(--axis); stroke-width:1}
+.chart .hit{fill:transparent; cursor:crosshair}
+.chart .cross{stroke:var(--line-strong); stroke-width:1}
+.chart .dot{stroke:var(--surface); stroke-width:2}
+
+.legend{display:flex; gap:14px; padding:0 18px 14px; font-size:12.5px; color:var(--ink-2); flex-wrap:wrap}
+.legend span{display:inline-flex; align-items:center; gap:6px}
+.legend i{width:10px; height:10px; border-radius:3px; flex:none}
+
+/* barra empilhada de composição */
+.compo{display:flex; height:30px; border-radius:8px; overflow:hidden; margin:2px 18px 14px; gap:2px}
+/* largura minima para uma fatia minuscula continuar perceptivel; o valor
+   exato fica na legenda, entao a proporcao nao fica mal representada */
+.compo > i{display:block; height:100%; min-width:5px}
+.compo > i:first-child{border-radius:8px 0 0 8px}
+.compo > i:last-child{border-radius:0 8px 8px 0}
+
+/* ranking */
+.barlist{padding:2px 18px 14px}
+.barrow{display:grid; grid-template-columns:1fr auto; gap:5px 12px; padding:9px 0;
+  border-bottom:1px solid var(--line)}
+.barrow:last-child{border-bottom:0}
+.barrow .nm{font-weight:var(--peso-medio); font-size:13.5px; overflow-wrap:anywhere}
+.barrow .nm small{display:block; font-weight:var(--peso); font-size:11.5px; color:var(--ink-3); margin-top:1px}
+.barrow .vl{font-size:13px; font-weight:var(--peso-forte); white-space:nowrap; align-self:center;
+  font-variant-numeric:tabular-nums}
+.barrow .tr{grid-column:1 / -1; height:6px; background:var(--surface-3); border-radius:var(--raio-cheio); overflow:hidden}
+.barrow .tr > i{display:block; height:100%; border-radius:var(--raio-cheio); background:var(--s1)}
+
+/* tooltip dos gráficos */
+.tip{position:absolute; pointer-events:none; z-index:5; background:var(--ink); color:var(--bg);
+  padding:8px 11px; border-radius:9px; font-size:12px; line-height:1.45; box-shadow:var(--sh-2);
+  white-space:nowrap; opacity:0; transform:translate(-50%,-118%); transition:opacity .12s}
+.tip[data-on]{opacity:1}
+.tip b{font-variant-numeric:tabular-nums}
+.tip .k{opacity:.62}
+
+/* ---------- listas ---------- */
+.grouphead{display:flex; justify-content:space-between; align-items:baseline; gap:10px;
+  padding:9px 18px; background:var(--surface-2); border-block:1px solid var(--line);
+  font-size:11px; font-weight:var(--peso-medio); letter-spacing:.05em; text-transform:uppercase; color:var(--ink-2)}
+.grouphead .gsum{font-variant-numeric:tabular-nums; letter-spacing:0; text-transform:none; color:var(--ink-3)}
+/* produto pendurado no banco: mesma linha, recuada, com um fio ligando */
+.row.filho{padding-left:34px; position:relative}
+.row.filho::before{content:""; position:absolute; left:20px; top:0; bottom:0;
+  width:1px; background:var(--line)}
+/* produto dentro do banco: mesma leitura, um degrau abaixo */
+.subhead{display:flex; justify-content:space-between; align-items:baseline; gap:10px;
+  padding:7px 18px 7px 30px; border-bottom:1px solid var(--line);
+  font-size:11.5px; color:var(--ink-2)}
+.subhead .gsum{font-variant-numeric:tabular-nums; color:var(--ink-3)}
+.row{display:flex; align-items:center; gap:13px; padding:12px 18px; border-bottom:1px solid var(--line)}
+.row:last-child{border-bottom:0}
+.row .desc{flex:1; min-width:0}
+.row .desc b{font-weight:var(--peso-medio); display:block; overflow-wrap:anywhere; font-size:14px}
+.row .meta{font-size:12px; color:var(--ink-3)}
+.row .amt{font-weight:var(--peso-forte); white-space:nowrap; font-variant-numeric:tabular-nums}
+.row.paid .desc b, .row.paid .amt{color:var(--ink-3); text-decoration:line-through; text-decoration-thickness:1px}
+.row.off .desc b, .row.off .amt{opacity:.48}
+.amt.in{color:var(--good)}
+.check{appearance:none; width:24px; height:24px; flex:none; border-radius:8px; cursor:pointer;
+  border:1.5px solid var(--line-strong); background:var(--surface); display:grid; place-items:center;
+  transition:background .12s, border-color .12s}
+.check:hover{border-color:var(--brand)}
+.check:focus-visible{outline:2px solid var(--brand); outline-offset:2px}
+.check[aria-pressed="true"]{background:var(--brand); border-color:var(--brand)}
+/* marca de pago desenhada em SVG, nao com glifo de texto: o tracado
+   fica igual em qualquer fonte e plataforma */
+.check[aria-pressed="true"]::after, .check.feito::after{content:""; width:13px; height:13px; background:var(--brand-ink);
+  -webkit-mask:var(--ico-check) center/contain no-repeat; mask:var(--ico-check) center/contain no-repeat}
+/* pago antes do cadastro: mostra a marca mas não é botão -- não há o que
+   desmarcar, porque nunca houve uma linha em `pagamentos` para essa parcela */
+.check.feito{background:var(--ink-3); border-color:var(--ink-3); cursor:default}
+
+.pill{font-size:11px; font-weight:var(--peso-medio); padding:2px 8px; border-radius:var(--raio-cheio); white-space:nowrap}
+.pill.late{background:var(--critical-soft); color:var(--critical)}
+.pill.last{background:var(--brand-soft); color:var(--brand)}
+.tag{font-size:11px; font-weight:var(--peso-medio); padding:2px 8px; border-radius:var(--raio-cheio); white-space:nowrap;
+  background:var(--surface-3); color:var(--ink-2)}
+
+/* ---------- mês ---------- */
+.monthnav{display:flex; align-items:center; gap:9px; flex-wrap:wrap}
+.monthnav .mlabel{font-size:17px; font-weight:var(--peso-forte); letter-spacing:-.02em; min-width:108px;
+  text-align:center; text-transform:capitalize}
+.iconbtn{appearance:none; width:33px; height:33px; flex:none; border-radius:9px;
+  border:1px solid var(--line-strong); background:var(--surface); color:var(--ink-2); cursor:pointer;
+  font-size:15px; line-height:1; display:grid; place-items:center; transition:background .12s}
+.iconbtn:hover{background:var(--surface-2); color:var(--ink)}
+.iconbtn:focus-visible{outline:2px solid var(--brand); outline-offset:2px}
+.today-chip{font-size:11.5px; color:var(--ink-3); background:var(--surface-3); border-radius:var(--raio-cheio); padding:3px 10px}
+
+/* ---------- botões ---------- */
+.btn{appearance:none; font:inherit; font-size:13.5px; font-weight:var(--peso-medio); cursor:pointer;
+  padding:8px 15px; border-radius:10px; border:1px solid var(--line-strong);
+  background:var(--surface); color:var(--ink); transition:background .12s, border-color .12s}
+.btn:hover{background:var(--surface-2)}
+.btn:focus-visible{outline:2px solid var(--brand); outline-offset:2px}
+.btn:disabled{opacity:.55; cursor:default}
+.btn.primary{background:var(--brand); border-color:var(--brand); color:var(--brand-ink);
+  box-shadow:0 1px 2px rgba(13,22,20,.12)}
+.btn.primary:hover{filter:brightness(1.07)}
+.btn.ghost{border-color:transparent; background:none; color:var(--ink-2); padding:6px 9px}
+.btn.ghost:hover{background:var(--surface-2); color:var(--ink)}
+.btn.danger{color:var(--critical); border-color:var(--critical)}
+.btn.sm{font-size:12.5px; padding:5px 11px}
+
+/* ---------- tabela ---------- */
+.tablewrap{overflow-x:auto}
+table{border-collapse:collapse; width:100%; font-size:13.5px}
+th,td{text-align:left; padding:10px 14px; border-bottom:1px solid var(--line); white-space:nowrap}
+th{font-size:10.5px; letter-spacing:.06em; text-transform:uppercase; color:var(--ink-3);
+  font-weight:var(--peso-medio); background:var(--surface-2)}
+td.n,th.n{text-align:right; font-variant-numeric:tabular-nums}
+tbody tr:last-child td{border-bottom:0}
+tr.isnow td{background:var(--brand-soft)}
+
+/* ---------- formulários ---------- */
+.field{display:flex; flex-direction:column; gap:6px}
+.field label{font-size:12px; font-weight:var(--peso-medio); color:var(--ink-2)}
+input,select,textarea{font:inherit; font-size:16px; color:var(--ink); background:var(--surface);
+  border:1px solid var(--line-strong); border-radius:var(--raio-2); padding:10px 12px; width:100%}
+input:focus,select:focus{outline:2px solid var(--brand); outline-offset:-1px; border-color:var(--brand)}
+
+/* A lista que o <select> abre é desenhada pelo sistema operacional e não aceita
+   CSS nenhum -- daí a cara de janela antiga no meio de uma tela arredondada. A
+   caixa fechada continua sendo o <select> (ele guarda o valor, valida e serve o
+   teclado); só a lista aberta passa a ser nossa. */
+.selpop{position:fixed; z-index:90; min-width:186px; max-height:292px; overflow-y:auto;
+  background:var(--surface); border:1px solid var(--line-strong);
+  border-radius:var(--raio-2); box-shadow:var(--sh-2); padding:5px;
+  animation:sobe var(--t-rapido) var(--curva) both}
+.selpop .grupo{font-size:10.5px; text-transform:uppercase; letter-spacing:.06em;
+  color:var(--ink-3); font-weight:var(--peso-medio); padding:9px 10px 4px}
+.selpop .grupo:first-child{padding-top:4px}
+.selop{display:flex; align-items:center; gap:9px; width:100%; padding:9px 10px;
+  border:0; background:none; font:inherit; font-size:13.5px; color:var(--ink);
+  border-radius:var(--raio-1); cursor:pointer; text-align:left;
+  transition:background var(--t-rapido) var(--curva)}
+.selop:hover, .selop.ativo{background:var(--surface-2)}
+.selop:focus-visible{outline:2px solid var(--brand); outline-offset:-2px}
+.selop.sel{color:var(--brand); font-weight:var(--peso-medio)}
+/* o check ocupa lugar mesmo invisível: sem isso o texto dança para o lado ao
+   trocar de opção */
+.selop .marca{width:14px; height:14px; flex:none; opacity:0; background:var(--brand);
+  -webkit-mask:var(--ico-check) center/contain no-repeat;
+  mask:var(--ico-check) center/contain no-repeat}
+.selop.sel .marca{opacity:1}
+.selop .txt{flex:1; overflow-wrap:anywhere}
+/* o trecho que casou com o que foi digitado, para o olho achar na hora */
+.selop .txt b{font-weight:var(--peso-forte); color:var(--brand)}
+.selpop .vazio{padding:10px; font-size:12.5px; color:var(--ink-3)}
+
+/* valor que ainda é média: vira botão, porque é nele que se clica para dizer
+   quanto a conta veio de verdade */
+.amt.estimado{appearance:none; border:0; background:none; font:inherit; cursor:pointer;
+  color:var(--ink); display:inline-flex; align-items:center; gap:6px;
+  padding:2px 6px; margin-right:-6px; border-radius:var(--raio-1)}
+.amt.estimado:hover{background:var(--surface-2); color:var(--brand)}
+.amt.estimado:focus-visible{outline:2px solid var(--brand); outline-offset:1px}
+.amt.estimado .med{font-size:10px; text-transform:uppercase; letter-spacing:.05em;
+  font-weight:var(--peso-medio); color:var(--ink-3); border:1px solid var(--line-strong);
+  padding:1px 5px; border-radius:var(--raio-cheio)}
+.amt.estimado:hover .med{border-color:var(--brand); color:var(--brand)}
+.selop.dentro{padding-left:20px}
+/* a caixa fechada muda de borda enquanto a lista está aberta, para o conjunto
+   parecer uma peça só e não dois elementos soltos */
+select.aberta{border-color:var(--brand); outline:2px solid var(--brand); outline-offset:-1px}
+
+/* ---------- listas suspensas ----------
+   Eram dois desenhos: o dos filtros (13px, raio pequeno) e o dos formulários
+   (16px, raio 10 escrito à mão, fora dos tokens). E os dois entregavam a seta
+   ao sistema, que a desenha diferente em cada navegador -- o mesmo motivo que
+   tirou o calendário nativo daqui. Agora é um desenho só em dois tamanhos, com
+   a seta nossa: mesma forma, mesmo raio, mesmo foco, mesma reação ao passar o
+   mouse. */
+select{appearance:none; -webkit-appearance:none;
+  background-image:var(--ico-seta); background-repeat:no-repeat;
+  background-position:right 12px center; background-size:11px;
+  padding-right:34px; cursor:pointer;
+  transition:border-color var(--t-rapido) var(--curva),
+             background-color var(--t-rapido) var(--curva)}
+select:hover{background-color:var(--surface-2)}
+/* a seta desce meio pixel enquanto a lista está aberta: o foco no select é o
+   único sinal que o CSS tem de que ela abriu */
+select:focus{background-position:right 12px calc(50% + 1px)}
+select:disabled{cursor:default; opacity:.55; background-image:none}
+/* Firefox pinta a lista aberta com as cores do sistema se não dissermos nada,
+   e no tema escuro isso vira texto preto sobre fundo preto */
+select option{background:var(--surface); color:var(--ink)}
+.formgrid{display:grid; grid-template-columns:1fr 1fr; gap:13px; padding:18px}
+.formgrid .full{grid-column:1 / -1}
+/* "3 de 8" lado a lado: é assim que a fatura escreve, e ler igual evita
+   ter que traduzir de cabeça na hora de lançar */
+.parc-campo{display:flex; align-items:center; gap:var(--e-2)}
+
+/* Calendário próprio. O nativo muda de cara em cada navegador e sistema, e é o
+   único pedaço da tela que não obedece aos tokens -- num app que escolheu cada
+   cor, ter um retângulo cinza do sistema no meio do formulário salta. O input
+   continua sendo type=date por baixo: ele é quem guarda o valor, valida e
+   funciona no celular. Só o desenho do seletor é nosso. */
+.data-campo{position:relative}
+.data-campo input::-webkit-calendar-picker-indicator{display:none}
+.data-campo input[type="date"]{padding-right:38px}
+.data-abre{position:absolute; right:6px; bottom:6px; width:28px; height:28px;
+  display:grid; place-items:center; border:0; background:none; cursor:pointer;
+  color:var(--ink-3); border-radius:var(--raio-1)}
+.data-abre:hover{color:var(--brand); background:var(--surface-2)}
+.data-abre:focus-visible{outline:2px solid var(--brand); outline-offset:1px}
+
+.cal{position:absolute; z-index:20; top:calc(100% + 6px); left:0; width:268px;
+  background:var(--surface); border:1px solid var(--line-strong);
+  border-radius:var(--raio-2); box-shadow:var(--sh-2); padding:10px;
+  animation:sobe var(--t-rapido) var(--curva) both}
+.cal-h{display:flex; align-items:center; justify-content:space-between; gap:6px; margin-bottom:8px}
+.cal-mes{font-size:13px; font-weight:var(--peso-medio); text-transform:capitalize}
+.cal-nav{width:28px; height:28px; display:grid; place-items:center; cursor:pointer;
+  border:0; background:none; color:var(--ink-2); border-radius:var(--raio-1); font:inherit}
+.cal-nav:hover{background:var(--surface-2); color:var(--ink)}
+.cal-nav:focus-visible{outline:2px solid var(--brand); outline-offset:1px}
+.cal-sem, .cal-grade{display:grid; grid-template-columns:repeat(7, 1fr); gap:2px}
+.cal-sem span{text-align:center; font-size:10.5px; color:var(--ink-3);
+  text-transform:uppercase; letter-spacing:.04em; padding-bottom:4px}
+.cal-dia{aspect-ratio:1; min-height:32px; display:grid; place-items:center; cursor:pointer;
+  border:0; background:none; font:inherit; font-size:12.5px; color:var(--ink);
+  border-radius:var(--raio-1); font-variant-numeric:tabular-nums;
+  transition:background var(--t-rapido) var(--curva)}
+.cal-dia:hover{background:var(--surface-2)}
+.cal-dia:focus-visible{outline:2px solid var(--brand); outline-offset:-2px}
+.cal-dia.fora{color:var(--ink-3); opacity:.45}
+.cal-dia.hoje{font-weight:var(--peso-forte); color:var(--brand);
+  box-shadow:inset 0 0 0 1px var(--brand)}
+.cal-dia.sel{background:var(--brand); color:var(--brand-ink); font-weight:var(--peso-forte)}
+.cal-dia.sel.hoje{box-shadow:none}
+.cal-m{width:212px}
+.cal-grade-m{display:grid; grid-template-columns:repeat(3, 1fr); gap:3px}
+.cal-mesbt{padding:9px 0; display:grid; place-items:center; cursor:pointer;
+  border:0; background:none; font:inherit; font-size:12.5px; color:var(--ink);
+  border-radius:var(--raio-1); text-transform:capitalize;
+  transition:background var(--t-rapido) var(--curva)}
+.cal-mesbt:hover{background:var(--surface-2)}
+.cal-mesbt:focus-visible{outline:2px solid var(--brand); outline-offset:-2px}
+.cal-mesbt.hoje{font-weight:var(--peso-forte); color:var(--brand);
+  box-shadow:inset 0 0 0 1px var(--brand)}
+.cal-mesbt.sel{background:var(--brand); color:var(--brand-ink); font-weight:var(--peso-forte)}
+.cal-mesbt.sel.hoje{box-shadow:none}
+.cal-rod{display:flex; gap:6px; margin-top:8px; padding-top:8px; border-top:1px solid var(--line)}
+.cal-rod button{flex:1; padding:6px; font:inherit; font-size:12px; cursor:pointer;
+  border:1px solid var(--line); background:none; color:var(--ink-2); border-radius:var(--raio-1)}
+.cal-rod button:hover{border-color:var(--brand); color:var(--brand)}
+.cal-rod button:focus-visible{outline:2px solid var(--brand); outline-offset:1px}
+.parc-campo input{width:78px; text-align:center; flex:none}
+.dica-fatura{background:var(--brand-soft); color:var(--brand); border-radius:var(--r-sm);
+  padding:9px 12px; font-size:12.5px; line-height:1.5}
+.dica-fatura b{font-variant-numeric:tabular-nums}
+.dica-fatura button{appearance:none; font:inherit; font-size:12px; font-weight:var(--peso-medio);
+  cursor:pointer; margin-top:7px; padding:4px 10px; border-radius:var(--raio-1);
+  border:1px solid currentColor; background:none; color:inherit}
+.dica-fatura button:hover{background:var(--surface)}
+.dica-fatura button:focus-visible{outline:2px solid var(--brand); outline-offset:2px}
+.dica-fatura.manual{background:var(--warn-soft); color:var(--warn)}
+.parc-campo span{color:var(--ink-3); font-size:13.5px}
+.hint{font-size:12px; color:var(--ink-3); margin:0}
+
+dialog{border:1px solid var(--line); border-radius:var(--r-lg); background:var(--surface); color:var(--ink);
+  padding:0; width:min(560px, calc(100vw - 28px)); box-shadow:0 28px 70px rgba(0,0,0,.32)}
+dialog::backdrop{background:rgba(8,14,12,.55); backdrop-filter:blur(2px)}
+.dlg-h{display:flex; justify-content:space-between; align-items:center; padding:16px 18px;
+  border-bottom:1px solid var(--line)}
+.dlg-h h2{font-size:15px}
+.dlg-f{display:flex; gap:10px; padding:15px 18px; border-top:1px solid var(--line); flex-wrap:wrap}
+
+.imp-acoes{display:flex; gap:var(--e-2); flex-wrap:wrap; align-items:center; margin-top:var(--e-2)}
+.imp-resumo{padding:11px 14px; border-radius:var(--r-sm); background:var(--good-soft);
+  color:var(--good); font-size:13.5px; margin-top:var(--e-3)}
+#importResumo .notice{margin-top:var(--e-2); font-size:12.5px; line-height:1.6}
+#importResumo > div:last-child:has(.btn){margin-top:var(--e-3)}
+label.btn{display:inline-flex; align-items:center}
+
+.notice{background:var(--critical-soft); color:var(--critical); border:1px solid var(--critical);
+  border-radius:var(--r); padding:12px 15px; font-size:13.5px}
+.empty{padding:30px 18px; text-align:center; color:var(--ink-3); font-size:13.5px}
+.saving{font-size:12px; color:var(--ink-3)}
+#toast{position:fixed; left:50%; bottom:22px; transform:translateX(-50%); background:var(--ink);
+  color:var(--bg); padding:11px 18px; border-radius:var(--raio-cheio); font-size:13.5px; z-index:60;
+  box-shadow:var(--sh-2); max-width:calc(100vw - 32px)}
+
+@media (max-width:760px){ .duo{grid-template-columns:1fr} }
+@media (max-width:640px){
+  main{padding:16px 14px 64px}
+  .hero{padding:18px 17px}
+  .hero-grid{gap:14px}
+  .formgrid{grid-template-columns:1fr}
+  .kpis{grid-template-columns:1fr 1fr}
+}
+/* Uma coluna só, e não é preferência de desenho: um valor na casa das centenas
+   de milhar sai do money() com espaço inquebrável, então a figura de 23px é uma
+   palavra só de uns 214px. Em duas colunas num aparelho de 360px ela não cabe, e o grid não
+   corta: estica a coluna, e a página inteira passava a rolar de lado. */
+@media (max-width:520px){ .kpis{grid-template-columns:1fr} }
+@media (prefers-reduced-motion: reduce){*{transition:none !important; animation:none !important}}

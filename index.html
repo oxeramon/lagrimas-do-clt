@@ -32,756 +32,9 @@
 })();
 </script>
 
-<style>
-/* =====================================================================
-   Sistema visual. As cores de série saem da paleta validada para
-   daltonismo e contraste (ver README): adjacentes passam nos dois temas.
-   O tema escuro tem passos próprios, não é inversão automática.
-   ===================================================================== */
-/* =====================================================================
-   TOKENS EM TRÊS CAMADAS
-     primitiva  valor cru, muda quase nunca
-     semântica  o papel que o valor cumpre; é só ela que troca no tema
-     componente medidas de uma peça específica
-   Regra: nada no CSS abaixo usa um valor primitivo direto. Trocar o tema
-   é reescrever a camada semântica, e só ela.
-   ===================================================================== */
-:root{
-  /* ---------- 1. PRIMITIVA ---------- */
-  --verde-50:#E0F2EB;  --verde-500:#12A47A; --verde-600:#0E7A5F; --verde-300:#2BBF8E;
-  --pedra-0:#FFFFFF;   --pedra-50:#F7F9F8;  --pedra-100:#EFF3F1; --pedra-200:#E4EAE8;
-  --pedra-300:#CCD8D4; --pedra-500:#63756F; --pedra-700:#4A5A56; --pedra-900:#0D1614;
-  --noite-950:#090D0C; --noite-900:#141B19; --noite-800:#1A2320; --noite-700:#232E2A;
-  --noite-600:#2B3733; --noite-300:#778A85; --noite-200:#A2B3AE; --noite-50:#EAF1EE;
-
-  /* séries validadas para daltonismo e contraste, claro / escuro */
-  --serie-1:#12A47A; --serie-2:#EB6834; --serie-3:#2A78D6; --serie-4:#E87BA4; --serie-5:#4A3AA7;
-  --serie-1-d:#199E70; --serie-2-d:#D95926; --serie-3-d:#3987E5; --serie-4-d:#D55181; --serie-5-d:#9085E9;
-
-  --bom-500:#0CA30C;  --aviso-500:#B4770B; --aviso-500-d:#FAB219; --grave-500:#D03B3B;
-  --bom-50:#E2F4E2;   --aviso-50:#FBF0DA;  --grave-50:#FBE7E7;
-  --bom-950:#0C2410;  --aviso-950:#2A2110; --grave-950:#2C1414;
-
-  /* escala de 4px */
-  --e-1:4px; --e-2:8px; --e-3:12px; --e-4:16px; --e-5:20px; --e-6:24px; --e-8:32px; --e-12:48px;
-  --raio-1:6px; --raio-2:12px; --raio-3:18px; --raio-4:24px; --raio-cheio:999px;
-  --sombra-1:0 1px 2px rgba(13,22,20,.05), 0 1px 3px rgba(13,22,20,.04);
-  --sombra-2:0 2px 4px rgba(13,22,20,.03), 0 14px 32px rgba(13,22,20,.08);
-  --sombra-1-d:0 1px 2px rgba(0,0,0,.5);
-  --sombra-2-d:0 2px 4px rgba(0,0,0,.4), 0 14px 32px rgba(0,0,0,.45);
-
-  /* tres pesos, só. Forte é reservado ao que precisa ser achado de
-     relance: título, figura e valor. O resto se distingue por tamanho,
-     cor e espaçamento, que cansam menos a leitura. */
-  --peso:400; --peso-medio:500; --peso-forte:600;
-  --t-rapido:140ms; --t-medio:220ms; --t-lento:380ms;
-  --curva:cubic-bezier(.22,.8,.28,1);
-
-  /* ---------- 2. SEMÂNTICA ---------- */
-  --bg:var(--pedra-100); --surface:var(--pedra-0); --surface-2:var(--pedra-50); --surface-3:var(--pedra-200);
-  --ink:var(--pedra-900); --ink-2:var(--pedra-700); --ink-3:var(--pedra-500);
-  --line:var(--pedra-200); --line-strong:var(--pedra-300);
-  --brand:var(--verde-600); --brand-ink:var(--pedra-0); --brand-soft:var(--verde-50);
-  --s1:var(--serie-1); --s2:var(--serie-2); --s3:var(--serie-3); --s4:var(--serie-4); --s5:var(--serie-5);
-  --good:var(--bom-500); --warn:var(--aviso-500); --critical:var(--grave-500);
-  --good-soft:var(--bom-50); --warn-soft:var(--aviso-50); --critical-soft:var(--grave-50);
-  --grid:var(--pedra-200); --axis:var(--pedra-300);
-  --sh-1:var(--sombra-1); --sh-2:var(--sombra-2);
-  --r-sm:var(--raio-1); --r:var(--raio-3); --r-lg:var(--raio-4);
-
-  /* ---------- 3. COMPONENTE ---------- */
-  --lateral-larg:232px;
-  --rodape-alt:60px;
-  --nav-raio:var(--raio-2);
-  --ico-check:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='3.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M20 6L9 17l-5-5'/%3E%3C/svg%3E");
-  /* a seta da lista suspensa: background-image não entende currentColor, então
-     a cor vai embutida e cada tema traz a sua */
-  --ico-seta:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2363756F' stroke-width='2.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
-
-  color-scheme:light;
-}
-/* O escuro responde ao atributo, não ao sistema, e por isso continua sendo um
-   bloco só. Quem lê o sistema é o script do <head>, que resolve "automático"
-   antes da primeira pintura e escreve aqui o resultado. Fazer o contrário --
-   uma media query para o automático mais um bloco igual para a escolha manual
-   -- obrigaria a manter a camada semântica em duplicata, e a primeira cor que
-   alguém esquecesse de trocar nos dois lugares abriria um tema pela metade. */
-:root[data-tema="escuro"]{
-  /* só a camada semântica troca */
-  --bg:var(--noite-950); --surface:var(--noite-900); --surface-2:var(--noite-800); --surface-3:var(--noite-700);
-  --ink:var(--noite-50); --ink-2:var(--noite-200); --ink-3:var(--noite-300);
-  --line:var(--noite-700); --line-strong:var(--noite-600);
-  --brand:var(--verde-300); --brand-ink:var(--noite-950); --brand-soft:#0F2E24;
-  --s1:var(--serie-1-d); --s2:var(--serie-2-d); --s3:var(--serie-3-d);
-  --s4:var(--serie-4-d); --s5:var(--serie-5-d);
-  --warn:var(--aviso-500-d);
-  --good-soft:var(--bom-950); --warn-soft:var(--aviso-950); --critical-soft:var(--grave-950);
-  --grid:#1F2825; --axis:var(--noite-600);
-  --sh-1:var(--sombra-1-d); --sh-2:var(--sombra-2-d);
-  --ico-seta:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23778A85' stroke-width='2.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
-  color-scheme:dark;
-}
-
-*{box-sizing:border-box}
-html,body{margin:0}
-body{
-  background:var(--bg); color:var(--ink);
-  font-family:Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
-  font-size:14.5px; font-weight:var(--peso); line-height:1.5; -webkit-font-smoothing:antialiased;
-  font-feature-settings:"cv05" 1, "ss01" 1;
-}
-img{max-width:100%}
-/* o padrão do navegador para <b> é 700, fora da escala */
-b,strong{font-weight:var(--peso-forte)}
-[hidden]{display:none !important}
-h1,h2,h3{margin:0; font-weight:var(--peso-forte); letter-spacing:-.017em; text-wrap:balance}
-
-/* Números: proporcionais quando são figura solta (herói, KPI), tabulares
-   só onde precisam alinhar em coluna (listas, eixos, tabelas). */
-.fig{font-weight:var(--peso-forte); letter-spacing:-.03em; font-variant-numeric:proportional-nums}
-.num{font-variant-numeric:tabular-nums; font-feature-settings:"tnum" 1}
-.cents{opacity:.5; font-weight:var(--peso-medio)}
-
-.eyebrow{font-size:10.5px; letter-spacing:.11em; text-transform:uppercase;
-  color:var(--ink-3); font-weight:var(--peso-medio)}
-
-/* ---------- login ---------- */
-#login{min-height:100vh; display:grid; place-items:center; padding:24px 16px}
-.loginbox{width:min(390px,100%); background:var(--surface); border:1px solid var(--line);
-  border-radius:var(--r-lg); box-shadow:var(--sh-2); padding:30px 26px}
-.loginbox h1{font-size:25px; margin-bottom:5px}
-.loginbox p.sub{color:var(--ink-3); font-size:13.5px; margin:0 0 22px}
-.loginbox .field + .field{margin-top:13px}
-.loginbox button{width:100%; margin-top:20px}
-#loginErro{margin-top:13px; font-size:13.5px; color:var(--critical)}
-
-/* do 11º em diante todos compartilham o último degrau: sem isso caíam no
-   delay padrão, zero, e entravam junto com o primeiro bloco */
-.bento > .tile:nth-child(n+11){animation-delay:400ms}
-
-/* ---------- shell ---------- */
-/* A navegação virou lateral no desktop e rodapé no celular. O CSS da topbar
-   antiga (.topbar-in, .brand, .tabs, .tab) saiu daqui: nenhuma dessas classes
-   existia mais no HTML. Junto dele ia o estilo do "Q" da marca, que era
-   `.brand .dot` -- e o HTML usa `.marca`, então o quadrado verde não pintava
-   em lugar nenhum desde a troca. O seletor abaixo nomeia os dois lugares onde
-   a marca aparece de verdade; `.dot` sozinho pegaria também o ponto inicial
-   da curva de quitação, que é outro elemento com o mesmo nome. */
-.marca .dot, .topo-movel .dot{width:22px; height:22px; border-radius:7px; flex:none;
-  background:linear-gradient(140deg, var(--brand), color-mix(in srgb, var(--brand) 60%, #000));
-  display:grid; place-items:center; color:var(--brand-ink); font-size:12px; font-weight:var(--peso-forte)}
-
-main{max-width:1160px; margin:0 auto; padding:22px 20px 72px}
-.panel[hidden]{display:none !important}
-.stack{display:flex; flex-direction:column; gap:16px}
-
-/* ---------- cards ---------- */
-.card{background:var(--surface); border:1px solid var(--line); border-radius:var(--r);
-  box-shadow:var(--sh-1)}
-.card-h{display:flex; justify-content:space-between; align-items:baseline; gap:12px;
-  padding:15px 18px 12px; flex-wrap:wrap}
-.card-h h2{font-size:14px; letter-spacing:-.01em}
-.card-h .hint-r{font-size:12px; color:var(--ink-3)}
-
-/* ---------- herói ---------- */
-.hero{background:var(--surface); border:1px solid var(--line); border-radius:var(--r-lg);
-  box-shadow:var(--sh-2); padding:22px 24px; position:relative; overflow:hidden}
-.hero::before{content:""; position:absolute; inset:0 0 auto 0; height:3px;
-  background:linear-gradient(90deg, var(--brand), var(--s3))}
-.hero-grid{display:flex; justify-content:space-between; align-items:flex-start; gap:24px; flex-wrap:wrap}
-.hero .big{font-size:clamp(30px,5.2vw,44px); line-height:1.02; margin-top:7px}
-.hero .mid{font-size:clamp(22px,3.4vw,30px); line-height:1.06; margin-top:7px}
-.hero .note{font-size:12.5px; color:var(--ink-3); margin-top:6px}
-.track{height:7px; background:var(--surface-3); border-radius:var(--raio-cheio); overflow:hidden; margin-top:20px}
-.track > i{display:block; height:100%; border-radius:var(--raio-cheio);
-  background:linear-gradient(90deg, var(--brand), var(--s1)); transition:width .45s cubic-bezier(.2,.8,.2,1)}
-
-
-/* ---------- casca: lateral no desktop, rodapé no celular ---------- */
-.app{display:grid; grid-template-columns:var(--lateral-larg) 1fr; min-height:100vh}
-/* A coluna de conteúdo precisa poder ser menor que o que há dentro dela. Sem
-   isto o `1fr` vira "o tamanho do filho mais largo": a tabela da Projeção
-   esticava a página inteira em vez de rolar dentro do .tablewrap, e no celular
-   bastavam os quatro botões do topo para a página ganhar rolagem lateral. */
-.app > div{min-width:0}
-
-.lateral{position:sticky; top:0; align-self:start; height:100vh; display:flex; flex-direction:column;
-  gap:var(--e-1); padding:var(--e-5) var(--e-3); background:var(--surface);
-  border-right:1px solid var(--line)}
-.lateral .marca{display:flex; align-items:center; gap:var(--e-2); padding:0 var(--e-2) var(--e-5)}
-.lateral .marca h1{font-size:16px; letter-spacing:-.02em; font-weight:var(--peso-forte)}
-.lateral nav{display:flex; flex-direction:column; gap:2px}
-.lateral .sep{flex:1}
-.lateral .rodape{display:flex; flex-direction:column; gap:2px; padding-top:var(--e-3);
-  border-top:1px solid var(--line)}
-
-.navitem{appearance:none; border:0; background:none; font:inherit; font-size:13.5px; font-weight:var(--peso-medio);
-  color:var(--ink-2); cursor:pointer; text-align:left; width:100%;
-  display:flex; align-items:center; gap:var(--e-3); padding:9px var(--e-3);
-  border-radius:var(--nav-raio); position:relative;
-  transition:background var(--t-rapido) var(--curva), color var(--t-rapido) var(--curva)}
-.navitem svg{width:18px; height:18px; flex:none; stroke:currentColor; fill:none;
-  stroke-width:1.7; stroke-linecap:round; stroke-linejoin:round}
-.navitem:hover{background:var(--surface-2); color:var(--ink)}
-.navitem:focus-visible{outline:2px solid var(--brand); outline-offset:2px}
-.navitem[aria-selected="true"]{background:var(--brand-soft); color:var(--brand); font-weight:var(--peso-forte)}
-/* marcador do item ativo: desliza entre os itens em vez de piscar */
-.navitem[aria-selected="true"]::before{content:""; position:absolute; left:calc(var(--e-3) * -1); top:50%; transform:translateY(-50%);
-  width:3px; height:18px; border-radius:0 3px 3px 0; background:var(--brand)}
-
-/* rodapé fixo do celular: 5 itens, o limite recomendado */
-.rodapenav{display:none}
-
-main{max-width:1280px; margin:0 auto; padding:var(--e-6) var(--e-6) var(--e-12); width:100%}
-.topo-movel{display:none}
-
-@media (max-width:900px){
-  .app{grid-template-columns:1fr}
-  .lateral{display:none}
-  /* o mesmo respiro da marca na lateral. Com quatro botões de ação a 12px a
-     barra passava 3px da tela num aparelho de 360px, e a página inteira ganhava
-     rolagem lateral por causa do topo. */
-  .topo-movel{display:flex; align-items:center; gap:var(--e-2); position:sticky; top:0; z-index:30;
-    padding:var(--e-3) var(--e-4); background:var(--surface); border-bottom:1px solid var(--line)}
-  /* último recurso em tela muito estreita: o nome encurta para os botões nunca
-     saírem da tela. Item de flex não encolhe sozinho sem o min-width:0. */
-  .topo-movel h1{font-size:15px; font-weight:var(--peso-forte); letter-spacing:-.02em;
-    min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
-  .topo-movel .sep{flex:1}
-  main{padding:var(--e-4) var(--e-4) calc(var(--rodape-alt) + var(--e-8))}
-  .rodapenav{display:grid; grid-template-columns:repeat(5,1fr); position:fixed; inset:auto 0 0 0;
-    z-index:40; height:var(--rodape-alt); background:var(--surface);
-    border-top:1px solid var(--line); padding-bottom:env(safe-area-inset-bottom)}
-  .rodapenav .navitem{flex-direction:column; gap:3px; justify-content:center; padding:6px 2px;
-    font-size:10.5px; font-weight:var(--peso-medio); border-radius:0; text-align:center}
-  .rodapenav .navitem svg{width:20px; height:20px}
-  .rodapenav .navitem[aria-selected="true"]{background:none; color:var(--brand)}
-  .rodapenav .navitem[aria-selected="true"]::before{left:50%; top:0; transform:translateX(-50%);
-    width:26px; height:2.5px; border-radius:0 0 3px 3px}
-}
-
-/* ---------- movimento ----------
-   Regra: a animação só existe quando comunica algo — de onde o painel
-   veio, que o número está sendo apurado, que a curva desce. Nada roda
-   duas vezes na mesma sessão sem o usuário ter pedido. */
-.panel{animation:entra var(--t-medio) var(--curva) both}
-@keyframes entra{ from{opacity:0; transform:translateY(6px)} to{opacity:1; transform:none} }
-
-.tile{animation:sobe var(--t-lento) var(--curva) both}
-.bento > .tile:nth-child(1){animation-delay:0ms}    .bento > .tile:nth-child(2){animation-delay:40ms}
-.bento > .tile:nth-child(3){animation-delay:80ms}   .bento > .tile:nth-child(4){animation-delay:120ms}
-.bento > .tile:nth-child(5){animation-delay:160ms}  .bento > .tile:nth-child(6){animation-delay:200ms}
-.bento > .tile:nth-child(7){animation-delay:240ms}  .bento > .tile:nth-child(8){animation-delay:280ms}
-.bento > .tile:nth-child(9){animation-delay:320ms}  .bento > .tile:nth-child(10){animation-delay:360ms}
-@keyframes sobe{ from{opacity:0; transform:translateY(10px)} to{opacity:1; transform:none} }
-
-/* curva do gráfico desenha da esquerda para a direita */
-.chart .traco{stroke-dasharray:var(--len); stroke-dashoffset:var(--len);
-  animation:desenha 900ms var(--curva) forwards}
-@keyframes desenha{ to{stroke-dashoffset:0} }
-.chart .area-anim{opacity:0; animation:aparece 500ms 320ms var(--curva) forwards}
-@keyframes aparece{ to{opacity:1} }
-/* barras crescem a partir da linha do zero */
-.chart .barra{transform-box:fill-box; transform-origin:var(--org,bottom); animation:cresce 420ms var(--curva) both;
-  animation-delay:calc(var(--i,0) * 26ms)}
-@keyframes cresce{ from{transform:scaleY(.02)} to{transform:scaleY(1)} }
-
-@media (prefers-reduced-motion: reduce){
-  .panel,.tile,.chart .traco,.chart .area-anim,.chart .barra{animation:none !important}
-  .chart .traco{stroke-dashoffset:0}
-  .chart .area-anim{opacity:1}
-}
-/* ---------- filtros e cartões de dívida ---------- */
-.filtros{display:flex; gap:var(--e-2); flex-wrap:wrap; align-items:center;
-  padding:var(--e-3) var(--e-4); border-bottom:1px solid var(--line)}
-.filtros .rot{font-size:11px; letter-spacing:.1em; text-transform:uppercase;
-  color:var(--ink-3); font-weight:var(--peso-medio); margin-right:var(--e-1)}
-.filtros .dir{margin-left:auto; display:flex; align-items:center; gap:var(--e-2)}
-/* Mesmo desenho, só menor: o filtro mora numa barra estreita e não pode ter a
-   altura de um campo de formulário. Virou lista suspensa porque, com muitos
-   credores, a fileira de botões quebrava em várias linhas e empurrava a lista
-   para baixo. */
-.filtros select{width:auto; min-width:168px; max-width:100%;
-  font-size:13px; padding:7px 30px 7px 11px; border-radius:var(--raio-1);
-  background-position:right 10px center; background-size:10px}
-.filtros select:focus{background-position:right 10px calc(50% + 1px)}
-
-/* barra dentro da célula: permite varrer a coluna % da renda de olho,
-   sem ler número por número */
-.pctcell{display:inline-flex; align-items:center; gap:7px; justify-content:flex-end}
-.pctcell .mini{width:46px; height:5px; background:var(--surface-3); border-radius:var(--raio-cheio);
-  overflow:hidden; flex:none}
-.pctcell .mini > i{display:block; height:100%; border-radius:var(--raio-cheio); background:var(--s1)}
-.pctcell.alto .mini > i{background:var(--critical)}
-tr.negativa td{background:var(--critical-soft)}
-tr.isnow.negativa td{background:var(--critical-soft)}
-.fig.critical{color:var(--critical)}
-
-.dgrid{display:grid; grid-template-columns:repeat(auto-fill,minmax(262px,1fr));
-  gap:var(--e-3); padding:var(--e-4)}
-
-.dcard{appearance:none; font:inherit; text-align:left; cursor:pointer; width:100%;
-  background:var(--surface); border:1px solid var(--line); border-radius:var(--raio-2);
-  padding:var(--e-4); display:flex; flex-direction:column; gap:var(--e-2); color:var(--ink);
-  transition:border-color var(--t-rapido) var(--curva), background var(--t-rapido) var(--curva)}
-.dcard:hover{border-color:var(--line-strong); background:var(--surface-2)}
-.dcard:focus-visible{outline:2px solid var(--brand); outline-offset:2px}
-.dcard .topo{display:flex; justify-content:space-between; align-items:flex-start; gap:var(--e-2)}
-.dcard .nome{font-weight:var(--peso-medio); font-size:14px; overflow-wrap:anywhere; line-height:1.3}
-.dcard .cred{display:block; font-weight:var(--peso); font-size:11.5px; color:var(--ink-3); margin-top:2px}
-.dcard .saldo{font-weight:var(--peso-forte); font-size:15px; white-space:nowrap; font-variant-numeric:tabular-nums}
-.dcard .saldo.in{color:var(--good)}
-.dcard.off{opacity:.62}
-/* Abrir e editar são ações diferentes e precisam de alvos diferentes: clicar
-   no cartão para só olhar caía direto no formulário de edição, com o botão de
-   excluir à mão. O cartão inteiro agora abre o detalhe; editar é um botão. */
-.dcard-wrap{position:relative}
-.dcard-wrap .dcard .topo{padding-right:32px}
-.dcard-edit{position:absolute; top:10px; right:10px; width:26px; height:26px;
-  display:grid; place-items:center; border:0; background:none; cursor:pointer;
-  color:var(--ink-3); border-radius:var(--raio-1); z-index:1}
-.dcard-edit:hover{color:var(--brand); background:var(--surface-2)}
-.dcard-edit:focus-visible{outline:2px solid var(--brand); outline-offset:1px}
-
-/* detalhe da dívida */
-.det-kpis{display:grid; grid-template-columns:repeat(3, 1fr); gap:10px; padding:16px 18px 0}
-.det-kpi{background:var(--surface-2); border-radius:var(--raio-2); padding:11px 13px}
-.det-kpi .rot{font-size:10.5px; text-transform:uppercase; letter-spacing:.05em;
-  color:var(--ink-3); display:block; margin-bottom:3px}
-.det-kpi .val{font-size:16px; font-weight:var(--peso-forte);
-  font-variant-numeric:tabular-nums; overflow-wrap:anywhere}
-.det-linha{padding:14px 18px 0; font-size:12.5px; color:var(--ink-2)}
-.det-hist{padding:6px 18px 0}
-.det-hist h3{font-size:11px; text-transform:uppercase; letter-spacing:.05em;
-  color:var(--ink-3); font-weight:var(--peso-medio); padding:12px 0 6px}
-.det-lista{max-height:240px; overflow-y:auto; border:1px solid var(--line);
-  border-radius:var(--raio-2)}
-.det-item{display:grid; grid-template-columns:34px 1fr auto auto; gap:10px; align-items:center;
-  padding:8px 12px; border-bottom:1px solid var(--line); font-size:12.5px}
-.det-item:last-child{border-bottom:0}
-.det-item .n{color:var(--ink-3); font-variant-numeric:tabular-nums}
-.det-item .v{font-variant-numeric:tabular-nums}
-.det-item.antes{background:var(--surface-2); color:var(--ink-3)}
-.det-item.pago .m, .det-item.pago .v{text-decoration:line-through; color:var(--ink-3)}
-.det-item.agora{box-shadow:inset 3px 0 0 var(--brand)}
-.rcard .prog > i{background:var(--good)}
-
-/* progresso: a informação que existia no modelo e nunca aparecia na tela */
-.dcard .prog{height:5px; border-radius:var(--raio-cheio); background:var(--surface-3); overflow:hidden}
-.dcard .prog > i{display:block; height:100%; border-radius:var(--raio-cheio); background:var(--s1);
-  transition:width var(--t-lento) var(--curva)}
-.dcard.quase .prog > i{background:var(--good)}
-.dcard .pes{display:flex; justify-content:space-between; gap:var(--e-2);
-  font-size:11.5px; color:var(--ink-3); font-variant-numeric:tabular-nums}
-.dcard .sel{display:flex; gap:6px; flex-wrap:wrap; margin-top:2px}
-
-@media (max-width:600px){
-  .dgrid{grid-template-columns:1fr; padding:var(--e-3); gap:var(--e-2)}
-  .filtros{padding:var(--e-3)}
-  .filtros .dir{margin-left:0; width:100%}
-}
-/* ---------- fatura: várias compras, uma linha só ---------- */
-.fatura{display:flex; align-items:center; gap:var(--e-3); padding:12px 16px;
-  background:var(--surface-2); border-bottom:1px solid var(--line)}
-.fatura .desc{flex:1; min-width:0}
-.fatura .desc b{display:block; font-weight:var(--peso-medio); font-size:14px}
-.fatura .meta{font-size:12px; color:var(--ink-3)}
-.fatura .amt{font-weight:var(--peso-forte); white-space:nowrap; font-variant-numeric:tabular-nums}
-.fatura.paid .desc b, .fatura.paid .amt{color:var(--ink-3); text-decoration:line-through}
-.abrir{appearance:none; border:1px solid var(--line-strong); background:var(--surface);
-  color:var(--ink-2); cursor:pointer; border-radius:var(--raio-1); padding:3px 9px;
-  font:inherit; font-size:11.5px; font-weight:var(--peso-medio); white-space:nowrap}
-.abrir:hover{background:var(--surface-3); color:var(--ink)}
-.abrir:focus-visible{outline:2px solid var(--brand); outline-offset:2px}
-.lanc{display:flex; align-items:center; gap:var(--e-3); padding:8px 16px 8px 52px;
-  border-bottom:1px solid var(--line); font-size:13px}
-.lanc .desc{flex:1; min-width:0}
-.lanc .cat{font-size:11.5px; color:var(--ink-3)}
-.lanc .amt{font-variant-numeric:tabular-nums; color:var(--ink-2); white-space:nowrap}
-.lanc .parc{font-size:11px; font-weight:var(--peso-medio); color:var(--s3);
-  background:var(--surface-3); border-radius:var(--raio-cheio); padding:1px 7px; margin-left:6px}
-.rodape-fat{padding:9px 16px 11px 52px; font-size:12px; color:var(--ink-3);
-  border-bottom:1px solid var(--line); background:var(--surface-2)}
-.rodape-fat b{color:var(--ink-2); font-variant-numeric:tabular-nums}
-
-/* ---------- bento: grade assimétrica de blocos ---------- */
-.bento{display:grid; grid-template-columns:repeat(4,1fr); grid-auto-rows:minmax(132px,auto); gap:14px}
-.bento > *{min-width:0; min-height:0}
-.b-2x2{grid-column:span 2; grid-row:span 2}
-.b-3x2{grid-column:span 3; grid-row:span 2}
-.b-2x1{grid-column:span 2}
-.b-1x2{grid-row:span 2}
-
-.tile{background:var(--surface); border:1px solid var(--line); border-radius:var(--r-lg);
-  box-shadow:var(--sh-1); padding:17px 19px; display:flex; flex-direction:column; overflow:hidden}
-.tile .grow{flex:1; min-height:0}
-.tile-h{display:flex; justify-content:space-between; align-items:baseline; gap:10px;
-  flex-wrap:wrap; margin-bottom:6px}
-.tile-h h2{font-size:13.5px; letter-spacing:-.01em}
-.tile-h .hint-r{font-size:11.5px; color:var(--ink-3)}
-/* sem hover de escala: estes blocos não são clicáveis, e um efeito de
-   levantar prometeria uma interação que não existe */
-
-.tile.hero{min-height:158px; border-color:var(--brand-soft); background:
-  linear-gradient(168deg, var(--brand-soft) 0%, var(--surface) 46%)}
-.tile.hero .eyebrow{color:var(--ink-2)}   /* o degrade tingido derruba o
-   contraste do --ink-3 para 4,36:1; --ink-2 resolve e ainda melhora a hierarquia */
-.tile.hero .big{font-size:clamp(30px,4.6vw,42px); line-height:1.03; margin-top:8px}
-.tile.hero .note{font-size:12.5px; color:var(--ink-2); margin-top:7px}
-.tile .mid{font-size:clamp(19px,2.6vw,25px); line-height:1.08; margin-top:8px}
-.tile .note{font-size:12px; color:var(--ink-3); margin-top:5px}
-.tile .d{font-size:11.5px; color:var(--ink-3); margin-top:5px}
-.tile .chartbox{padding:0; margin-top:2px; display:flex; align-items:flex-end}
-.tile .chartbox > div:first-child{width:100%}
-.tile .barlist{padding:0; overflow-y:auto}
-.tile .compo{margin:0 0 10px}
-.tile .legend{padding:0}
-#kpiSobra.is-critical .v, #kpiPct.is-critical .v{color:var(--critical)}
-#kpiSobra.is-good .v, #kpiPct.is-good .v, #kpiEntra.is-good .v{color:var(--good)}
-#kpiPct.is-warn .v{color:var(--warn)}
-
-@media (max-width:980px){
-  .bento{grid-template-columns:repeat(2,1fr)}
-  .b-3x2{grid-column:span 2; grid-row:span 2}
-  .b-2x2{grid-column:span 2; grid-row:span 1}
-  .b-1x2{grid-row:span 1}
-}
-@media (max-width:600px){
-  .bento{grid-template-columns:1fr; grid-auto-rows:auto; gap:11px}
-  .b-2x2,.b-3x2,.b-2x1,.b-1x2{grid-column:span 1; grid-row:span 1}
-  .tile{padding:15px 16px}
-}
-
-/* ---------- KPIs ---------- */
-.kpis{display:grid; grid-template-columns:repeat(auto-fit,minmax(178px,1fr)); gap:12px}
-.kpi{background:var(--surface); border:1px solid var(--line); border-radius:var(--r);
-  box-shadow:var(--sh-1); padding:15px 17px}
-/* valor de destaque; também usado solto fora de .kpi */
-.v{font-weight:var(--peso-forte); letter-spacing:-.03em; font-size:22px; line-height:1.15; margin-top:7px}
-.kpi .v{font-size:23px}
-.v.ok{color:var(--good)} .v.warn{color:var(--warn)} .v.critical{color:var(--critical)}
-.v.dim{color:var(--ink-3); font-size:13.5px; font-weight:var(--peso-medio); letter-spacing:0; margin-top:9px}
-.kpi .d{font-size:12px; color:var(--ink-3); margin-top:5px}
-.kpi.is-good .v{color:var(--good)}
-.kpi.is-critical .v{color:var(--critical)}
-.kpi.is-warn .v{color:var(--warn)}
-
-/* status sempre com rótulo, nunca só cor */
-.chip{display:inline-flex; align-items:center; gap:5px; font-size:11px; font-weight:var(--peso-medio);
-  padding:3px 9px; border-radius:var(--raio-cheio); white-space:nowrap; margin-top:8px}
-.chip.good{background:var(--good-soft); color:var(--good)}
-.chip.warn{background:var(--warn-soft); color:var(--warn)}
-.chip.critical{background:var(--critical-soft); color:var(--critical)}
-.chip::before{content:""; width:6px; height:6px; border-radius:50%; background:currentColor; flex:none}
-
-/* ---------- gráficos ---------- */
-.duo{display:grid; grid-template-columns:1fr 1fr; gap:16px; align-items:start}
-.chartbox{padding:4px 10px 12px; position:relative}
-svg.chart{display:block; width:100%; height:auto; overflow:visible}
-.chart text{font-family:inherit; font-size:10px; fill:var(--ink-3); font-variant-numeric:tabular-nums}
-.chart .grid{stroke:var(--grid); stroke-width:1}
-.chart .glabel{fill:var(--ink-3)}
-.chart .axis{stroke:var(--axis); stroke-width:1}
-.chart .hit{fill:transparent; cursor:crosshair}
-.chart .cross{stroke:var(--line-strong); stroke-width:1}
-.chart .dot{stroke:var(--surface); stroke-width:2}
-
-.legend{display:flex; gap:14px; padding:0 18px 14px; font-size:12.5px; color:var(--ink-2); flex-wrap:wrap}
-.legend span{display:inline-flex; align-items:center; gap:6px}
-.legend i{width:10px; height:10px; border-radius:3px; flex:none}
-
-/* barra empilhada de composição */
-.compo{display:flex; height:30px; border-radius:8px; overflow:hidden; margin:2px 18px 14px; gap:2px}
-/* largura minima para uma fatia minuscula continuar perceptivel; o valor
-   exato fica na legenda, entao a proporcao nao fica mal representada */
-.compo > i{display:block; height:100%; min-width:5px}
-.compo > i:first-child{border-radius:8px 0 0 8px}
-.compo > i:last-child{border-radius:0 8px 8px 0}
-
-/* ranking */
-.barlist{padding:2px 18px 14px}
-.barrow{display:grid; grid-template-columns:1fr auto; gap:5px 12px; padding:9px 0;
-  border-bottom:1px solid var(--line)}
-.barrow:last-child{border-bottom:0}
-.barrow .nm{font-weight:var(--peso-medio); font-size:13.5px; overflow-wrap:anywhere}
-.barrow .nm small{display:block; font-weight:var(--peso); font-size:11.5px; color:var(--ink-3); margin-top:1px}
-.barrow .vl{font-size:13px; font-weight:var(--peso-forte); white-space:nowrap; align-self:center;
-  font-variant-numeric:tabular-nums}
-.barrow .tr{grid-column:1 / -1; height:6px; background:var(--surface-3); border-radius:var(--raio-cheio); overflow:hidden}
-.barrow .tr > i{display:block; height:100%; border-radius:var(--raio-cheio); background:var(--s1)}
-
-/* tooltip dos gráficos */
-.tip{position:absolute; pointer-events:none; z-index:5; background:var(--ink); color:var(--bg);
-  padding:8px 11px; border-radius:9px; font-size:12px; line-height:1.45; box-shadow:var(--sh-2);
-  white-space:nowrap; opacity:0; transform:translate(-50%,-118%); transition:opacity .12s}
-.tip[data-on]{opacity:1}
-.tip b{font-variant-numeric:tabular-nums}
-.tip .k{opacity:.62}
-
-/* ---------- listas ---------- */
-.grouphead{display:flex; justify-content:space-between; align-items:baseline; gap:10px;
-  padding:9px 18px; background:var(--surface-2); border-block:1px solid var(--line);
-  font-size:11px; font-weight:var(--peso-medio); letter-spacing:.05em; text-transform:uppercase; color:var(--ink-2)}
-.grouphead .gsum{font-variant-numeric:tabular-nums; letter-spacing:0; text-transform:none; color:var(--ink-3)}
-/* produto pendurado no banco: mesma linha, recuada, com um fio ligando */
-.row.filho{padding-left:34px; position:relative}
-.row.filho::before{content:""; position:absolute; left:20px; top:0; bottom:0;
-  width:1px; background:var(--line)}
-/* produto dentro do banco: mesma leitura, um degrau abaixo */
-.subhead{display:flex; justify-content:space-between; align-items:baseline; gap:10px;
-  padding:7px 18px 7px 30px; border-bottom:1px solid var(--line);
-  font-size:11.5px; color:var(--ink-2)}
-.subhead .gsum{font-variant-numeric:tabular-nums; color:var(--ink-3)}
-.row{display:flex; align-items:center; gap:13px; padding:12px 18px; border-bottom:1px solid var(--line)}
-.row:last-child{border-bottom:0}
-.row .desc{flex:1; min-width:0}
-.row .desc b{font-weight:var(--peso-medio); display:block; overflow-wrap:anywhere; font-size:14px}
-.row .meta{font-size:12px; color:var(--ink-3)}
-.row .amt{font-weight:var(--peso-forte); white-space:nowrap; font-variant-numeric:tabular-nums}
-.row.paid .desc b, .row.paid .amt{color:var(--ink-3); text-decoration:line-through; text-decoration-thickness:1px}
-.row.off .desc b, .row.off .amt{opacity:.48}
-.amt.in{color:var(--good)}
-.check{appearance:none; width:24px; height:24px; flex:none; border-radius:8px; cursor:pointer;
-  border:1.5px solid var(--line-strong); background:var(--surface); display:grid; place-items:center;
-  transition:background .12s, border-color .12s}
-.check:hover{border-color:var(--brand)}
-.check:focus-visible{outline:2px solid var(--brand); outline-offset:2px}
-.check[aria-pressed="true"]{background:var(--brand); border-color:var(--brand)}
-/* marca de pago desenhada em SVG, nao com glifo de texto: o tracado
-   fica igual em qualquer fonte e plataforma */
-.check[aria-pressed="true"]::after, .check.feito::after{content:""; width:13px; height:13px; background:var(--brand-ink);
-  -webkit-mask:var(--ico-check) center/contain no-repeat; mask:var(--ico-check) center/contain no-repeat}
-/* pago antes do cadastro: mostra a marca mas não é botão -- não há o que
-   desmarcar, porque nunca houve uma linha em `pagamentos` para essa parcela */
-.check.feito{background:var(--ink-3); border-color:var(--ink-3); cursor:default}
-
-.pill{font-size:11px; font-weight:var(--peso-medio); padding:2px 8px; border-radius:var(--raio-cheio); white-space:nowrap}
-.pill.late{background:var(--critical-soft); color:var(--critical)}
-.pill.last{background:var(--brand-soft); color:var(--brand)}
-.tag{font-size:11px; font-weight:var(--peso-medio); padding:2px 8px; border-radius:var(--raio-cheio); white-space:nowrap;
-  background:var(--surface-3); color:var(--ink-2)}
-
-/* ---------- mês ---------- */
-.monthnav{display:flex; align-items:center; gap:9px; flex-wrap:wrap}
-.monthnav .mlabel{font-size:17px; font-weight:var(--peso-forte); letter-spacing:-.02em; min-width:108px;
-  text-align:center; text-transform:capitalize}
-.iconbtn{appearance:none; width:33px; height:33px; flex:none; border-radius:9px;
-  border:1px solid var(--line-strong); background:var(--surface); color:var(--ink-2); cursor:pointer;
-  font-size:15px; line-height:1; display:grid; place-items:center; transition:background .12s}
-.iconbtn:hover{background:var(--surface-2); color:var(--ink)}
-.iconbtn:focus-visible{outline:2px solid var(--brand); outline-offset:2px}
-.today-chip{font-size:11.5px; color:var(--ink-3); background:var(--surface-3); border-radius:var(--raio-cheio); padding:3px 10px}
-
-/* ---------- botões ---------- */
-.btn{appearance:none; font:inherit; font-size:13.5px; font-weight:var(--peso-medio); cursor:pointer;
-  padding:8px 15px; border-radius:10px; border:1px solid var(--line-strong);
-  background:var(--surface); color:var(--ink); transition:background .12s, border-color .12s}
-.btn:hover{background:var(--surface-2)}
-.btn:focus-visible{outline:2px solid var(--brand); outline-offset:2px}
-.btn:disabled{opacity:.55; cursor:default}
-.btn.primary{background:var(--brand); border-color:var(--brand); color:var(--brand-ink);
-  box-shadow:0 1px 2px rgba(13,22,20,.12)}
-.btn.primary:hover{filter:brightness(1.07)}
-.btn.ghost{border-color:transparent; background:none; color:var(--ink-2); padding:6px 9px}
-.btn.ghost:hover{background:var(--surface-2); color:var(--ink)}
-.btn.danger{color:var(--critical); border-color:var(--critical)}
-.btn.sm{font-size:12.5px; padding:5px 11px}
-
-/* ---------- tabela ---------- */
-.tablewrap{overflow-x:auto}
-table{border-collapse:collapse; width:100%; font-size:13.5px}
-th,td{text-align:left; padding:10px 14px; border-bottom:1px solid var(--line); white-space:nowrap}
-th{font-size:10.5px; letter-spacing:.06em; text-transform:uppercase; color:var(--ink-3);
-  font-weight:var(--peso-medio); background:var(--surface-2)}
-td.n,th.n{text-align:right; font-variant-numeric:tabular-nums}
-tbody tr:last-child td{border-bottom:0}
-tr.isnow td{background:var(--brand-soft)}
-
-/* ---------- formulários ---------- */
-.field{display:flex; flex-direction:column; gap:6px}
-.field label{font-size:12px; font-weight:var(--peso-medio); color:var(--ink-2)}
-input,select,textarea{font:inherit; font-size:16px; color:var(--ink); background:var(--surface);
-  border:1px solid var(--line-strong); border-radius:var(--raio-2); padding:10px 12px; width:100%}
-input:focus,select:focus{outline:2px solid var(--brand); outline-offset:-1px; border-color:var(--brand)}
-
-/* A lista que o <select> abre é desenhada pelo sistema operacional e não aceita
-   CSS nenhum -- daí a cara de janela antiga no meio de uma tela arredondada. A
-   caixa fechada continua sendo o <select> (ele guarda o valor, valida e serve o
-   teclado); só a lista aberta passa a ser nossa. */
-.selpop{position:fixed; z-index:90; min-width:186px; max-height:292px; overflow-y:auto;
-  background:var(--surface); border:1px solid var(--line-strong);
-  border-radius:var(--raio-2); box-shadow:var(--sh-2); padding:5px;
-  animation:sobe var(--t-rapido) var(--curva) both}
-.selpop .grupo{font-size:10.5px; text-transform:uppercase; letter-spacing:.06em;
-  color:var(--ink-3); font-weight:var(--peso-medio); padding:9px 10px 4px}
-.selpop .grupo:first-child{padding-top:4px}
-.selop{display:flex; align-items:center; gap:9px; width:100%; padding:9px 10px;
-  border:0; background:none; font:inherit; font-size:13.5px; color:var(--ink);
-  border-radius:var(--raio-1); cursor:pointer; text-align:left;
-  transition:background var(--t-rapido) var(--curva)}
-.selop:hover, .selop.ativo{background:var(--surface-2)}
-.selop:focus-visible{outline:2px solid var(--brand); outline-offset:-2px}
-.selop.sel{color:var(--brand); font-weight:var(--peso-medio)}
-/* o check ocupa lugar mesmo invisível: sem isso o texto dança para o lado ao
-   trocar de opção */
-.selop .marca{width:14px; height:14px; flex:none; opacity:0; background:var(--brand);
-  -webkit-mask:var(--ico-check) center/contain no-repeat;
-  mask:var(--ico-check) center/contain no-repeat}
-.selop.sel .marca{opacity:1}
-.selop .txt{flex:1; overflow-wrap:anywhere}
-/* o trecho que casou com o que foi digitado, para o olho achar na hora */
-.selop .txt b{font-weight:var(--peso-forte); color:var(--brand)}
-.selpop .vazio{padding:10px; font-size:12.5px; color:var(--ink-3)}
-
-/* valor que ainda é média: vira botão, porque é nele que se clica para dizer
-   quanto a conta veio de verdade */
-.amt.estimado{appearance:none; border:0; background:none; font:inherit; cursor:pointer;
-  color:var(--ink); display:inline-flex; align-items:center; gap:6px;
-  padding:2px 6px; margin-right:-6px; border-radius:var(--raio-1)}
-.amt.estimado:hover{background:var(--surface-2); color:var(--brand)}
-.amt.estimado:focus-visible{outline:2px solid var(--brand); outline-offset:1px}
-.amt.estimado .med{font-size:10px; text-transform:uppercase; letter-spacing:.05em;
-  font-weight:var(--peso-medio); color:var(--ink-3); border:1px solid var(--line-strong);
-  padding:1px 5px; border-radius:var(--raio-cheio)}
-.amt.estimado:hover .med{border-color:var(--brand); color:var(--brand)}
-.selop.dentro{padding-left:20px}
-/* a caixa fechada muda de borda enquanto a lista está aberta, para o conjunto
-   parecer uma peça só e não dois elementos soltos */
-select.aberta{border-color:var(--brand); outline:2px solid var(--brand); outline-offset:-1px}
-
-/* ---------- listas suspensas ----------
-   Eram dois desenhos: o dos filtros (13px, raio pequeno) e o dos formulários
-   (16px, raio 10 escrito à mão, fora dos tokens). E os dois entregavam a seta
-   ao sistema, que a desenha diferente em cada navegador -- o mesmo motivo que
-   tirou o calendário nativo daqui. Agora é um desenho só em dois tamanhos, com
-   a seta nossa: mesma forma, mesmo raio, mesmo foco, mesma reação ao passar o
-   mouse. */
-select{appearance:none; -webkit-appearance:none;
-  background-image:var(--ico-seta); background-repeat:no-repeat;
-  background-position:right 12px center; background-size:11px;
-  padding-right:34px; cursor:pointer;
-  transition:border-color var(--t-rapido) var(--curva),
-             background-color var(--t-rapido) var(--curva)}
-select:hover{background-color:var(--surface-2)}
-/* a seta desce meio pixel enquanto a lista está aberta: o foco no select é o
-   único sinal que o CSS tem de que ela abriu */
-select:focus{background-position:right 12px calc(50% + 1px)}
-select:disabled{cursor:default; opacity:.55; background-image:none}
-/* Firefox pinta a lista aberta com as cores do sistema se não dissermos nada,
-   e no tema escuro isso vira texto preto sobre fundo preto */
-select option{background:var(--surface); color:var(--ink)}
-.formgrid{display:grid; grid-template-columns:1fr 1fr; gap:13px; padding:18px}
-.formgrid .full{grid-column:1 / -1}
-/* "3 de 8" lado a lado: é assim que a fatura escreve, e ler igual evita
-   ter que traduzir de cabeça na hora de lançar */
-.parc-campo{display:flex; align-items:center; gap:var(--e-2)}
-
-/* Calendário próprio. O nativo muda de cara em cada navegador e sistema, e é o
-   único pedaço da tela que não obedece aos tokens -- num app que escolheu cada
-   cor, ter um retângulo cinza do sistema no meio do formulário salta. O input
-   continua sendo type=date por baixo: ele é quem guarda o valor, valida e
-   funciona no celular. Só o desenho do seletor é nosso. */
-.data-campo{position:relative}
-.data-campo input::-webkit-calendar-picker-indicator{display:none}
-.data-campo input[type="date"]{padding-right:38px}
-.data-abre{position:absolute; right:6px; bottom:6px; width:28px; height:28px;
-  display:grid; place-items:center; border:0; background:none; cursor:pointer;
-  color:var(--ink-3); border-radius:var(--raio-1)}
-.data-abre:hover{color:var(--brand); background:var(--surface-2)}
-.data-abre:focus-visible{outline:2px solid var(--brand); outline-offset:1px}
-
-.cal{position:absolute; z-index:20; top:calc(100% + 6px); left:0; width:268px;
-  background:var(--surface); border:1px solid var(--line-strong);
-  border-radius:var(--raio-2); box-shadow:var(--sh-2); padding:10px;
-  animation:sobe var(--t-rapido) var(--curva) both}
-.cal-h{display:flex; align-items:center; justify-content:space-between; gap:6px; margin-bottom:8px}
-.cal-mes{font-size:13px; font-weight:var(--peso-medio); text-transform:capitalize}
-.cal-nav{width:28px; height:28px; display:grid; place-items:center; cursor:pointer;
-  border:0; background:none; color:var(--ink-2); border-radius:var(--raio-1); font:inherit}
-.cal-nav:hover{background:var(--surface-2); color:var(--ink)}
-.cal-nav:focus-visible{outline:2px solid var(--brand); outline-offset:1px}
-.cal-sem, .cal-grade{display:grid; grid-template-columns:repeat(7, 1fr); gap:2px}
-.cal-sem span{text-align:center; font-size:10.5px; color:var(--ink-3);
-  text-transform:uppercase; letter-spacing:.04em; padding-bottom:4px}
-.cal-dia{aspect-ratio:1; min-height:32px; display:grid; place-items:center; cursor:pointer;
-  border:0; background:none; font:inherit; font-size:12.5px; color:var(--ink);
-  border-radius:var(--raio-1); font-variant-numeric:tabular-nums;
-  transition:background var(--t-rapido) var(--curva)}
-.cal-dia:hover{background:var(--surface-2)}
-.cal-dia:focus-visible{outline:2px solid var(--brand); outline-offset:-2px}
-.cal-dia.fora{color:var(--ink-3); opacity:.45}
-.cal-dia.hoje{font-weight:var(--peso-forte); color:var(--brand);
-  box-shadow:inset 0 0 0 1px var(--brand)}
-.cal-dia.sel{background:var(--brand); color:var(--brand-ink); font-weight:var(--peso-forte)}
-.cal-dia.sel.hoje{box-shadow:none}
-.cal-m{width:212px}
-.cal-grade-m{display:grid; grid-template-columns:repeat(3, 1fr); gap:3px}
-.cal-mesbt{padding:9px 0; display:grid; place-items:center; cursor:pointer;
-  border:0; background:none; font:inherit; font-size:12.5px; color:var(--ink);
-  border-radius:var(--raio-1); text-transform:capitalize;
-  transition:background var(--t-rapido) var(--curva)}
-.cal-mesbt:hover{background:var(--surface-2)}
-.cal-mesbt:focus-visible{outline:2px solid var(--brand); outline-offset:-2px}
-.cal-mesbt.hoje{font-weight:var(--peso-forte); color:var(--brand);
-  box-shadow:inset 0 0 0 1px var(--brand)}
-.cal-mesbt.sel{background:var(--brand); color:var(--brand-ink); font-weight:var(--peso-forte)}
-.cal-mesbt.sel.hoje{box-shadow:none}
-.cal-rod{display:flex; gap:6px; margin-top:8px; padding-top:8px; border-top:1px solid var(--line)}
-.cal-rod button{flex:1; padding:6px; font:inherit; font-size:12px; cursor:pointer;
-  border:1px solid var(--line); background:none; color:var(--ink-2); border-radius:var(--raio-1)}
-.cal-rod button:hover{border-color:var(--brand); color:var(--brand)}
-.cal-rod button:focus-visible{outline:2px solid var(--brand); outline-offset:1px}
-.parc-campo input{width:78px; text-align:center; flex:none}
-.dica-fatura{background:var(--brand-soft); color:var(--brand); border-radius:var(--r-sm);
-  padding:9px 12px; font-size:12.5px; line-height:1.5}
-.dica-fatura b{font-variant-numeric:tabular-nums}
-.dica-fatura button{appearance:none; font:inherit; font-size:12px; font-weight:var(--peso-medio);
-  cursor:pointer; margin-top:7px; padding:4px 10px; border-radius:var(--raio-1);
-  border:1px solid currentColor; background:none; color:inherit}
-.dica-fatura button:hover{background:var(--surface)}
-.dica-fatura button:focus-visible{outline:2px solid var(--brand); outline-offset:2px}
-.dica-fatura.manual{background:var(--warn-soft); color:var(--warn)}
-.parc-campo span{color:var(--ink-3); font-size:13.5px}
-.hint{font-size:12px; color:var(--ink-3); margin:0}
-
-dialog{border:1px solid var(--line); border-radius:var(--r-lg); background:var(--surface); color:var(--ink);
-  padding:0; width:min(560px, calc(100vw - 28px)); box-shadow:0 28px 70px rgba(0,0,0,.32)}
-dialog::backdrop{background:rgba(8,14,12,.55); backdrop-filter:blur(2px)}
-.dlg-h{display:flex; justify-content:space-between; align-items:center; padding:16px 18px;
-  border-bottom:1px solid var(--line)}
-.dlg-h h2{font-size:15px}
-.dlg-f{display:flex; gap:10px; padding:15px 18px; border-top:1px solid var(--line); flex-wrap:wrap}
-
-.imp-acoes{display:flex; gap:var(--e-2); flex-wrap:wrap; align-items:center; margin-top:var(--e-2)}
-.imp-resumo{padding:11px 14px; border-radius:var(--r-sm); background:var(--good-soft);
-  color:var(--good); font-size:13.5px; margin-top:var(--e-3)}
-#importResumo .notice{margin-top:var(--e-2); font-size:12.5px; line-height:1.6}
-#importResumo > div:last-child:has(.btn){margin-top:var(--e-3)}
-label.btn{display:inline-flex; align-items:center}
-
-.notice{background:var(--critical-soft); color:var(--critical); border:1px solid var(--critical);
-  border-radius:var(--r); padding:12px 15px; font-size:13.5px}
-.empty{padding:30px 18px; text-align:center; color:var(--ink-3); font-size:13.5px}
-.saving{font-size:12px; color:var(--ink-3)}
-#toast{position:fixed; left:50%; bottom:22px; transform:translateX(-50%); background:var(--ink);
-  color:var(--bg); padding:11px 18px; border-radius:var(--raio-cheio); font-size:13.5px; z-index:60;
-  box-shadow:var(--sh-2); max-width:calc(100vw - 32px)}
-
-@media (max-width:760px){ .duo{grid-template-columns:1fr} }
-@media (max-width:640px){
-  main{padding:16px 14px 64px}
-  .hero{padding:18px 17px}
-  .hero-grid{gap:14px}
-  .formgrid{grid-template-columns:1fr}
-  .kpis{grid-template-columns:1fr 1fr}
-}
-/* Uma coluna só, e não é preferência de desenho: um valor na casa das centenas
-   de milhar sai do money() com espaço inquebrável, então a figura de 23px é uma
-   palavra só de uns 214px. Em duas colunas num aparelho de 360px ela não cabe, e o grid não
-   corta: estica a coluna, e a página inteira passava a rolar de lado. */
-@media (max-width:520px){ .kpis{grid-template-columns:1fr} }
-@media (prefers-reduced-motion: reduce){*{transition:none !important; animation:none !important}}
-</style>
+<link rel="stylesheet" href="./css/tokens.css">
+<link rel="stylesheet" href="./css/base.css">
+<link rel="stylesheet" href="./css/views-v2.css">
 </head>
 <body>
 
@@ -808,10 +61,15 @@ label.btn{display:inline-flex; align-items:center}
     <aside class="lateral">
       <div class="marca"><span class="dot" aria-hidden="true">L</span><h1>Lágrimas do CLT</h1></div>
       <nav role="tablist" aria-label="Seções">
-        <button class="navitem" id="nav-painel" role="tab" aria-selected="true" aria-controls="p-painel"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 3h7v8H3zM14 3h7v5h-7zM14 12h7v9h-7zM3 15h7v6H3z"/></svg><span>Painel</span></button>
+        <p class="grupo-nav">VISÃO GERAL</p>
+        <button class="navitem" id="nav-painel" role="tab" aria-selected="true" aria-controls="p-painel"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 3h7v8H3zM14 3h7v5h-7zM14 12h7v9h-7zM3 15h7v6H3z"/></svg><span>Início</span></button>
         <button class="navitem" id="nav-mes" role="tab" aria-selected="false" aria-controls="p-mes"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="17" rx="2"/><path d="M3 9h18M8 2v4M16 2v4"/></svg><span>Mês</span></button>
-        <button class="navitem" id="nav-dividas" role="tab" aria-selected="false" aria-controls="p-dividas"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 17l6-6 4 4 8-8"/><path d="M21 11V7h-4"/></svg><span>Dívidas</span></button>
+        <p class="grupo-nav">MEU DINHEIRO</p>
+        <button class="navitem" id="nav-contas" role="tab" aria-selected="false" aria-controls="p-contas"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="2.5" y="5.5" width="19" height="13" rx="2.5"/><path d="M2.5 10h19M6 15h4"/></svg><span>Contas</span></button>
+        <button class="navitem" id="nav-transacoes" role="tab" aria-selected="false" aria-controls="p-transacoes"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h13l-3-3M20 17H7l3 3"/></svg><span>Transações</span></button>
         <button class="navitem" id="nav-receitas" role="tab" aria-selected="false" aria-controls="p-receitas"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7l6 6 4-4 8 8"/><path d="M21 13v4h-4"/></svg><span>Receitas</span></button>
+        <p class="grupo-nav">PLANEJAMENTO</p>
+        <button class="navitem" id="nav-dividas" role="tab" aria-selected="false" aria-controls="p-dividas"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 17l6-6 4 4 8-8"/><path d="M21 11V7h-4"/></svg><span>Dívidas</span></button>
         <button class="navitem" id="nav-proj" role="tab" aria-selected="false" aria-controls="p-proj"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 3v18h18"/><path d="M7 14l4-4 3 3 5-6"/></svg><span>Projeção</span></button>
       </nav>
       <div class="sep"></div>
@@ -835,6 +93,20 @@ label.btn{display:inline-flex; align-items:center}
     <div id="erroBanner" class="notice" hidden></div>
 
     <section class="panel" id="p-painel" role="tabpanel" aria-labelledby="nav-painel">
+      <!-- A V2 entra no Painel como bloco SEPARADO e rotulado. Misturar com os
+           números da V1 contaria o mesmo dinheiro duas vezes: lá são
+           compromissos e previsão, aqui é o que está na conta hoje. -->
+      <div class="card" id="painelV2" hidden style="margin-bottom:var(--e-4)">
+        <div class="card-h"><h2>Nas suas contas agora</h2>
+          <button class="btn ghost sm" id="btnVerContas">Ver contas</button></div>
+        <div class="formgrid">
+          <div class="field"><span class="hint">Saldo em contas</span>
+            <strong id="pnSaldoContas" class="num-destaque">—</strong></div>
+          <div class="field"><span class="hint">Disponível hoje</span>
+            <strong id="pnDisponivel" class="num-destaque">—</strong></div>
+          <p class="hint full" id="pnNota"></p>
+        </div>
+      </div>
       <div class="bento">
 
         <div class="tile hero b-2x1">
@@ -975,6 +247,106 @@ label.btn{display:inline-flex; align-items:center}
       </div>
     </section>
 
+
+    <!-- ==================== CONTAS ==================== -->
+    <section class="panel stack" id="p-contas" role="tabpanel" aria-labelledby="nav-contas" hidden>
+      <div id="contasVazio" hidden>
+        <div class="vazio">
+          <div class="emoji" aria-hidden="true">🏦</div>
+          <h3>Onde seu dinheiro mora?</h3>
+          <p>Sem contas cadastradas. Por enquanto seu dinheiro vive no campo da imaginação.</p>
+          <button class="btn primary" id="btnPrimeiraConta">Adicionar a primeira conta</button>
+        </div>
+      </div>
+
+      <div id="contasConteudo" hidden>
+        <div class="lente">
+          <h2>Saldo em contas</h2>
+          <p class="numerao" id="ctSaldoTotal">—</p>
+          <p class="piada" id="ctPiada"></p>
+          <div class="fatias">
+            <div class="fatia"><b id="ctDisponivel">—</b><span>Disponível</span></div>
+            <div class="fatia"><b id="ctRestrito">—</b><span>Restrito</span></div>
+            <div class="fatia"><b id="ctBloqueado">—</b><span>Bloqueado</span></div>
+          </div>
+        </div>
+
+        <div class="linha-acoes">
+          <h2 class="titulo-secao">Suas contas <span class="cont" id="ctQuantidade"></span></h2>
+          <span class="sep"></span>
+          <button class="btn ghost sm" id="btnInstituicoes">Instituições</button>
+          <button class="btn primary sm" id="btnNovaConta">Nova conta</button>
+        </div>
+        <div class="contas-grade" id="ctGrade"></div>
+
+        <div class="card">
+          <h3 class="titulo-card">Por instituição</h3>
+          <ul class="pirulitos" id="ctPorInstituicao"></ul>
+        </div>
+        <div class="card">
+          <h3 class="titulo-card">Por tipo de conta</h3>
+          <ul class="pirulitos" id="ctPorTipo"></ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==================== TRANSAÇÕES ==================== -->
+    <section class="panel stack" id="p-transacoes" role="tabpanel" aria-labelledby="nav-transacoes" hidden>
+      <div id="txSemConta" hidden>
+        <div class="vazio">
+          <div class="emoji" aria-hidden="true">🧾</div>
+          <h3>Primeiro, uma conta</h3>
+          <p>Transação precisa sair ou entrar de algum lugar. Crie uma conta e volte aqui.</p>
+          <button class="btn primary" id="btnIrParaContas">Ir para Contas</button>
+        </div>
+      </div>
+
+      <div id="txConteudo" hidden>
+        <div class="lente">
+          <h2 id="txTituloMes">Movimentações</h2>
+          <p class="numerao" id="txResultado">—</p>
+          <p class="piada" id="txPiada"></p>
+          <div class="fatias">
+            <div class="fatia"><b id="txEntradas">—</b><span>Entrou</span></div>
+            <div class="fatia"><b id="txSaidas">—</b><span>Saiu</span></div>
+            <div class="fatia"><b id="txPrevisto">—</b><span>Ainda previsto</span></div>
+          </div>
+        </div>
+
+        <div class="barra-filtro">
+          <label class="campo cresce"><span class="rot">Buscar</span>
+            <input type="search" id="txBusca" placeholder="descrição ou observação" autocomplete="off"></label>
+          <label class="campo"><span class="rot">Conta</span>
+            <select id="txFiltroConta"><option value="">Todas</option></select></label>
+          <label class="campo"><span class="rot">Categoria</span>
+            <select id="txFiltroCategoria"><option value="">Todas</option></select></label>
+          <label class="campo"><span class="rot">Tipo</span>
+            <select id="txFiltroTipo"><option value="">Tudo</option>
+              <option value="entrada">Entradas</option><option value="saida">Saídas</option></select></label>
+          <label class="campo"><span class="rot">Situação</span>
+            <select id="txFiltroStatus"><option value="">Todas</option>
+              <option value="realizada">Realizada</option><option value="conciliada">Conciliada</option>
+              <option value="prevista">Prevista</option><option value="cancelada">Cancelada</option></select></label>
+        </div>
+
+        <div class="linha-acoes">
+          <button class="btn ghost sm" id="txMesAnterior" aria-label="Mês anterior">←</button>
+          <strong id="txMesAtual" class="mes-atual"></strong>
+          <button class="btn ghost sm" id="txMesProximo" aria-label="Próximo mês">→</button>
+          <span class="sep"></span>
+          <button class="btn ghost sm" id="btnTransferir">Transferir</button>
+          <button class="btn primary sm" id="btnNovaTransacao">Lançar</button>
+        </div>
+
+        <div id="txLista"></div>
+
+        <div class="card" id="txCardCategorias" hidden>
+          <h3 class="titulo-card">Para onde foi</h3>
+          <ul class="pirulitos" id="txPorCategoria"></ul>
+        </div>
+      </div>
+    </section>
+
     <section class="panel stack" id="p-dividas" role="tabpanel" aria-labelledby="nav-dividas" hidden>
       <div class="hero">
         <div class="hero-grid">
@@ -1079,6 +451,17 @@ label.btn{display:inline-flex; align-items:center}
 
     <section class="panel stack" id="p-ajustes" role="tabpanel" aria-labelledby="nav-ajustes" hidden>
       <div class="card">
+        <div class="card-h"><h2>Categorias e instituições</h2></div>
+        <div class="formgrid">
+          <p class="hint full">Categorias organizam as transações da V2. Instituições dão nome e cor
+            às contas. As duas são opcionais: dá para lançar sem nenhuma das duas.</p>
+          <div class="full" style="display:flex; gap:10px; flex-wrap:wrap">
+            <button class="btn" id="btnCategorias">Gerenciar categorias</button>
+            <button class="btn" id="btnInstituicoesAjustes">Gerenciar instituições</button>
+          </div>
+        </div>
+      </div>
+      <div class="card">
         <div class="card-h"><h2>Renda mensal</h2><span class="saving" id="rendaStatus"></span></div>
         <div class="formgrid">
           <div class="field">
@@ -1127,12 +510,16 @@ label.btn{display:inline-flex; align-items:center}
     </section>
   </main>
     </div>
+    <button class="flutua" id="btnFlutuante" aria-label="Lançar transação" hidden>
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+    </button>
+
     <nav class="rodapenav" role="tablist" aria-label="Seções">
-      <button class="navitem" id="navm-painel" role="tab" aria-selected="true" aria-controls="p-painel"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 3h7v8H3zM14 3h7v5h-7zM14 12h7v9h-7zM3 15h7v6H3z"/></svg><span>Painel</span></button>
+      <button class="navitem" id="navm-painel" role="tab" aria-selected="true" aria-controls="p-painel"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 3h7v8H3zM14 3h7v5h-7zM14 12h7v9h-7zM3 15h7v6H3z"/></svg><span>Início</span></button>
       <button class="navitem" id="navm-mes" role="tab" aria-selected="false" aria-controls="p-mes"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="17" rx="2"/><path d="M3 9h18M8 2v4M16 2v4"/></svg><span>Mês</span></button>
-      <button class="navitem" id="navm-dividas" role="tab" aria-selected="false" aria-controls="p-dividas"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 17l6-6 4 4 8-8"/><path d="M21 11V7h-4"/></svg><span>Dívidas</span></button>
-      <button class="navitem" id="navm-receitas" role="tab" aria-selected="false" aria-controls="p-receitas"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7l6 6 4-4 8 8"/><path d="M21 13v4h-4"/></svg><span>Receitas</span></button>
-      <button class="navitem" id="navm-proj" role="tab" aria-selected="false" aria-controls="p-proj"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 3v18h18"/><path d="M7 14l4-4 3 3 5-6"/></svg><span>Projeção</span></button>
+      <button class="navitem" id="navm-contas" role="tab" aria-selected="false" aria-controls="p-contas"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="2.5" y="5.5" width="19" height="13" rx="2.5"/><path d="M2.5 10h19M6 15h4"/></svg><span>Contas</span></button>
+      <button class="navitem" id="navm-transacoes" role="tab" aria-selected="false" aria-controls="p-transacoes"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h13l-3-3M20 17H7l3 3"/></svg><span>Transações</span></button>
+      <button class="navitem" id="navm-mais" aria-selected="false" aria-haspopup="dialog" aria-label="Mais seções"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/></svg><span>Mais</span></button>
     </nav>
 </div>
 
@@ -1267,6 +654,151 @@ label.btn{display:inline-flex; align-items:center}
 </dialog>
 
 <div class="cal cal-m" id="calM" hidden role="dialog" aria-label="Escolher o mês"></div>
+
+<!-- ==================== V2 · DIÁLOGOS ==================== -->
+<dialog id="dlgConta">
+  <form id="formConta">
+    <div class="dlg-h"><h2 id="cnTitulo">Nova conta</h2><button type="button" class="btn ghost" data-fechar="dlgConta" aria-label="Fechar"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M18 6L6 18M6 6l12 12"/></svg></button></div>
+    <div class="formgrid">
+      <div class="field full"><label for="cn_nome">Nome da conta</label>
+        <input id="cn_nome" maxlength="60" required placeholder="Conta do dia a dia"></div>
+      <div class="field"><label for="cn_instituicao">Instituição</label>
+        <select id="cn_instituicao"><option value="">Sem instituição</option></select></div>
+      <div class="field"><label for="cn_tipo">Tipo</label><select id="cn_tipo"></select></div>
+      <div class="field"><label for="cn_saldo">Saldo inicial (R$)</label>
+        <input type="number" id="cn_saldo" step="0.01" inputmode="decimal" value="0"></div>
+      <div class="field"><label for="cn_data">Valendo desde</label>
+        <input type="date" id="cn_data" required></div>
+      <div class="field"><label for="cn_liquidez">Liquidez</label><select id="cn_liquidez"></select></div>
+      <div class="field"><label for="cn_ativo">Situação</label>
+        <select id="cn_ativo"><option value="sim">Ativa</option><option value="nao">Inativa</option></select></div>
+      <div class="field full"><label for="cn_obs">Observação</label>
+        <input id="cn_obs" maxlength="140"></div>
+      <p class="hint full" id="cnAjuda">O saldo inicial é o ponto de partida. Daí para frente, quem move o saldo são as transações.</p>
+      <p class="hint full" id="cnErro" role="alert" hidden></p>
+    </div>
+    <div class="dlg-f">
+      <button type="button" class="btn ghost" id="cnExcluir" hidden>Excluir</button>
+      <span style="flex:1"></span>
+      <button type="button" class="btn" data-fechar="dlgConta">Cancelar</button>
+      <button type="submit" class="btn primary" id="cnSalvar">Salvar</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="dlgInstituicoes">
+  <div class="dlg-h"><h2>Instituições</h2><button type="button" class="btn ghost" data-fechar="dlgInstituicoes" aria-label="Fechar"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M18 6L6 18M6 6l12 12"/></svg></button></div>
+  <div class="formgrid">
+    <p class="hint full">Bancos, corretoras, carteiras. A do catálogo já vem com a cor; qualquer outra você escreve.</p>
+    <div class="full" id="inLista"></div>
+    <form id="formInstituicao" class="full formgrid" style="padding:0">
+      <div class="field"><label for="in_nome">Nome</label>
+        <input id="in_nome" list="catalogoInst" maxlength="60" required placeholder="Banco, corretora, carteira…"></div>
+      <datalist id="catalogoInst"></datalist>
+      <div class="field"><label for="in_tipo">Tipo</label><select id="in_tipo">
+        <option>Banco</option><option>Corretora</option><option>Fintech</option>
+        <option>Carteira</option><option>Empregador</option><option>Outro</option></select></div>
+      <div class="field"><label for="in_cor">Cor da marca</label>
+        <input type="color" id="in_cor" value="#14524A"></div>
+      <div class="field"><label for="in_logo">URL do logo (opcional)</label>
+        <input id="in_logo" type="url" placeholder="https://…" maxlength="400"></div>
+      <p class="hint full" id="inErro" role="alert" hidden></p>
+      <div class="full" style="display:flex; gap:10px; justify-content:flex-end">
+        <button type="button" class="btn" id="inCancelarEdicao" hidden>Cancelar edição</button>
+        <button type="submit" class="btn primary" id="inSalvar">Adicionar</button>
+      </div>
+    </form>
+  </div>
+</dialog>
+
+<dialog id="dlgTransacao">
+  <form id="formTransacao">
+    <div class="dlg-h"><h2 id="trTitulo">Lançar</h2><button type="button" class="btn ghost" data-fechar="dlgTransacao" aria-label="Fechar"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M18 6L6 18M6 6l12 12"/></svg></button></div>
+    <div class="formgrid">
+      <div class="field"><label for="tr_tipo">Entrou ou saiu?</label>
+        <select id="tr_tipo"><option value="saida">Saiu</option><option value="entrada">Entrou</option></select></div>
+      <div class="field"><label for="tr_valor">Valor (R$)</label>
+        <input type="number" id="tr_valor" step="0.01" min="0.01" inputmode="decimal" required></div>
+      <div class="field full"><label for="tr_descricao">Descrição</label>
+        <input id="tr_descricao" maxlength="120" required placeholder="O que foi isso?"></div>
+      <div class="field"><label for="tr_conta">Conta</label><select id="tr_conta" required></select></div>
+      <div class="field"><label for="tr_data">Data</label><input type="date" id="tr_data" required></div>
+      <div class="field"><label for="tr_categoria">Categoria</label>
+        <select id="tr_categoria"><option value="">Sem categoria</option></select></div>
+      <div class="field"><label for="tr_status">Situação</label><select id="tr_status">
+        <option value="realizada">Realizada</option><option value="conciliada">Conciliada</option>
+        <option value="prevista">Prevista</option><option value="cancelada">Cancelada</option></select></div>
+      <div class="field full"><label for="tr_obs">Observação</label><input id="tr_obs" maxlength="200"></div>
+      <p class="hint full" id="trAviso" hidden></p>
+      <p class="hint full" id="trErro" role="alert" hidden></p>
+    </div>
+    <div class="dlg-f">
+      <button type="button" class="btn ghost" id="trExcluir" hidden>Excluir</button>
+      <span style="flex:1"></span>
+      <button type="button" class="btn" data-fechar="dlgTransacao">Cancelar</button>
+      <button type="submit" class="btn primary" id="trSalvar">Salvar</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="dlgTransferencia">
+  <form id="formTransferencia">
+    <div class="dlg-h"><h2 id="tfTitulo">Transferir entre contas</h2><button type="button" class="btn ghost" data-fechar="dlgTransferencia" aria-label="Fechar"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M18 6L6 18M6 6l12 12"/></svg></button></div>
+    <div class="formgrid">
+      <p class="hint full">Dinheiro mudou de gaveta. Patrimônio continua igual.</p>
+      <div class="field"><label for="tf_origem">Sai de</label><select id="tf_origem" required></select></div>
+      <div class="field"><label for="tf_destino">Entra em</label><select id="tf_destino" required></select></div>
+      <div class="field"><label for="tf_valor">Valor (R$)</label>
+        <input type="number" id="tf_valor" step="0.01" min="0.01" inputmode="decimal" required></div>
+      <div class="field"><label for="tf_data">Data</label><input type="date" id="tf_data" required></div>
+      <div class="field full"><label for="tf_descricao">Descrição</label>
+        <input id="tf_descricao" maxlength="120" placeholder="Transferência"></div>
+      <div class="field"><label for="tf_status">Situação</label><select id="tf_status">
+        <option value="realizada">Realizada</option><option value="prevista">Prevista</option></select></div>
+      <div class="field full"><label for="tf_obs">Observação</label><input id="tf_obs" maxlength="200"></div>
+      <p class="hint full" id="tfErro" role="alert" hidden></p>
+    </div>
+    <div class="dlg-f">
+      <button type="button" class="btn ghost" id="tfExcluir" hidden>Excluir</button>
+      <span style="flex:1"></span>
+      <button type="button" class="btn" data-fechar="dlgTransferencia">Cancelar</button>
+      <button type="submit" class="btn primary" id="tfSalvar">Transferir</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="dlgCategorias">
+  <div class="dlg-h"><h2>Categorias</h2><button type="button" class="btn ghost" data-fechar="dlgCategorias" aria-label="Fechar"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M18 6L6 18M6 6l12 12"/></svg></button></div>
+  <div class="formgrid">
+    <p class="hint full">Até três níveis. O quarto o banco recusa, e a tela nem oferece.</p>
+    <div class="full" id="ctgLista"></div>
+    <div class="full" id="ctgVazio" hidden>
+      <button class="btn" id="btnCategoriasPadrao">Criar categorias padrão</button>
+      <p class="hint" style="margin-top:8px">Uma lista genérica para começar. Dá para mudar tudo depois.</p>
+    </div>
+    <form id="formCategoria" class="full formgrid" style="padding:0">
+      <div class="field"><label for="cg_nome">Nome</label><input id="cg_nome" maxlength="50" required></div>
+      <div class="field"><label for="cg_pai">Dentro de</label>
+        <select id="cg_pai"><option value="">É uma categoria principal</option></select></div>
+      <div class="field"><label for="cg_fluxo">Aparece em</label><select id="cg_fluxo">
+        <option value="saida">Saídas</option><option value="entrada">Entradas</option>
+        <option value="ambos">Entradas e saídas</option></select></div>
+      <div class="field"><label for="cg_cor">Cor</label><input type="color" id="cg_cor" value="#1F5E52"></div>
+      <p class="hint full" id="cgErro" role="alert" hidden></p>
+      <div class="full" style="display:flex; gap:10px; justify-content:flex-end">
+        <button type="button" class="btn" id="cgCancelarEdicao" hidden>Cancelar edição</button>
+        <button type="submit" class="btn primary" id="cgSalvar">Adicionar</button>
+      </div>
+    </form>
+  </div>
+</dialog>
+
+<dialog id="folhaMais" class="folha" aria-label="Mais seções">
+  <div class="corpo">
+    <div class="puxador" aria-hidden="true"></div>
+    <div class="opcoes" id="folhaOpcoes"></div>
+  </div>
+</dialog>
 
 <dialog id="dlgFixaMes">
   <form id="formFixaMes">
@@ -1432,6 +964,8 @@ import { ligaNavegacao, vaiParaAba } from "./js/ui/navigation.js";
 import { ligaSupabase } from "./js/data/client.js";
 import * as v1 from "./js/data/v1-repository.js";
 import { entra, sai, observaSessao, sessaoAtual } from "./js/data/session.js";
+import { ligaTelasV2, carregaV2, renderV2, atualizaFiltrosDeTela, V2 }
+  from "./js/ui/v2-screens.js";
 
 /* ====================================================================
    CONFIGURAÇÃO — projeto Supabase, região São Paulo.
@@ -2753,6 +2287,7 @@ function renderAll(){
   if (!S.mesFixado) S.mes = escolheMesInicial();
   renderPainel(); renderMes(); renderDividas(); renderCredores();
   renderReceitas(); renderProj(); renderFixas();
+  renderV2();
   const r = $("renda");
   if (document.activeElement !== r) r.value = S.renda ? S.renda : "";
 }
@@ -2844,6 +2379,15 @@ async function carregaAgora(){
   S.renda = Number(b.renda) || 0;
   S.loaded = true;
   S.erroCarga = null;
+
+  /* A V2 carrega DEPOIS e à parte, de propósito: ela ainda está vazia para
+     quem não cadastrou conta, e uma falha dela não pode derrubar a V1, que é
+     onde estão os dados de verdade. Se não vier, a tela de Contas avisa e o
+     resto do app segue igual. */
+  const v2r = await carregaV2();
+  if (v2r && v2r.erro) console.warn("V2 indisponível:", v2r.erro);
+  atualizaFiltrosDeTela();
+
   renderAll();
 }
 
@@ -2853,6 +2397,7 @@ async function carregaAgora(){
 /* A navegação virou registro em js/ui/navigation.js: acrescentar uma tela é
    acrescentar uma linha lá, e não mexer aqui. */
 ligaNavegacao();
+ligaTelasV2({ toast, erro });
 
 function vaiPara(k){
   S.mesFixado = true; S.mes = k;
