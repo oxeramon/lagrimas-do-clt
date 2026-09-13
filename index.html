@@ -65,8 +65,22 @@
            edições, e a segunda era a que ficava esquecida. -->
       <nav role="tablist" aria-label="Seções"></nav>
       <div class="sep"></div>
+      <!-- Só AÇÃO e CONFIGURAÇÃO moram aqui. Aba é destino, e destino sai do
+           registro de `js/ui/navigation.js`, que monta o <nav> acima.
+
+           "Grupos" estava escrito à mão neste rodapé desde antes de a lateral
+           ser gerada. Quando ela passou a vir do registro, o botão continuou:
+           `nav-grupos` passou a existir DUAS vezes no DOM, um gerado e um à
+           mão. O hook de HTML não pegou, porque no arquivo o id aparece uma
+           vez só -- a segunda ocorrência nasce em tempo de execução.
+
+           E a duplicata não era só feia: `$()` é getElementById, que devolve o
+           PRIMEIRO. O ouvinte de clique ia para o botão gerado, e este aqui
+           ficava visível e inerte.
+
+           `nav-ajustes` fica, porque é o caso contrário: `montaLateral()`
+           filtra o grupo CONFIGURAÇÕES de propósito, então aqui é o único. -->
       <div class="rodape">
-        <button class="navitem" id="nav-grupos" role="tab" aria-selected="false" aria-controls="p-grupos"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="8" r="3"/><path d="M3 19a6 6 0 0 1 12 0"/><path d="M16 6.5a2.8 2.8 0 0 1 0 5.4M17 19a6 6 0 0 0-1.5-4"/></svg><span>Grupos</span></button>
         <button class="navitem" id="nav-ajustes" role="tab" aria-selected="false" aria-controls="p-ajustes"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2.2"/><circle cx="10" cy="17" r="2.2"/></svg><span>Ajustes</span></button>
         <button class="navitem" id="btnAtualizar" title="Recarregar os dados"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12a9 9 0 11-3-6.7"/><path d="M21 3v6h-6"/></svg><span>Atualizar</span></button>
         <button class="navitem" id="btnTema"><svg id="icoTema" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.6"/><path fill="currentColor" stroke="none" d="M12 3.4a8.6 8.6 0 000 17.2z"/></svg><span id="rotTema">Automático</span></button>
