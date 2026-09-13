@@ -15,6 +15,7 @@ em ordem. Este arquivo é o registro; o SQL é a fonte.
 | `20260912230851` | `../supabase/migrations/007_v2_cartoes_e_faturas.sql` | 12/09/2026 | **aplicada** |
 | `20260912233655` | `../supabase/migrations/008_v2_assinaturas.sql` | 12/09/2026 | **aplicada** |
 | `20260912235737` | `../supabase/migrations/009_v2_grupos_e_rateios.sql` | 12/09/2026 | **aplicada** |
+| `20260913000402` | `../supabase/migrations/010_v2_estorno.sql` | 13/09/2026 | **aplicada** |
 
 **Migração aplicada não se edita.** Quando o arquivo e o banco discordam, some
 a única fonte confiável sobre o que rodou. Conserto vira migração nova, e é por
@@ -473,6 +474,65 @@ O `deve_falhar` deste arquivo é diferente dos outros: ele chama `set
 constraints all immediate` antes de julgar, porque gatilho postergado só
 dispara no commit — e este arquivo nunca faz commit.
 
+## 010 · estorno
+
+O schema tinha `natureza='estorno'` e `estorno_de_id` desde a 002, e a
+interface nunca teve botão. O que faltava não era coluna: era **decisão**. O
+contrato está em [`CONTRATO_ESTORNO.md`](CONTRATO_ESTORNO.md), com as onze
+perguntas respondidas uma a uma.
+
+### A regra que decide tudo
+
+> Transação que carrega **vínculo estrutural** não se estorna, se desfaz.
+
+Estorno é para dinheiro que voltou; desfazer é para registro que não devia
+existir. Daí saem os três "não" — transferência, pagamento de fatura e
+liquidação da V1 — e nenhum deles é preguiça: estornar uma perna de
+transferência deixaria o par quebrado, e estornar um pagamento de fatura
+deixaria a fatura "paga" com o dinheiro de volta no bolso. Dois estados
+verdadeiros e incompatíveis.
+
+### O que o banco garante
+
+Sinal invertido, soma dos estornos nunca maior que o original (gatilho
+postergado, como o rateio da 009), só transação de natureza `normal`, sem
+vínculo em `liquidacoes`, e nada de estorno de estorno.
+
+### O defeito que o contrato revelou
+
+`estorna_transacao` herda `fatura_id` do original, e isso está certo: estorno
+de compra no cartão volta **para a fatura**, que é o que o cartão faz. Mas a
+soma da 007 era `sum(t.valor)`, sem olhar o tipo — uma compra de 100 com
+estorno de 100 daria uma fatura de **200**.
+
+Enquanto não havia estorno, nenhuma linha de fatura era entrada e a soma sem
+sinal dava o mesmo resultado. A 010 substitui a view por uma com sinal.
+
+### E a mudança que quase passou batido, do lado do JavaScript
+
+O saldo da conta fecha sozinho. **"Quanto eu gastei" não.** O filtro de consumo
+pede `natureza='normal'`, e o estorno tem natureza `estorno`: o dinheiro voltava
+e o relatório continuava dizendo que a pessoa gastou.
+
+As somas viraram líquidas, e **cada estorno desconta do lado do seu original**,
+nunca soma do outro — contá-lo nos dois lados descontaria o mesmo evento duas
+vezes e erraria o resultado do mês.
+
+### Como foi provada
+
+`supabase/testes/010_estorno.sql`, **25 casos**, rodados antes e depois da
+aplicação: 25 de 25 depois. O ensaio pré-aplicação acusou uma falha, e ela era
+do TESTE — uma constante de saldo calculada errada por mim, não um defeito do
+código.
+
+Mais 13 casos em `testes/regras.mjs` para o netting, com três mutações
+derrubadas.
+
+### Sem botão, ainda
+
+A mudança do cálculo precisava provar-se em número antes de virar interface.
+Expor a ação é o passo seguinte e não depende de mais nenhuma decisão.
+
 ## O que os advisors dizem agora
 
 Segurança: **uma única ocorrência**, e é configuração de Auth, não de schema —
@@ -502,10 +562,11 @@ pagar na tela do Mês — quem paga uma compra de cartão é a fatura.
 liquidação da mesma fatura. Juros rotativo sem modelo de juros vira número
 errado com cara de certo; até haver contrato, pagamento de fatura é integral.
 
-**Estorno tem schema e não tem botão.** O contrato de estorno parcial e
-múltiplo ainda não foi definido.
+**Estorno tem contrato, tem banco, tem regra e ainda não tem botão.** A 010
+fechou o contrato e implementou tudo; falta só a tela, e ela não depende de
+mais nenhuma decisão.
 
-**A instalação do zero ainda é um arquivo só.** Com nove migrações aplicadas,
+**A instalação do zero ainda é um arquivo só.** Com dez migrações aplicadas,
 `supabase-setup.sql` sozinho não reconstrói mais o banco inteiro. O
 `supabase/README.md` explica a ordem; separar em `schema.sql` + `seed.sql` +
 `migrations/` passou a fazer sentido e ainda não foi feito.

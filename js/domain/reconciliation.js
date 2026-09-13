@@ -20,7 +20,7 @@
  * Nada aqui toca DOM nem banco.
  */
 import { contaNoSaldo, semTransferencias } from "./transactions.js";
-import { ehConsumo, saiDoCaixa } from "./cards.js";
+import { consumoDe, caixaDe, ehEstornoDeEntrada } from "./cards.js";
 
 export const ABERTO = "aberto";
 export const LIQUIDADO = "liquidado";
@@ -73,14 +73,12 @@ export function saidasDoMes({ compromissos, transacoes, liquidacoes, pagos, mes 
      de lugar nenhum, e contá-la aqui somaria a compra ao pagamento da fatura
      mais tarde. É o CASO A do contrato, visto do Painel. */
   const lista = semTransferencias(transacoes || []);
-  const movimento = lista.filter(saiDoCaixa)
-    .reduce((s, t) => s + Number(t.valor || 0), 0);
+  const movimento = caixaDe(lista);
 
   /* A outra pergunta, que NÃO se soma à de cima: quanto foi consumido. Aqui a
      compra no cartão entra e o pagamento da fatura não, exatamente ao
      contrário do caixa. Ver docs/CONTRATO_CARTAO.md. */
-  const consumo = lista.filter(ehConsumo)
-    .reduce((s, t) => s + Number(t.valor || 0), 0);
+  const consumo = consumoDe(lista);
 
   return {
     previsto: caixas.aberto,
@@ -112,10 +110,16 @@ export function entradasDoMes({ receitas, transacoes, liquidacoes, mes }){
     }
   }
 
-  /* Simétrico da saída: entrada só é caixa quando caiu numa conta. */
-  const movimento = semTransferencias(transacoes || [])
-    .filter((t) => t.tipo === "entrada" && t.contaId && contaNoSaldo(t))
-    .reduce((s, t) => s + Number(t.valor || 0), 0);
+  /* Simétrico da saída: entrada só é caixa quando caiu numa conta, e o
+     estorno de uma entrada (que é uma saída) desconta dela. Sem isso, um
+     recebimento devolvido continuaria contando como recebido. */
+  const soEntradas = semTransferencias(transacoes || []);
+  const movimento =
+    soEntradas.filter((t) => t.tipo === "entrada" && t.natureza === "normal"
+                             && t.contaId && contaNoSaldo(t))
+      .reduce((s, t) => s + Number(t.valor || 0), 0)
+    - soEntradas.filter((t) => ehEstornoDeEntrada(t) && t.contaId)
+      .reduce((s, t) => s + Number(t.valor || 0), 0);
 
   return { previsto: aReceber, realizado: movimento, recebidoPrevisto, itens };
 }

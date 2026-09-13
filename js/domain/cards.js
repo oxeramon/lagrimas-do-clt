@@ -106,15 +106,48 @@ export const ehConsumo = (t) =>
   t.tipo === "saida" && t.natureza === "normal" && contaNoSaldo(t);
 
 /* Dinheiro que saiu de uma conta: inclui o pagamento da fatura, exclui a
-   compra no cartão, que não tem conta nenhuma. */
+   compra no cartão, que não tem conta nenhuma.
+
+   E exclui o ESTORNO. Cada estorno desconta do lado do seu ORIGINAL, nunca
+   soma do outro: o estorno de uma entrada é uma saída de dinheiro, sim, mas
+   ele já reduz "Entrou". Contá-lo também em "Saiu" descontaria o mesmo evento
+   duas vezes, e o resultado do mês sairia errado. */
 export const saiDoCaixa = (t) =>
-  t.tipo === "saida" && !!t.contaId && contaNoSaldo(t);
+  t.tipo === "saida" && t.natureza !== "estorno" && !!t.contaId && contaNoSaldo(t);
+
+/* ------------------------------------------------------------- estorno -----
+   Estorno é dinheiro que VOLTOU, e ele quase passou despercebido nestas
+   somas. Ver docs/CONTRATO_ESTORNO.md.
+
+   O saldo da conta fecha sozinho -- a entrada soma, a saída subtrai, e a view
+   do banco não precisa saber de estorno nenhum. Mas "quanto eu gastei" NÃO
+   fecha sozinho:
+
+       saída normal de 100        consumo = 100
+       estorno (entrada) de 100   consumo = 100   <- errado, devia ser 0
+
+   O filtro de consumo pede `natureza='normal'`, e o estorno tem natureza
+   `estorno`: ele simplesmente não entrava na conta. O dinheiro voltava e o
+   relatório continuava dizendo que a pessoa gastou.
+
+   Por isso as somas abaixo são LÍQUIDAS. */
+export const ehEstornoDeSaida  = (t) =>
+  t.tipo === "entrada" && t.natureza === "estorno" && contaNoSaldo(t);
+export const ehEstornoDeEntrada = (t) =>
+  t.tipo === "saida" && t.natureza === "estorno" && contaNoSaldo(t);
 
 const soma = (lista, quando) =>
   (lista || []).filter(quando).reduce((s, t) => s + (Number(t.valor) || 0), 0);
 
-export const consumoDe = (transacoes) => soma(transacoes, ehConsumo);
-export const caixaDe   = (transacoes) => soma(transacoes, saiDoCaixa);
+/* consumo = Σ(saída normal) − Σ(estorno de saída) */
+export const consumoDe = (transacoes) =>
+  soma(transacoes, ehConsumo) - soma(transacoes, ehEstornoDeSaida);
+
+/* caixa = Σ(saída da conta) − Σ(estorno que voltou para a conta). Estorno de
+   compra no cartão não entra: ele volta para a FATURA, e não tem conta. */
+export const caixaDe = (transacoes) =>
+  soma(transacoes, saiDoCaixa)
+  - soma(transacoes, (t) => ehEstornoDeSaida(t) && !!t.contaId);
 
 /* ------------------------------------------------------------- indicadores --*/
 

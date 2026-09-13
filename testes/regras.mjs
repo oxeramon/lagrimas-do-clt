@@ -28,7 +28,8 @@ import { credorDe, paiDe, raizDe, filhosDe, nomeCredorDe, nomeBancoDe,
 import { faturaDaCompra } from "../js/domain/billing.js";
 import { diaNoMes, competenciaDaCompra, cicloDaFatura, situacaoDaFatura,
          rotuloDaFatura, parcelasDe, competenciasDasParcelas, consumoDe, caixaDe,
-         ehConsumo, saiDoCaixa, indicadoresDeCartoes, proximaAVencer, vencidas }
+         ehConsumo, saiDoCaixa, ehEstornoDeSaida, ehEstornoDeEntrada,
+         indicadoresDeCartoes, proximaAVencer, vencidas }
   from "../js/domain/cards.js";
 import { custoMensal, custoAnual, indicadoresDeAssinaturas, proximasCobrancas,
          meioDaAssinatura, venceu, materializa, rotuloDaFrequencia }
@@ -927,6 +928,68 @@ eq("mensal vira lançamento", materializa("mensal"), true);
 eq("semanal ainda não vira lançamento, e isso é declarado", materializa("semanal"), false);
 eq("o rótulo da frequência é frase, não jargão",
   rotuloDaFrequencia("bimestral"), "A cada 2 meses");
+
+
+console.log("\nestorno: dinheiro que voltou não continua gasto");
+
+/* ------------------------------------------------------------------------
+   docs/CONTRATO_ESTORNO.md, a parte que quase passou batido:
+
+   o SALDO da conta fecha sozinho -- entrada soma, saída subtrai. Mas "quanto
+   eu gastei" NÃO fecha, porque o filtro de consumo pede natureza normal e o
+   estorno tem natureza estorno. Sem netting, o dinheiro voltava e o relatório
+   continuava dizendo que a pessoa gastou.
+   ------------------------------------------------------------------------ */
+const comEstorno = [
+  { id:"s1", contaId:"ct1", tipo:"saida",   natureza:"normal",  status:"realizada", valor:100 },
+  { id:"v1", contaId:"ct1", tipo:"entrada", natureza:"estorno", status:"realizada", valor:100 },
+];
+eq("estorno total zera o consumo", consumoDe(comEstorno), 0);
+eq("e zera também o que saiu do caixa", caixaDe(comEstorno), 0);
+
+const parcial = [
+  { id:"s1", contaId:"ct1", tipo:"saida",   natureza:"normal",  status:"realizada", valor:100 },
+  { id:"v1", contaId:"ct1", tipo:"entrada", natureza:"estorno", status:"realizada", valor:40 },
+];
+eq("estorno parcial desconta só a parte que voltou", consumoDe(parcial), 60);
+
+/* estorno de compra no CARTÃO volta para a fatura, não para a conta: ele
+   reduz o consumo e não toca o caixa, porque não tem conta */
+const noCartao = [
+  { id:"c1", contaId:null, faturaId:"f1", tipo:"saida",   natureza:"normal",  status:"realizada", valor:100 },
+  { id:"v1", contaId:null, faturaId:"f1", tipo:"entrada", natureza:"estorno", status:"realizada", valor:100 },
+];
+eq("estorno de compra no cartão zera o consumo", consumoDe(noCartao), 0);
+eq("e não mexe no caixa, porque nunca passou por conta nenhuma", caixaDe(noCartao), 0);
+
+eq("estorno previsto não conta: previsto não é dinheiro",
+  consumoDe([{ contaId:"ct1", tipo:"saida", natureza:"normal", status:"realizada", valor:100 },
+             { contaId:"ct1", tipo:"entrada", natureza:"estorno", status:"prevista", valor:100 }]), 100);
+
+eq("estorno de saída é reconhecido",
+  ehEstornoDeSaida({ tipo:"entrada", natureza:"estorno", status:"realizada" }), true);
+eq("estorno de entrada é o simétrico",
+  ehEstornoDeEntrada({ tipo:"saida", natureza:"estorno", status:"realizada" }), true);
+eq("uma entrada normal não é estorno de nada",
+  ehEstornoDeSaida({ tipo:"entrada", natureza:"normal", status:"realizada" }), false);
+
+console.log("\nestorno: no Painel");
+
+const painelEstornado = resumoDoMes({
+  compromissos: [], receitas: [], liquidacoes: [], pagos: {}, mes: MES, saldoEmContas: 900,
+  transacoes: [
+    { id:"s1", contaId:"ct1", tipo:"saida",   natureza:"normal",  status:"realizada", valor:100 },
+    { id:"v1", contaId:"ct1", tipo:"entrada", natureza:"estorno", status:"realizada", valor:100 },
+    { id:"e1", contaId:"ct1", tipo:"entrada", natureza:"normal",  status:"realizada", valor:200 },
+    { id:"v2", contaId:"ct1", tipo:"saida",   natureza:"estorno", status:"realizada", valor:50 },
+  ],
+});
+eq("a coluna Saiu desconta o que voltou", painelEstornado.saidas.realizado, 0);
+eq("o consumo também", painelEstornado.saidas.consumo, 0);
+/* um recebimento devolvido não continua recebido: 200 menos 50 */
+eq("a coluna Entrou desconta a entrada que foi devolvida",
+  painelEstornado.entradas.realizado, 150);
+eq("e o resultado do mês sai das duas líquidas", painelEstornado.resultadoRealizado, 150);
 
 console.log(`\n${ok} passaram, ${bad} falharam`);
 process.exit(bad ? 1 : 0);
