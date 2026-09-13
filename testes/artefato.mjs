@@ -138,7 +138,13 @@ const procura = (re) => textos.filter((a) => re.test(a.texto)).map((a) => a.rel)
    privilégio, e é isso que se confere aqui. */
 eq("a chave publicável está no artefato, como tem de estar",
   procura(/sb_publishable_/).length > 0, true);
-eq("nenhuma chave de serviço", procura(/sb_secret_|service_role/), []);
+/* O padrão vem montado por concatenação, pelo mesmo motivo que as duas regras
+   equivalentes de `testes/audita.mjs`: escrito inteiro, o literal apareceria
+   neste arquivo e a auditoria do repositório acusaria a própria conferência que
+   existe para proibi-lo. O padrão final é idêntico; o que muda é que a fonte
+   não contém a palavra. */
+const CHAVE_PRIVILEGIADA = new RegExp("sb_" + "secret_" + "|service" + "_role", "i");
+eq("nenhuma chave de serviço", procura(CHAVE_PRIVILEGIADA), []);
 eq("nenhuma chave legada de JWT com papel privilegiado",
   procura(/eyJ[A-Za-z0-9_-]{20,}/), []);
 eq("nenhuma senha, token ou segredo declarado",

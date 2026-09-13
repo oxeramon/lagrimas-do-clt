@@ -76,6 +76,7 @@ completo, está em `.claude/skills/public-repo-hygiene/SKILL.md`. A auditoria é
 |---|---|
 | Site no ar | https://oxeramon.github.io/lagrimas-do-clt/ |
 | Repositório | `github.com/oxeramon/lagrimas-do-clt`, branch `main` |
+| O que vai ao ar | **só o artefato**: `index.html`, `css/*.css`, `js/**/*.js`. `docs/`, `supabase/`, `testes/`, `.claude/` e `ferramentas/` ficam no repositório e NÃO são publicados — ver `docs/PUBLICACAO.md` |
 | Projeto Supabase | região São Paulo; a URL e a chave publicável ficam no topo do `<script type="module">` do `index.html`, que é a fonte para qualquer coisa que precise delas |
 
 Estrutura do banco: **12 tabelas e 1 view**, todas com RLS ligada, 1 policy e 1
@@ -186,6 +187,16 @@ policy por `auth.uid()`, trigger `set_user_id` e índice. Copie o bloco de uma
 tabela existente. `ping` é a única exceção — não tem `user_id` e é legível sem
 login de propósito.
 
+**O que vai ao ar é whitelist, nunca lista de exclusão.** O Pages publica o
+artefato de `ferramentas/artefato.mjs`: `index.html`, `css/*.css` e
+`js/**/*.js`, e mais nada. Um arquivo novo em `js/` sobe sozinho, o que é o
+comportamento certo; qualquer arquivo novo em outro lugar NÃO sobe, e esse
+também é o comportamento certo. Se uma mudança pedir para publicar algo fora
+dessas três entradas, ela precisa entrar em `PERMITIDOS` de propósito, com
+commit próprio. Nunca troque a whitelist por `cp -r .` mais exclusões: a falha
+da exclusão é silenciosa e o padrão dela é publicar. Detalhes e o passo manual
+do Pages estão em `docs/PUBLICACAO.md`.
+
 **A migração roda antes do deploy.** Publicar código que consulta uma coluna ou
 tabela que ainda não existe derruba o app — aconteceu duas vezes em 12/09/2026.
 Rode o SQL primeiro e só então empurre; se não der para rodar na hora, segure o
@@ -270,6 +281,17 @@ em 320 px.
 node testes/audita.mjs
 ```
 Auditoria de repositório público. Crítico bloqueia commit e push.
+
+```bash
+node ferramentas/artefato.mjs     # constrói _site/, fora do git
+node testes/artefato.mjs          # 92 conferências sobre o que vai ao ar
+SERVIR_ARTEFATO=1 node testes/fluxos.mjs   # os 204 fluxos contra o artefato
+```
+A fronteira da publicação. `artefato.mjs` confere que nada de proibido entrou,
+que nada de que o navegador precisa ficou de fora, que o servidor devolve 404
+no que não é do site e que nenhuma chave além da publicável está no pacote.
+**Rode depois de mexer em `index.html`, em `css/` ou em `js/`** — e antes de
+qualquer mudança na whitelist. `docs/PUBLICACAO.md` explica o desenho.
 
 Os arquivos de `supabase/testes/` rodam no banco de VERDADE: cole no SQL Editor
 ou mande por `execute_sql`. Cada um abre em `begin` e fecha em `rollback`, então

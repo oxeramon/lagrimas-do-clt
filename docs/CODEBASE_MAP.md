@@ -64,6 +64,18 @@ suspensas são escritos à mão.
 | `.claude/hooks/checa-sintaxe.mjs` | O JS compila e todo `$("id")` existe | 64 |
 | `.github/workflows/keepalive.yml` | Ping diário no Supabase + commit semanal | 70 |
 
+### O que dessa estrutura vai ao ar
+
+Só três entradas: `index.html`, `css/*.css` e `js/**/*.js` — 29 arquivos,
+466 KiB. Todo o resto da tabela acima (documentação, SQL, testes, hooks,
+ferramentas, workflows) fica no repositório e **não** é publicado.
+
+Quem monta é `ferramentas/artefato.mjs`, por whitelist; quem confere é
+`testes/artefato.mjs`, e a conferência que vale é a igualdade entre o que foi
+publicado e o grafo de dependência real a partir do `index.html`. O desenho, o
+que continua público de propósito e como voltar atrás estão em
+`docs/PUBLICACAO.md`.
+
 ### Dentro do `index.html`
 
 | Faixa | O que é |
