@@ -296,7 +296,7 @@ export function renderTransacoes(){
   pirulitos($("txPorCategoria"), gastos.map((g) => ({ rotulo: g.nome, valor: g.total, cor: g.cor })));
 }
 
-function diaLegivel(d){
+export function diaLegivel(d){
   const [a, m, dd] = d.split("-");
   return dd + " de " + MES_LONGO[Number(m) - 1];
 }
@@ -861,6 +861,11 @@ async function recarrega(){
   if (r && r.erro){ dep.erro("Não deu para atualizar. " + r.erro); return; }
   atualizaFiltrosDeTela();
   renderV2();
+  /* O Painel mora no `index.html` e lê V2: faturas a pagar, assinaturas do
+     mês, o que o grupo te deve. Sem este aviso ele ficava com o número de
+     antes até a próxima troca de mês -- um cartão recém-cadastrado não
+     aparecia, e a tela mentia em silêncio. Foi o teste de navegador que pegou. */
+  if (dep.aposRecarregar) dep.aposRecarregar();
 }
 
 export function atualizaFiltrosDeTela(){

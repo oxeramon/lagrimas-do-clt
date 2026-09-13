@@ -401,7 +401,8 @@ const nav = await chromium.launch({ executablePath: CHROMIUM });
 async function abreApp(largura){
   const p = await nav.newPage();
   const erros = [];
-  p.on("pageerror", (e) => erros.push(String(e).slice(0, 180)));
+  p.on("pageerror", (e) => { erros.push(String(e).slice(0, 180));
+    if (process.env.DEBUG_ERROS) console.error("PAGEERROR:", String(e).slice(0, 400)); });
   p.on("console", (m) => { if (m.type() === "error"){
     const t = m.text();
     /* a rede do contêiner não alcança CDN nem fonte; isso não é defeito do app */
@@ -937,6 +938,25 @@ console.log("\ncartão e fatura");
   eq("o saldo volta ao que era",
     (await p.textContent("#ctSaldoTotal")).replace(/ /g, " "), "R$ 1.000,00");
 
+  /* ---- os blocos de Obrigações, Rotinas e Compartilhado ----
+     Cada um some quando não tem o que dizer: bloco zerado ocupa espaço e não
+     informa nada. E eles NÃO se somam entre si -- fatura aberta é obrigação,
+     assinatura é rotina, e o que o grupo te deve não é dinheiro seu ainda. */
+  await vaiPara(p, "painel");
+  await p.waitForTimeout(200);
+  eq("com um cartão com fatura, o bloco de obrigações aparece",
+    await p.evaluate(() => !document.getElementById("blocoObrigacoes").hidden), true);
+  eq("o bloco de rotinas some quando não há assinatura",
+    await p.evaluate(() => document.getElementById("blocoRotinas").hidden), true);
+  eq("e o de compartilhado também, sem grupo nenhum",
+    await p.evaluate(() => document.getElementById("blocoCompartilhado").hidden), true);
+  eq("as faturas a pagar aparecem separadas das dívidas da V1",
+    await p.evaluate(() => ({
+      faturas: document.getElementById("pbFaturas").textContent.replace(/ /g, " "),
+      dividas: document.getElementById("pbDividas").textContent.replace(/ /g, " "),
+    })),
+    { faturas: "R$ 100,00", dividas: "R$ 0,00" });
+
   /* ---- parcelamento ---- */
   await vaiPara(p, "cartoes");
   await p.waitForTimeout(150);
@@ -1102,7 +1122,79 @@ console.log("\nassinaturas");
 }
 
 /* ==================================================================
-   6. ROLAGEM LATERAL: mobile é primeira classe
+   6. NAVEGAÇÃO: o registro é a única verdade
+   ==================================================================
+   A lateral e o rodapé do celular eram escritos à mão, e discordavam do
+   registro -- Assinaturas apareceu em PLANEJAMENTO e Grupos no rodapé da
+   lateral, porque acrescentar uma tela virava duas edições e a segunda era a
+   esquecida. Agora os dois são montados a partir de js/ui/navigation.js.
+
+   Estes casos existem para que a próxima divergência não passe.
+   ================================================================== */
+console.log("\nnavegação");
+{
+  const { p, erros } = await abreApp(1440);
+
+  eq("a lateral tem os grupos na ordem do registro",
+    await p.evaluate(() => [...document.querySelectorAll(".lateral .grupo-nav")]
+      .map(e => e.textContent)),
+    ["VISÃO", "MEU DINHEIRO", "PLANEJAMENTO", "ROTINAS"]);
+
+  eq("e cada aba está no grupo certo",
+    await p.evaluate(() => {
+      const fora = [];
+      let atual = null;
+      for (const el of document.querySelectorAll(".lateral nav > *")){
+        if (el.classList.contains("grupo-nav")) atual = el.textContent;
+        else fora.push(atual + "/" + el.querySelector("span").textContent);
+      }
+      return fora;
+    }),
+    ["VISÃO/Início", "VISÃO/Mês",
+     "MEU DINHEIRO/Contas", "MEU DINHEIRO/Cartões", "MEU DINHEIRO/Transações",
+     "MEU DINHEIRO/Receitas",
+     "PLANEJAMENTO/Dívidas", "PLANEJAMENTO/Projeção",
+     "ROTINAS/Assinaturas", "ROTINAS/Grupos"]);
+
+  /* Ajustes não fica na lista: ele mora no rodapé da lateral, junto de
+     Atualizar e do tema, e é lá que se procura por ele. */
+  eq("Ajustes fica no rodapé da lateral, e não no meio das seções",
+    await p.evaluate(() => !!document.querySelector(".lateral .rodape #nav-ajustes")), true);
+
+  /* Oito ícones espremidos em 360px não é navegação, é enigma. */
+  eq("o rodapé do celular tem no máximo cinco itens fixos",
+    await p.evaluate(() => document.querySelectorAll("nav.rodapenav .navitem").length), 5);
+  eq("e o quinto é o Mais",
+    await p.evaluate(() => document.querySelector("nav.rodapenav .navitem:last-child").id),
+    "navm-mais");
+
+  /* Destino morto é pior que menu curto: uma entrada que abre o nada. */
+  eq("toda aba da lateral tem painel correspondente",
+    await p.evaluate(() => [...document.querySelectorAll(".lateral .navitem[aria-controls]")]
+      .filter(b => !document.getElementById(b.getAttribute("aria-controls"))).length), 0);
+  eq("e toda aba do rodapé também",
+    await p.evaluate(() => [...document.querySelectorAll("nav.rodapenav .navitem[aria-controls]")]
+      .filter(b => !document.getElementById(b.getAttribute("aria-controls"))).length), 0);
+
+  /* clicar em cada uma abre a tela dela, e só ela */
+  for (const aba of ["painel","mes","contas","cartoes","transacoes","receitas",
+                     "dividas","proj","assinaturas","grupos","ajustes"]){
+    await vaiPara(p, aba);
+    await p.waitForTimeout(80);
+    eq("a aba " + aba + " abre o painel dela, e só ele",
+      await p.evaluate((a) => {
+        const abertos = [...document.querySelectorAll("section.panel")]
+          .filter(s => !s.hidden).map(s => s.id);
+        return abertos.join(",") === "p-" + a;
+      }, aba), true);
+  }
+
+  eq("nenhum erro de JavaScript na navegação inteira", erros, []);
+  await p.close();
+}
+
+/* ==================================================================
+   7. ROLAGEM LATERAL: mobile é primeira classe
    ================================================================== */
 console.log("\nrolagem lateral");
 {
@@ -1136,7 +1228,7 @@ console.log("\nrolagem lateral");
   for (const largura of [320, 360, 390, 768, 1366, 1440]){
     await p.setViewportSize({ width: largura, height: 900 });
     for (const aba of ["painel", "mes", "contas", "cartoes", "assinaturas",
-                       "transacoes", "receitas"]){
+                       "grupos", "transacoes", "receitas"]){
       await vaiPara(p, aba);
       await p.waitForTimeout(120);
       eq(`sem rolagem lateral em ${largura}px na aba ${aba}`,

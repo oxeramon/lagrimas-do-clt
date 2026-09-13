@@ -60,20 +60,10 @@
 <div id="app" class="app" hidden>
     <aside class="lateral">
       <div class="marca"><span class="dot" aria-hidden="true">L</span><h1>Lágrimas do CLT</h1></div>
-      <nav role="tablist" aria-label="Seções">
-        <p class="grupo-nav">VISÃO GERAL</p>
-        <button class="navitem" id="nav-painel" role="tab" aria-selected="true" aria-controls="p-painel"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 3h7v8H3zM14 3h7v5h-7zM14 12h7v9h-7zM3 15h7v6H3z"/></svg><span>Início</span></button>
-        <button class="navitem" id="nav-mes" role="tab" aria-selected="false" aria-controls="p-mes"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="17" rx="2"/><path d="M3 9h18M8 2v4M16 2v4"/></svg><span>Mês</span></button>
-        <p class="grupo-nav">MEU DINHEIRO</p>
-        <button class="navitem" id="nav-contas" role="tab" aria-selected="false" aria-controls="p-contas"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="2.5" y="5.5" width="19" height="13" rx="2.5"/><path d="M2.5 10h19M6 15h4"/></svg><span>Contas</span></button>
-        <button class="navitem" id="nav-cartoes" role="tab" aria-selected="false" aria-controls="p-cartoes"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="2.5" y="5" width="19" height="14" rx="2.5"/><path d="M2.5 9.5h19M6 15h3"/></svg><span>Cartões</span></button>
-        <button class="navitem" id="nav-transacoes" role="tab" aria-selected="false" aria-controls="p-transacoes"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h13l-3-3M20 17H7l3 3"/></svg><span>Transações</span></button>
-        <button class="navitem" id="nav-receitas" role="tab" aria-selected="false" aria-controls="p-receitas"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7l6 6 4-4 8 8"/><path d="M21 13v4h-4"/></svg><span>Receitas</span></button>
-        <p class="grupo-nav">PLANEJAMENTO</p>
-        <button class="navitem" id="nav-dividas" role="tab" aria-selected="false" aria-controls="p-dividas"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 17l6-6 4 4 8-8"/><path d="M21 11V7h-4"/></svg><span>Dívidas</span></button>
-        <button class="navitem" id="nav-assinaturas" role="tab" aria-selected="false" aria-controls="p-assinaturas"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12a8 8 0 0 1 13.6-5.7M20 12a8 8 0 0 1-13.6 5.7"/><path d="M17 3v4h-4M7 21v-4h4"/></svg><span>Assinaturas</span></button>
-        <button class="navitem" id="nav-proj" role="tab" aria-selected="false" aria-controls="p-proj"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 3v18h18"/><path d="M7 14l4-4 3 3 5-6"/></svg><span>Projeção</span></button>
-      </nav>
+      <!-- Montada por js/ui/navigation.js a partir do registro de abas. Escrita
+           à mão, ela discordava do registro: acrescentar uma tela virava duas
+           edições, e a segunda era a que ficava esquecida. -->
+      <nav role="tablist" aria-label="Seções"></nav>
       <div class="sep"></div>
       <div class="rodape">
         <button class="navitem" id="nav-grupos" role="tab" aria-selected="false" aria-controls="p-grupos"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="8" r="3"/><path d="M3 19a6 6 0 0 1 12 0"/><path d="M16 6.5a2.8 2.8 0 0 1 0 5.4M17 19a6 6 0 0 0-1.5-4"/></svg><span>Grupos</span></button>
@@ -130,6 +120,30 @@
           <p class="hint" id="pnAderencia" hidden></p>
           <p class="hint" id="pnSemMovimento" hidden></p>
           <p class="hint" id="pnNota"></p>
+        </div>
+      </div>
+      <!-- OBRIGAÇÕES, ROTINAS e COMPARTILHADO. Três blocos separados, e a
+           separação é o conteúdo: fatura aberta é obrigação, assinatura é
+           rotina, e o que o grupo te deve não é dinheiro seu ainda. Somar os
+           três num número só seria a mentira que o app inteiro evita. -->
+      <div class="card" id="painelBlocos" hidden style="margin-bottom:var(--e-4)">
+        <div class="pr-grid">
+          <div class="pr-col" id="blocoObrigacoes" hidden>
+            <span class="eyebrow">Obrigações</span>
+            <div class="pr-linha"><span>Faturas a pagar</span><strong id="pbFaturas">—</strong></div>
+            <div class="pr-linha"><span>Dívidas em aberto</span><strong id="pbDividas">—</strong></div>
+            <p class="hint" id="pbVence" hidden></p>
+          </div>
+          <div class="pr-col" id="blocoRotinas" hidden>
+            <span class="eyebrow">Rotinas</span>
+            <div class="pr-linha"><span>Assinaturas por mês</span><strong id="pbAssinaturas">—</strong></div>
+            <p class="hint" id="pbProxima" hidden></p>
+          </div>
+          <div class="pr-col" id="blocoCompartilhado" hidden>
+            <span class="eyebrow">Compartilhado</span>
+            <div class="pr-linha"><span>Você tem a receber</span><strong id="pbAReceber">—</strong></div>
+            <div class="pr-linha"><span>Você deve</span><strong id="pbAPagarGrupo">—</strong></div>
+          </div>
         </div>
       </div>
       <div class="bento">
@@ -668,10 +682,9 @@
     </button>
 
     <nav class="rodapenav" role="tablist" aria-label="Seções">
-      <button class="navitem" id="navm-painel" role="tab" aria-selected="true" aria-controls="p-painel"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 3h7v8H3zM14 3h7v5h-7zM14 12h7v9h-7zM3 15h7v6H3z"/></svg><span>Início</span></button>
-      <button class="navitem" id="navm-mes" role="tab" aria-selected="false" aria-controls="p-mes"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="17" rx="2"/><path d="M3 9h18M8 2v4M16 2v4"/></svg><span>Mês</span></button>
-      <button class="navitem" id="navm-contas" role="tab" aria-selected="false" aria-controls="p-contas"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="2.5" y="5.5" width="19" height="13" rx="2.5"/><path d="M2.5 10h19M6 15h4"/></svg><span>Contas</span></button>
-      <button class="navitem" id="navm-transacoes" role="tab" aria-selected="false" aria-controls="p-transacoes"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h13l-3-3M20 17H7l3 3"/></svg><span>Transações</span></button>
+      <!-- As quatro abas de rodapé são montadas por js/ui/navigation.js, a
+           partir do mesmo registro da lateral. "Mais" fica aqui: ele não é
+           uma aba, é uma folha. -->
       <button class="navitem" id="navm-mais" aria-selected="false" aria-haspopup="dialog" aria-label="Mais seções"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/></svg><span>Mais</span></button>
     </nav>
 </div>
@@ -1349,7 +1362,10 @@ import { ligaSupabase } from "./js/data/client.js";
 import * as v1 from "./js/data/v1-repository.js";
 import { entra, sai, observaSessao, sessaoAtual } from "./js/data/session.js";
 import { ligaTelasV2, carregaV2, renderV2, atualizaFiltrosDeTela, V2,
-         abreLiquidacao, pontePronta, indiceDaPonte, vaiParaMes } from "./js/ui/v2-screens.js";
+         abreLiquidacao, pontePronta, indiceDaPonte, vaiParaMes, diaLegivel }
+  from "./js/ui/v2-screens.js";
+import { proximaAVencer, vencidas } from "./js/domain/cards.js";
+import { indicadoresDeAssinaturas, proximasCobrancas } from "./js/domain/subscriptions.js";
 import { chaveDe, resumoDoMes } from "./js/domain/reconciliation.js";
 
 /* ====================================================================
@@ -2194,6 +2210,82 @@ function barras(itens, total, sub){
    A renda base também fica de fora, e é uma escolha: ela não tem lançamento
    para marcar, então não há como saber se já caiu. Somá-la ao previsto quando
    ela já está dentro do saldo seria contar o mesmo salário duas vezes. */
+/* ---------------------------------------------------- os outros blocos -----
+   OBRIGAÇÕES, ROTINAS e COMPARTILHADO.
+
+   Eles ficam separados do "previsto × realizado" e separados entre si, e a
+   separação É o conteúdo:
+
+   · fatura aberta é OBRIGAÇÃO -- ela ainda não saiu de conta nenhuma;
+   · assinatura é ROTINA -- uma regra, não um evento;
+   · o que o grupo te deve não é dinheiro seu ainda, e o que você deve ao grupo
+     não saiu da sua conta.
+
+   Somar os três num número só seria exatamente a mentira que o resto do app
+   existe para evitar. Cada bloco some quando não tem o que dizer -- bloco
+   zerado ocupa espaço e não informa nada. */
+function renderBlocosDoPainel(){
+  const bloco = $("painelBlocos");
+  if (!bloco) return;
+  /* `HOJE` é o MÊS corrente em texto ("2026-09"), não uma data -- é a armadilha
+     que já derrubou o módulo inteiro uma vez. Para a data de hoje em ISO, quem
+     serve é `iso(new Date())`. */
+  const hoje = iso(new Date());
+
+  /* --- obrigações --- */
+  const abertas = V2.faturas.filter((f) => f.situacao !== "paga");
+  const aPagarFaturas = abertas.reduce((s, f) => s + (Number(f.total) || 0), 0);
+  const dividas = saldoAberto(null);
+  const temObrigacao = abertas.length > 0 || dividas > 0;
+  $("blocoObrigacoes").hidden = !temObrigacao;
+  if (temObrigacao){
+    $("pbFaturas").textContent = abertas.length ? money(aPagarFaturas) : "—";
+    $("pbDividas").textContent = money(dividas);
+    const prox = proximaAVencer(V2.faturas, hoje);
+    const atrasadas = vencidas(V2.faturas, hoje);
+    const aviso = $("pbVence");
+    aviso.hidden = !prox && !atrasadas.length;
+    if (!aviso.hidden){
+      /* atraso vem primeiro e sem piada: ele custa juros */
+      aviso.className = atrasadas.length ? "hint alerta" : "hint";
+      aviso.textContent = atrasadas.length
+        ? (atrasadas.length === 1 ? "Uma fatura venceu e não foi paga."
+                                  : atrasadas.length + " faturas venceram e não foram pagas.")
+        : "A próxima fatura vence em " + diaLegivel(prox.vencimento) + ".";
+    }
+  }
+
+  /* --- rotinas --- */
+  const indAs = indicadoresDeAssinaturas(V2.assinaturas, hoje);
+  $("blocoRotinas").hidden = indAs.quantidade === 0;
+  if (!$("blocoRotinas").hidden){
+    $("pbAssinaturas").textContent = money(indAs.mensal);
+    const proximas = proximasCobrancas(V2.assinaturas, hoje, 1);
+    const aviso = $("pbProxima");
+    aviso.hidden = proximas.length === 0;
+    if (!aviso.hidden)
+      aviso.textContent = "A próxima é " + proximas[0].nome
+        + ", em " + diaLegivel(proximas[0].proximaCobranca) + ".";
+  }
+
+  /* --- compartilhado ---
+     "A receber" e "a pagar" NÃO viram um saldo líquido: você pode dever a uma
+     pessoa e ter a receber de outra, e um número só esconderia isso. */
+  const meus = V2.saldosGrupo.filter((m) => m.souEu);
+  const aReceber = meus.filter((m) => Number(m.saldo) > 0)
+    .reduce((s, m) => s + Number(m.saldo), 0);
+  const aPagar = meus.filter((m) => Number(m.saldo) < 0)
+    .reduce((s, m) => s - Number(m.saldo), 0);
+  $("blocoCompartilhado").hidden = meus.length === 0 || (aReceber === 0 && aPagar === 0);
+  if (!$("blocoCompartilhado").hidden){
+    $("pbAReceber").textContent = money(aReceber);
+    $("pbAPagarGrupo").textContent = money(aPagar);
+  }
+
+  bloco.hidden = $("blocoObrigacoes").hidden && $("blocoRotinas").hidden
+                 && $("blocoCompartilhado").hidden;
+}
+
 function renderPrevistoRealizado(){
   const bloco = $("painelV2");
   if (!bloco) return;
@@ -2261,6 +2353,7 @@ function renderPainel(){
   const k = S.mes;
   document.querySelectorAll(".pMes").forEach(e => { e.textContent = label(k); });
   renderPrevistoRealizado();
+  renderBlocosDoPainel();
 
   const aberto = saldoAberto(null);
   const quitado = totalQuitado();
@@ -2908,7 +3001,9 @@ async function carregaAgora(){
 /* A navegação virou registro em js/ui/navigation.js: acrescentar uma tela é
    acrescentar uma linha lá, e não mexer aqui. */
 ligaNavegacao();
-ligaTelasV2({ toast, erro, pontemudou, mudouDeMes });
+/* `aposRecarregar` é o caminho de volta: a V2 se recarregou, e o Painel --
+   que é tela da V1 e lê os dois lados -- precisa refazer os números. */
+ligaTelasV2({ toast, erro, pontemudou, mudouDeMes, aposRecarregar: renderPainel });
 
 /* O app inteiro fala de UM mês. A V2 tinha navegação própria, e duas
    navegações independentes fariam o Painel dizer setembro enquanto a lista de
