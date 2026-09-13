@@ -825,6 +825,109 @@ console.log("\nassinaturas");
 }
 
 /* ==================================================================
+   CALENDÁRIO: um evento por acontecimento, também na tela
+   ==================================================================
+   O domínio já prova a fusão previsto/realizado em `regras.mjs`. Aqui a
+   pergunta é outra: a TELA mostra uma linha só, ou ela reintroduz a duplicata
+   ao desenhar?
+   ================================================================== */
+console.log("\ncalendário");
+{
+  const { p, erros } = await abreApp(1440);
+  await criaConta(p, "Conta Alfa", 1000, true);
+
+  /* uma saída realizada e uma prevista, no mês corrente */
+  const hoje = new Date().toISOString().slice(0, 10);
+  await vaiPara(p, "transacoes");
+  await p.waitForTimeout(200);
+  await p.click("#btnNovaTransacao");
+  await p.waitForTimeout(250);
+  await p.fill("#tr_valor", "120");
+  await p.fill("#tr_descricao", "Mercado");
+  await p.fill("#tr_data", hoje);
+  await p.click("#trSalvar");
+  await p.waitForTimeout(500);
+
+  await vaiPara(p, "mes");
+  await p.waitForTimeout(400);
+
+  eq("o calendário aparece na aba Mês",
+    await p.evaluate(() => !document.getElementById("calendarioCard").hidden), true);
+  eq("no desktop a grade é o padrão",
+    await p.evaluate(() => !document.getElementById("calGrade").hidden), true);
+  eq("e a grade tem sete colunas de cabeçalho",
+    await p.evaluate(() => document.querySelectorAll("#calGrade .cal-cab span").length), 7);
+  eq("toda semana tem sete células",
+    await p.evaluate(() => [...document.querySelectorAll("#calGrade .cal-semana")]
+      .every(s => s.querySelectorAll(".cal-cel").length === 7)), true);
+
+  eq("o gasto realizado entra em 'já pago'",
+    (await p.textContent("#calPago")).replace(/ /g, " "), "R$ 120,00");
+  eq("e não aparece como 'a pagar' ao mesmo tempo",
+    (await p.textContent("#calAPagar")).replace(/ /g, " "), "R$ 0,00");
+
+  /* clicar no dia abre o detalhe, e clicar de novo fecha */
+  await p.evaluate((d) => document.querySelector('[data-dia="' + d + '"]').click(), hoje);
+  await p.waitForTimeout(250);
+  eq("clicar num dia abre o detalhe dele",
+    await p.evaluate(() => !document.getElementById("calDia").hidden), true);
+  eq("com o lançamento daquele dia",
+    await p.evaluate(() => document.querySelectorAll("#calDia .cal-ev").length), 1);
+  await p.evaluate((d) => document.querySelector('[data-dia="' + d + '"]').click(), hoje);
+  await p.waitForTimeout(250);
+  eq("e clicar de novo fecha",
+    await p.evaluate(() => document.getElementById("calDia").hidden), true);
+
+  /* trocar para a Agenda mostra o MESMO dado, em outro desenho */
+  await p.click("#btnVisaoAgenda");
+  await p.waitForTimeout(300);
+  const agenda = await p.evaluate(() => ({
+    agendaVisivel: !document.getElementById("calAgenda").hidden,
+    gradeEscondida: document.getElementById("calGrade").hidden,
+    eventos: document.querySelectorAll("#calAgenda .cal-ev").length,
+    /* estado por RÓTULO, não só por cor */
+    temRotulo: [...document.querySelectorAll("#calAgenda .cal-ev .sub")]
+      .some(e => e.textContent.includes("Realizado")),
+  }));
+  eq("a Agenda aparece e a grade some",
+    [agenda.agendaVisivel, agenda.gradeEscondida], [true, true]);
+  eq("com o mesmo evento", agenda.eventos, 1);
+  eq("e o estado vem ESCRITO, não só colorido", agenda.temRotulo, true);
+
+  /* O QUE NÃO PODE ACONTECER -- a compra de cartão aparecer no calendário ao
+     lado da fatura, dobrando o gasto do mês -- é provado no DOMÍNIO, em
+     regras.mjs ("a compra do cartão NÃO vira evento: ela já é a fatura").
+     Repetir aqui exigiria montar cartão, compra e fatura pela interface para
+     conferir de novo a mesma regra, e teste frágil que prova o já provado só
+     custa tempo de quem vier depois. */
+
+  eq("nenhum erro de JavaScript no calendário", erros, []);
+  await p.close();
+}
+
+/* No CELULAR a agenda é o padrão: sete colunas em 390px seria enigma. */
+{
+  const { p, erros } = await abreApp(390);
+  await criaConta(p, "Conta Alfa", 1000, true);
+  await vaiPara(p, "mes");
+  await p.waitForTimeout(400);
+  eq("[celular] o calendário abre na Agenda, não na grade",
+    await p.evaluate(() => ({ agenda: !document.getElementById("calAgenda").hidden,
+                              grade: document.getElementById("calGrade").hidden })),
+    { agenda: true, grade: true });
+  /* mas a grade continua disponível para quem escolher */
+  await p.click("#btnVisaoMes");
+  await p.waitForTimeout(300);
+  eq("[celular] e a grade continua disponível para quem escolher",
+    await p.evaluate(() => !document.getElementById("calGrade").hidden), true);
+  eq("[celular] sem rolagem lateral com a grade aberta",
+    await p.evaluate(() =>
+      document.documentElement.scrollWidth - document.documentElement.clientWidth), 0);
+  eq("[celular] nenhum erro de JavaScript", erros, []);
+  await p.close();
+}
+
+/* ==================================================================
    METAS: envelope, nunca dinheiro novo
    ==================================================================
    O caso que dá sentido a todos os outros é o 4: reservar NÃO mexe no saldo da

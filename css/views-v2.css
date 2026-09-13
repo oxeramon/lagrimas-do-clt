@@ -452,3 +452,72 @@
   .meta-topo{ flex-wrap:wrap }
   .meta-pct{ margin-left:0 }
 }
+
+/* =========================================================== calendário ===
+   Duas visões do MESMO dado. A grade de sete colunas é ótima no desktop e
+   ilegível em 320px, então o celular abre na agenda -- a decisão está em
+   js/ui/screens/calendar-screen.js, aqui só o desenho.
+
+   ESTADO NUNCA SÓ POR COR: cada evento leva ícone e rótulo junto. */
+.seletor-visao{ display:flex; gap:2px; background:var(--surface-2);
+  border:1px solid var(--line); border-radius:var(--raio-cheio); padding:2px }
+.seletor-visao .btn{ border-radius:var(--raio-cheio) }
+.seletor-visao .btn[aria-pressed="true"]{ background:var(--brand); color:var(--brand-ink) }
+
+/* `minmax(0,1fr)` e NÃO `1fr`: `1fr` é `minmax(auto,1fr)`, e `auto` cresce até
+   o filho mais largo -- sete colunas assim estouram 320px e a página ganha
+   rolagem lateral. Foi exatamente o que o teste de responsividade pegou. */
+.cal-cab{ display:grid; grid-template-columns:repeat(7,minmax(0,1fr)); gap:2px;
+  margin-top:var(--e-4) }
+.cal-cab span{ font-size:10.5px; color:var(--ink-3); text-align:center;
+  text-transform:uppercase; letter-spacing:.05em }
+.cal-semana{ display:grid; grid-template-columns:repeat(7,minmax(0,1fr)); gap:2px; margin-top:2px }
+
+.cal-cel{ min-width:0; aspect-ratio:1; display:flex; flex-direction:column;
+  align-items:center; justify-content:flex-start; gap:3px; padding:var(--e-2) 2px;
+  background:var(--surface-2); border:1px solid transparent;
+  border-radius:var(--r-sm); cursor:pointer; color:var(--ink) }
+.cal-cel:hover{ border-color:var(--line) }
+.cal-cel.fora{ opacity:.35 }
+.cal-cel.hoje{ border-color:var(--brand) }
+.cal-cel.aberto{ background:var(--brand-soft); border-color:var(--brand) }
+.cal-cel .num{ font-family:"IBM Plex Mono",ui-monospace,monospace;
+  font-variant-numeric:tabular-nums; font-size:12px }
+.cal-cel .marcas{ display:flex; gap:2px; align-items:center; flex-wrap:wrap;
+  justify-content:center; min-width:0; max-width:100% }
+.cal-cel .pt{ width:5px; height:5px; border-radius:50%; background:var(--ink-3) }
+.cal-cel .mais{ font-size:9px; color:var(--ink-3); font-style:normal }
+
+/* as cores de estado, e sempre acompanhadas de rótulo na lista */
+.pt.e-atrasado,  .cal-ev.e-atrasado  .ico{ background:var(--critical); color:var(--critical) }
+.pt.e-previsto,  .cal-ev.e-previsto  .ico{ background:var(--ink-3);    color:var(--ink-3) }
+.pt.e-pago,      .cal-ev.e-pago      .ico,
+.pt.e-recebido,  .cal-ev.e-recebido  .ico{ background:var(--good);     color:var(--good) }
+.pt.e-realizado, .cal-ev.e-realizado .ico{ background:var(--brand);    color:var(--brand) }
+.pt.e-fatura,    .cal-ev.e-fatura    .ico{ background:var(--warn);     color:var(--warn) }
+.pt.e-assinatura,.cal-ev.e-assinatura .ico{ background:var(--brand);   color:var(--brand) }
+/* na lista o ícone é texto, não bolinha: o fundo colorido sairia do lugar */
+.cal-ev .ico{ background:transparent !important }
+
+.cal-agenda, .cal-dia{ margin-top:var(--e-4) }
+.cal-bloco{ margin-bottom:var(--e-4) }
+.cal-bloco h3{ margin:0 0 var(--e-2); font-size:12px; color:var(--ink-2);
+  font-weight:var(--peso-medio) }
+
+.cal-ev{ display:grid; grid-template-columns:auto 1fr auto; gap:var(--e-3);
+  align-items:center; padding:var(--e-3); border-bottom:1px solid var(--line);
+  min-width:0 }
+.cal-ev:last-child{ border-bottom:0 }
+.cal-ev .ico{ width:18px; text-align:center; font-size:13px }
+.cal-ev .tit{ display:block; overflow:hidden; text-overflow:ellipsis;
+  white-space:nowrap; color:var(--ink) }
+.cal-ev .sub{ display:block; font-size:11.5px; color:var(--ink-3) }
+.cal-ev .vlr{ font-family:"IBM Plex Mono",ui-monospace,monospace;
+  font-variant-numeric:tabular-nums; white-space:nowrap; font-size:13px }
+
+@media (max-width:400px){
+  /* em 320px a célula quadrada some de altura útil; a grade continua
+     disponível para quem escolher, mas cabe */
+  .cal-cel{ aspect-ratio:auto; min-height:38px }
+  .cal-cel .num{ font-size:11px }
+}

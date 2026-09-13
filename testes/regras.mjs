@@ -52,6 +52,8 @@ import { saidasDoMes, entradasDoMes, resumoDoMes, estadoDoCompromisso,
          ABERTO, LIQUIDADO, PAGO_SEM_MOVIMENTO } from "../js/domain/reconciliation.js";
 import { podeEstornar, jaEstornado, saldoEstornavel, estornosDe }
   from "../js/domain/reversal.js";
+import { eventosDoMes, resumoDoCalendario, gradeDoMes }
+  from "../js/domain/calendar.js";
 
 let ok = 0, bad = 0;
 const eq = (nome, got, want) => {
@@ -1140,6 +1142,105 @@ eq("e nunca desce abaixo de zero",
   saldoEstornavel({ id:"t9", valor:40 },
     [{ natureza:"estorno", estornoDeId:"t9", valor:40 },
      { natureza:"estorno", estornoDeId:"t9", valor:10 }]), 0);
+
+/* ==================================================================
+   CALENDÁRIO: um evento por acontecimento, nunca dois
+   ================================================================== */
+console.log("\ncalendário: previsto e realizado são o MESMO evento");
+
+/* O caso do enunciado. Uma conta de energia prevista dia 12 e paga dia 12 NÃO
+   pode virar duas linhas de 100 -- quem lê concluiria que pagou duas vezes. */
+const calPago = eventosDoMes({
+  mes: "2026-09", hoje: "2026-09-15",
+  compromissos: [{ tipo:"divida", itemId:"d1", vence:"2026-09-12",
+                   titulo:"Conta de energia", valor:100 }],
+  liquidacoes: [{ itemId:"d1", competencia:"2026-09", transacaoId:"t9", tipo:"divida" }],
+  transacoes: [{ id:"t9", data:"2026-09-12", descricao:"Pagamento energia", valor:100,
+                 tipo:"saida", status:"realizada", natureza:"normal" }],
+});
+eq("compromisso pago vira UM evento, não dois", calPago.length, 1);
+eq("e o estado dele é pago", calPago[0].estado, "pago");
+eq("com as duas datas no mesmo evento",
+  [calPago[0].previstoEm, calPago[0].realizadoEm], ["2026-09-12", "2026-09-12"]);
+eq("o total pago é 100, e não 200", resumoDoCalendario(calPago).pago, 100);
+eq("e nada fica 'a pagar'", resumoDoCalendario(calPago).aPagar, 0);
+
+/* Sem a liquidação, o mesmo compromisso é um evento previsto -- e a transação
+   avulsa passa a ser um evento próprio, porque não é a realização de nada. */
+const calAberto = eventosDoMes({
+  mes: "2026-09", hoje: "2026-09-15",
+  compromissos: [{ tipo:"divida", itemId:"d1", vence:"2026-09-20",
+                   titulo:"Conta de energia", valor:100 }],
+  transacoes: [{ id:"t8", data:"2026-09-05", descricao:"Mercado", valor:50,
+                 tipo:"saida", status:"realizada", natureza:"normal" }],
+});
+eq("compromisso em aberto e transação avulsa são dois eventos", calAberto.length, 2);
+eq("o compromisso que ainda vai vencer é previsto",
+  calAberto.find((e) => e.tipo === "compromisso").estado, "previsto");
+
+/* ATRASO é derivado da data, não guardado. */
+const calAtrasado = eventosDoMes({
+  mes: "2026-09", hoje: "2026-09-15",
+  compromissos: [{ tipo:"fixa", itemId:"f1", vence:"2026-09-10",
+                   titulo:"Aluguel", valor:900 }],
+});
+eq("vencido e não pago é ATRASADO", calAtrasado[0].estado, "atrasado");
+eq("e o resumo conta o atraso", resumoDoCalendario(calAtrasado).atrasados, 1);
+
+/* RECEITA recebida: mesma regra, do outro lado. */
+const calReceita = eventosDoMes({
+  mes: "2026-09", hoje: "2026-09-15",
+  receitas: [{ itemId:"r1", quando:"2026-09-05", titulo:"Salário", valor:3000 }],
+  liquidacoes: [{ itemId:"r1", competencia:"2026-09", transacaoId:"t7", tipo:"receita" }],
+  transacoes: [{ id:"t7", data:"2026-09-05", descricao:"Salário", valor:3000,
+                 tipo:"entrada", status:"realizada", natureza:"normal" }],
+});
+eq("receita recebida também é UM evento", calReceita.length, 1);
+eq("com estado recebido", calReceita[0].estado, "recebido");
+eq("o recebido é 3.000 e o a receber é zero",
+  [resumoDoCalendario(calReceita).recebido, resumoDoCalendario(calReceita).aReceber],
+  [3000, 0]);
+
+/* FATURA: fechar e vencer são eventos DIFERENTES, e o pagamento da fatura NÃO
+   vira evento próprio -- ele é o estado "pago" do vencimento. */
+const calFatura = eventosDoMes({
+  mes: "2026-09", hoje: "2026-09-15",
+  cartoes: [{ id:"c1", nome:"Cartão Exemplo" }],
+  faturas: [{ faturaId:"f1", cartaoId:"c1", fechamento:"2026-09-10",
+              vencimento:"2026-09-20", total:500, restante:500, situacao:"fechada" }],
+  transacoes: [
+    { id:"tc", data:"2026-09-03", descricao:"Compra", valor:500, tipo:"saida",
+      status:"realizada", natureza:"normal", faturaId:"f1" },
+  ],
+});
+eq("fatura dá dois eventos: fecha e vence", calFatura.length, 2);
+eq("a compra do cartão NÃO vira evento: ela já é a fatura",
+  calFatura.filter((e) => e.titulo === "Compra").length, 0);
+eq("o vencimento em aberto entra em 'a pagar' uma vez só",
+  resumoDoCalendario(calFatura).aPagar, 500);
+
+const calFaturaPaga = eventosDoMes({
+  mes: "2026-09", hoje: "2026-09-25",
+  cartoes: [{ id:"c1", nome:"Cartão Exemplo" }],
+  faturas: [{ faturaId:"f1", cartaoId:"c1", fechamento:"2026-09-10",
+              vencimento:"2026-09-20", total:500, restante:0, situacao:"paga" }],
+  transacoes: [
+    { id:"tp", data:"2026-09-20", descricao:"Fatura Cartão", valor:500, tipo:"saida",
+      status:"realizada", natureza:"pagamento_de_fatura" },
+  ],
+});
+eq("o pagamento da fatura NÃO vira evento próprio",
+  calFaturaPaga.filter((e) => e.titulo.startsWith("Fatura Cart")).length, 0);
+eq("o vencimento fica pago", 
+  calFaturaPaga.find((e) => e.chave.startsWith("fatura-vence")).estado, "pago");
+eq("e o pago soma 500, não 1.000", resumoDoCalendario(calFaturaPaga).pago, 500);
+
+/* A GRADE: seis linhas só quando o mês precisa. */
+eq("setembro de 2026 cabe em cinco semanas", gradeDoMes("2026-09").length, 5);
+eq("toda semana tem sete dias",
+  gradeDoMes("2026-09").every((s) => s.length === 7), true);
+eq("os dias de fora do mês vêm marcados",
+  gradeDoMes("2026-09")[0].some((d) => !d.noMes), true);
 
 console.log(`\n${ok} passaram, ${bad} falharam`);
 process.exit(bad ? 1 : 0);

@@ -261,6 +261,36 @@
         <button class="iconbtn" id="nextMes" aria-label="Próximo mês"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18l6-6-6-6"/></svg></button>
         <button class="btn ghost sm" id="hojeBtn">Hoje</button>
         <span class="today-chip" id="todayChip" hidden></span>
+        <span style="flex:1"></span>
+        <!-- Mês e Agenda são o MESMO dado com desenhos diferentes. No celular a
+             grade de sete colunas fica ilegível, então a Agenda é o padrão lá;
+             no desktop, a grade. A escolha da pessoa manda sobre as duas. -->
+        <div class="seletor-visao" role="group" aria-label="Como ver o calendário">
+          <button type="button" class="btn ghost sm" id="btnVisaoMes" aria-pressed="true">Mês</button>
+          <button type="button" class="btn ghost sm" id="btnVisaoAgenda" aria-pressed="false">Agenda</button>
+        </div>
+      </div>
+
+      <!-- ====================================================== calendário
+           Um evento por acontecimento. Compromisso pago aparece UMA vez, com
+           as duas datas; nunca como duas linhas que parecem dois gastos.
+           Ver js/domain/calendar.js. -->
+      <div class="card" id="calendarioCard">
+        <div class="lente">
+          <h2>No mês</h2>
+          <div class="fatias">
+            <div class="fatia"><b id="calAPagar">—</b><span>a pagar</span></div>
+            <div class="fatia"><b id="calPago">—</b><span>já pago</span></div>
+            <div class="fatia"><b id="calAReceber">—</b><span>a receber</span></div>
+            <div class="fatia"><b id="calRecebido">—</b><span>já recebido</span></div>
+          </div>
+          <p class="hint" id="calAtraso" hidden></p>
+        </div>
+
+        <div id="calGrade" class="cal-grade" hidden></div>
+        <div id="calAgenda" class="cal-agenda" hidden></div>
+        <div id="calDia" class="cal-dia" hidden></div>
+        <div id="calSemDia" class="cal-dia" hidden></div>
       </div>
 
       <div class="hero">
@@ -1536,7 +1566,8 @@ import { ligaSupabase } from "./js/data/client.js";
 import * as v1 from "./js/data/v1-repository.js";
 import { entra, sai, observaSessao, sessaoAtual } from "./js/data/session.js";
 import { ligaTelasV2, carregaV2, renderV2, atualizaFiltrosDeTela, V2,
-         abreLiquidacao, pontePronta, indiceDaPonte, vaiParaMes, diaLegivel }
+         abreLiquidacao, pontePronta, indiceDaPonte, vaiParaMes, diaLegivel,
+         registraFonteDaV1, renderCalendario }
   from "./js/ui/v2-screens.js";
 import { proximaAVencer, vencidas } from "./js/domain/cards.js";
 import { indicadoresDeAssinaturas, proximasCobrancas } from "./js/domain/subscriptions.js";
@@ -3179,6 +3210,37 @@ ligaNavegacao();
    que é tela da V1 e lê os dois lados -- precisa refazer os números. */
 ligaTelasV2({ toast, erro, pontemudou, mudouDeMes, aposRecarregar: renderPainel });
 
+/* O CALENDÁRIO PRECISA DOS COMPROMISSOS DA V1, e a V1 mora aqui. Em vez de o
+   módulo importar o index.html (nem poderia: ele não exporta), a V1 se
+   REGISTRA como fonte -- a seta continua apontando de dentro para fora.
+
+   Repare no que NÃO vai junto: dia do mês. Dívida, fixa e receita são
+   registradas por competência mensal, sem dia, e o calendário mostra isso numa
+   lista "sem dia certo" em vez de escolher um dia. Escolher um dia para conta
+   de dinheiro é inventar dado.
+
+   Item histórico fica de fora: ele foi pago antes de o app existir, não é
+   compromisso deste mês. */
+registraFonteDaV1(() => ({
+  compromissos: itensDoMes(S.mes)
+    .filter((it) => !it.historico)
+    .map((it) => ({
+      tipo: it.fixaId ? "fixa" : "divida",
+      itemId: it.id,
+      vence: null,
+      titulo: it.nome,
+      valor: it.valor,
+      detalhe: [it.grupo, it.meta].filter(Boolean).join(" · "),
+    })),
+  receitas: receitasDoMes(S.mes).map((r) => ({
+    itemId: r.id,
+    quando: null,
+    titulo: r.descricao,
+    valor: r.valor,
+    detalhe: r.categoria || "",
+  })),
+}));
+
 /* O app inteiro fala de UM mês. A V2 tinha navegação própria, e duas
    navegações independentes fariam o Painel dizer setembro enquanto a lista de
    lançamentos dizia outubro -- e o "realizado" do mês viria do mês errado sem
@@ -3190,12 +3252,16 @@ async function vaiPara(k){
      elas, e o Painel se refaz quando chegam */
   await vaiParaMes(k);
   renderPainel();
+  /* o calendário depende das transações que acabaram de chegar E da fonte da
+     V1; refazê-lo antes do await mostraria o mês novo com os dados do velho */
+  renderCalendario();
 }
 
 /* o caminho inverso: a V2 trocou de mês e a V1 acompanha */
 function mudouDeMes(k){
   S.mesFixado = true; S.mes = k;
   renderPainel(); renderMes(); renderReceitas(); renderProj();
+  renderCalendario();
 }
 $("prevMes").addEventListener("click", () => vaiPara(addM(S.mes,-1)));
 $("nextMes").addEventListener("click", () => vaiPara(addM(S.mes, 1)));

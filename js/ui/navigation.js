@@ -17,8 +17,8 @@
  *
  * "Metas" entrou quando a tela passou a existir, e não antes. Entrada de menu
  * que abre o nada é pior do que menu curto: ela ensina a desconfiar do menu.
- * "Calendário" continua de fora pela mesma régua -- a tela de Mês responde por
- * ele hoje.
+ * "Calendário" é a aba `mes`: o rótulo mudou quando a tela virou calendário de
+ * verdade, e o id ficou, porque id não é rótulo.
  *
  * Contrato do DOM, e é só isto:
  *   painel      <section id="p-<id>">
@@ -39,7 +39,10 @@ import { $ } from "../core/dom.js";
 export const ABAS = [
   { id: "painel",      rotulo: "Início",      grupo: "VISÃO",          rodape: true,
     icone: '<path d="M3 3h7v8H3zM14 3h7v5h-7zM14 12h7v9h-7zM3 15h7v6H3z"/>' },
-  { id: "mes",         rotulo: "Mês",         grupo: "VISÃO",          rodape: true,
+  /* O id continua `mes`: ele é conhecido pelo index.html, pelos testes e pela
+     navegação, e renomear um id para trocar um RÓTULO é pagar caro por nada.
+     O que a pessoa lê mudou; o que o código chama, não. */
+  { id: "mes",         rotulo: "Calendário",  grupo: "VISÃO",          rodape: true,
     icone: '<rect x="3" y="4" width="18" height="17" rx="2"/><path d="M3 9h18M8 2v4M16 2v4"/>' },
   { id: "contas",      rotulo: "Contas",      grupo: "MEU DINHEIRO",   rodape: true,
     icone: '<rect x="2.5" y="5.5" width="19" height="13" rx="2.5"/><path d="M2.5 10h19M6 15h4"/>' },

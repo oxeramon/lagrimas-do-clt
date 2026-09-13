@@ -40,6 +40,7 @@ import { ligaFatura } from "./screens/invoice-screen.js";
 import { renderAssinaturas, ligaAssinaturas } from "./screens/subscriptions-screen.js";
 import { renderGrupos, ligaGrupos } from "./screens/groups-screen.js";
 import { renderMetas, ligaMetas } from "./screens/goals-screen.js";
+import { renderCalendario, ligaCalendario } from "./screens/calendar-screen.js";
 
 /* O que o `index.html` conhece. Mantido nome por nome, de propósito: a
    modularização não pode custar uma edição no HTML. */
@@ -57,6 +58,7 @@ export { renderCartoes } from "./screens/cards-screen.js";
 export { renderAssinaturas } from "./screens/subscriptions-screen.js";
 export { renderGrupos } from "./screens/groups-screen.js";
 export { renderMetas } from "./screens/goals-screen.js";
+export { renderCalendario, registraFonteDaV1 } from "./screens/calendar-screen.js";
 
 export function ligaTelasV2(deps){
   Object.assign(dep, deps || {});
@@ -77,6 +79,7 @@ export function ligaTelasV2(deps){
   ligaAssinaturas();
   ligaGrupos();
   ligaMetas();
+  ligaCalendario();
 
   /* o botão flutuante só faz sentido onde há o que lançar */
   quandoTrocarDeAba((destino) => {
@@ -91,6 +94,7 @@ export function renderV2(){
   renderAssinaturas();
   renderGrupos();
   renderMetas();
+  renderCalendario();
   renderTransacoes();
 }
 
