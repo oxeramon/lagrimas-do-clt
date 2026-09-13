@@ -1,0 +1,86 @@
+name: publicar no Pages
+
+# Por que este arquivo existe:
+#
+# Até esta rodada o Pages usava "Deploy from a branch" e publicava a ÁRVORE
+# INTEIRA do repositório: CLAUDE.md, docs/, supabase/ com todas as migrações,
+# testes/, .claude/, os hooks. Nada disso é segredo -- o repositório é público
+# --, mas nada disso precisa estar num servidor web.
+#
+# Agora o que sobe é só o que `ferramentas/artefato.mjs` monta por whitelist:
+# index.html, css/*.css e js/**/*.js. Nada mais.
+#
+# A ORDEM IMPORTA: o artefato é conferido ANTES de subir, nunca depois. Um
+# teste que roda depois do deploy não impede nada, só narra.
+#
+# ATENÇÃO À CONFIGURAÇÃO: este arquivo só tem efeito com
+# Settings > Pages > Build and deployment > Source = "GitHub Actions".
+# Enquanto a origem for "Deploy from a branch", o Pages continua publicando a
+# árvore inteira e este workflow roda à toa.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# O mínimo que o deploy oficial do Pages precisa, e nada além:
+#   contents: read   -- ler o repositório para construir o artefato
+#   pages: write     -- publicar
+#   id-token: write  -- o OIDC que a deploy-pages usa para provar quem é
+# Em particular, NÃO tem contents: write. Este workflow não escreve no repo.
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Um deploy por vez. `cancel-in-progress: false` porque cancelar um deploy no
+# meio deixa o site num estado que ninguém pediu.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  construir:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Construir o artefato (whitelist)
+        run: node ferramentas/artefato.mjs _site
+
+      - name: Conferir a fronteira do que vai ao ar
+        # 92 conferências: nada de proibido entrou, nada de que o navegador
+        # precisa ficou de fora, o servidor devolve 404 no que não é do site, e
+        # nenhuma chave além da publicável está no pacote. Se falhar, nada sobe.
+        run: node testes/artefato.mjs
+
+      - name: Conferir as regras de cálculo
+        run: node testes/regras.mjs
+
+      - name: Listar o que será publicado
+        # O registro do que foi ao ar fica no log da execução, não na memória
+        # de quem publicou.
+        run: |
+          set -euo pipefail
+          find _site -type f | sort
+          echo "total: $(find _site -type f | wc -l) arquivo(s)"
+
+      - uses: actions/configure-pages@v5
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+  publicar:
+    needs: construir
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - id: deploy
+        uses: actions/deploy-pages@v4
