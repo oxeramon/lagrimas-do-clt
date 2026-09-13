@@ -58,14 +58,32 @@ if (!existsSync(CHROMIUM)){
 
 /* ------------------------------------------------------------- servidor --
    O navegador RECUSA `import` a partir de file://. Servir por HTTP é o mesmo
-   que o GitHub Pages faz, então o que passa aqui passa lá. */
+   que o GitHub Pages faz, então o que passa aqui passa lá.
+
+   O QUE É SERVIDO. Por padrão, o repositório. Com `SERVIR_ARTEFATO=1`, o
+   artefato que `ferramentas/artefato.mjs` constrói -- que é o que o Pages
+   publica de verdade. Rodar a MESMA suíte contra os dois é a prova de que a
+   poda não tirou nada de que o site precisa: se um módulo tivesse ficado
+   fora da whitelist, os fluxos quebrariam aqui, e não no navegador de quem
+   abriu o site.
+
+   O artefato é construído do zero na hora, nunca reaproveitado: um `_site`
+   velho esconde justamente o arquivo que acabou de sair da lista. */
+let SERVIDA = RAIZ;
+if (process.env.SERVIR_ARTEFATO){
+  const { constroi } = await import("../ferramentas/artefato.mjs");
+  SERVIDA = join(RAIZ, "_site");
+  const arquivos = constroi(SERVIDA);
+  console.log(`fluxos: servindo o ARTEFATO (${arquivos.length} arquivos), não a raiz do repositório.`);
+}
+
 const TIPO = { ".html":"text/html", ".js":"text/javascript", ".css":"text/css",
                ".json":"application/json", ".svg":"image/svg+xml" };
 const servidor = createServer((req, res) => {
-  const alvoBruto = join(RAIZ, decodeURIComponent(req.url.split("?")[0]));
+  const alvoBruto = join(SERVIDA, decodeURIComponent(req.url.split("?")[0]));
   const alvo = existsSync(alvoBruto) && statSync(alvoBruto).isDirectory()
     ? join(alvoBruto, "index.html") : alvoBruto;
-  if (!existsSync(alvo) || !alvo.startsWith(RAIZ)){ res.writeHead(404); return res.end("404"); }
+  if (!existsSync(alvo) || !alvo.startsWith(SERVIDA)){ res.writeHead(404); return res.end("404"); }
   res.writeHead(200, { "content-type": TIPO[extname(alvo)] || "application/octet-stream" });
   res.end(readFileSync(alvo));
 });
