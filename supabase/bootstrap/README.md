@@ -103,6 +103,36 @@ toda função — e é o que prova que ninguém enxerga o dado de ninguém.
 
 ---
 
+## A prova, medida em 13/09/2026
+
+O `schema.sql` não foi escrito de memória: foi lido do catálogo do banco em uso
+e reescrito em ordem de dependência. O que fecha o argumento é ter rodado o
+arquivo num Postgres vazio e comparado os dois lados com a mesma régua.
+
+| | banco em uso | reconstruído do zero |
+|---|---|---|
+| linhas do inventário | 1394 | 1390 |
+| md5 de tudo | `ad7386383b8679afbaa420d72cd5355b` | — |
+| md5 **sem a seção de extensões** | `1ab161f7898c7c312ac942f8b64320a2` | `1ab161f7898c7c312ac942f8b64320a2` |
+
+Um hash só, sobre as 1390 linhas inteiras, igual dos dois lados: colunas,
+chaves, índices, definição de view, corpo de função, gatilho, policy e
+permissão por papel. As quatro linhas de diferença são as extensões de
+plataforma, que vêm de fábrica com o projeto Supabase.
+
+Uma ressalva honesta: o Postgres descartável rodou a **16.13**, e o projeto em
+uso roda a **17.6**. Todo recurso que o schema usa existe nas duas (`unique
+nulls not distinct`, view com `security_invoker` e `on delete set null` de
+coluna são todos da 15 em diante), e o inventário é lido por
+`information_schema` e por funções de catálogo que existem nas duas. O que uma
+comparação assim não alcança é privilégio que só a 17 conhece — `maintain`, por
+exemplo, que não aparece em `information_schema` de nenhuma das duas.
+
+Além do estrutural, as onze suítes de `supabase/testes/` rodaram contra o banco
+reconstruído: **357 casos, nenhuma falha**.
+
+---
+
 ## Fora do Supabase
 
 Para testar o bootstrap sem tocar em projeto nenhum, há um Postgres
