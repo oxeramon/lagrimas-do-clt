@@ -458,9 +458,11 @@ alter table public.compras_de_cartao add constraint compras_dono_id_unico unique
 alter table public.contas add constraint conta_nome_unico unique (user_id, nome);
 alter table public.contas add constraint contas_dono_id_unico unique (user_id, id);
 alter table public.credores add constraint credor_nome_unico unique (user_id, nome);
+alter table public.credores add constraint credores_dono_id_unico unique (user_id, id);
 alter table public.despesas_do_grupo add constraint despesas_do_grupo_dono_id_unico unique (user_id, id);
 alter table public.faturas add constraint fatura_uma_por_ciclo unique (user_id, cartao_id, competencia);
 alter table public.faturas add constraint faturas_dono_id_unico unique (user_id, id);
+alter table public.fixas add constraint fixas_dono_id_unico unique (user_id, id);
 alter table public.grupos add constraint grupo_nome_unico unique (user_id, nome);
 alter table public.grupos add constraint grupos_dono_id_unico unique (user_id, id);
 alter table public.instituicoes add constraint instituicao_nome_unico unique (user_id, nome);
@@ -567,10 +569,17 @@ alter table public.transacoes add constraint transferencia_tem_grupo check (((na
 -- -----------------------------------------------------------------------------
 -- Todas as tabelas já existem acima, então a ordem aqui é só alfabética.
 --
--- Duas famílias. As `_user_id_fkey` amarram o dono a `auth.users`. As
--- compostas, `(user_id, x_id) -> alvo(user_id, id)`, são a proteção real: a
--- conferência de FK roda por fora do RLS, e sem o `user_id` no par seria
--- possível apontar para linha de outra pessoa.
+-- Duas famílias, e só duas. As `_user_id_fkey` amarram o dono a `auth.users`,
+-- uma por tabela com `user_id`, sem exceção. As compostas,
+-- `(user_id, x_id) -> alvo(user_id, id)`, são a proteção real: a conferência
+-- de FK roda por fora do RLS, e sem o `user_id` no par seria possível apontar
+-- para linha de outra pessoa.
+--
+-- NÃO EXISTE UMA TERCEIRA FAMÍLIA. Chave estrangeira de coluna única que
+-- aponte para tabela de `public` é defeito, não estilo: foi assim que cinco
+-- relações da V1 passaram catorze migrações deixando uma dívida apontar para
+-- o credor de outra pessoa. A 015 fechou as cinco. Se aparecer uma sexta,
+-- `supabase/testes/isolamento.sql` acusa.
 
 alter table public.acertos add constraint acertos_de_dono_fk foreign key (user_id, de_id) references public.membros(user_id, id) on update cascade on delete restrict;
 alter table public.acertos add constraint acertos_grupo_dono_fk foreign key (user_id, grupo_id) references public.grupos(user_id, id) on update cascade on delete cascade;
@@ -578,6 +587,7 @@ alter table public.acertos add constraint acertos_para_dono_fk foreign key (user
 alter table public.acertos add constraint acertos_transacao_dono_fk foreign key (user_id, transacao_id) references public.transacoes(user_id, id) on update cascade on delete set null (transacao_id);
 alter table public.acertos add constraint acertos_user_id_fkey foreign key (user_id) references auth.users(id) on delete cascade;
 alter table public.alocacoes_de_meta add constraint alocacao_da_meta_do_dono foreign key (user_id, meta_id) references public.metas(user_id, id) on delete cascade;
+alter table public.alocacoes_de_meta add constraint alocacoes_de_meta_user_id_fkey foreign key (user_id) references auth.users(id) on delete cascade;
 alter table public.assinaturas add constraint assinaturas_cartao_dono_fk foreign key (user_id, cartao_id) references public.cartoes(user_id, id) on update cascade on delete set null (cartao_id);
 alter table public.assinaturas add constraint assinaturas_categoria_dono_fk foreign key (user_id, categoria_id) references public.categorias(user_id, id) on update cascade on delete set null (categoria_id);
 alter table public.assinaturas add constraint assinaturas_conta_dono_fk foreign key (user_id, conta_id) references public.contas(user_id, id) on update cascade on delete set null (conta_id);
@@ -593,20 +603,20 @@ alter table public.compras_de_cartao add constraint compras_de_cartao_user_id_fk
 alter table public.config add constraint config_user_id_fkey foreign key (user_id) references auth.users(id) on delete cascade;
 alter table public.contas add constraint contas_instituicao_dono_fk foreign key (user_id, instituicao_id) references public.instituicoes(user_id, id) on update cascade on delete set null (instituicao_id);
 alter table public.contas add constraint contas_user_id_fkey foreign key (user_id) references auth.users(id) on delete cascade;
-alter table public.credores add constraint credores_credor_pai_id_fkey foreign key (credor_pai_id) references public.credores(id) on delete set null;
+alter table public.credores add constraint credores_pai_dono_fk foreign key (user_id, credor_pai_id) references public.credores(user_id, id) on update cascade on delete set null (credor_pai_id);
 alter table public.credores add constraint credores_user_id_fkey foreign key (user_id) references auth.users(id) on delete cascade;
 alter table public.despesas_do_grupo add constraint despesas_categoria_dono_fk foreign key (user_id, categoria_id) references public.categorias(user_id, id) on update cascade on delete set null (categoria_id);
 alter table public.despesas_do_grupo add constraint despesas_do_grupo_user_id_fkey foreign key (user_id) references auth.users(id) on delete cascade;
 alter table public.despesas_do_grupo add constraint despesas_grupo_dono_fk foreign key (user_id, grupo_id) references public.grupos(user_id, id) on update cascade on delete cascade;
 alter table public.despesas_do_grupo add constraint despesas_pagador_dono_fk foreign key (user_id, pago_por_id) references public.membros(user_id, id) on update cascade on delete restrict;
-alter table public.dividas add constraint dividas_credor_id_fkey foreign key (credor_id) references public.credores(id) on delete set null;
-alter table public.dividas add constraint dividas_pessoa_id_fkey foreign key (pessoa_id) references public.credores(id) on delete set null;
+alter table public.dividas add constraint dividas_credor_dono_fk foreign key (user_id, credor_id) references public.credores(user_id, id) on update cascade on delete set null (credor_id);
+alter table public.dividas add constraint dividas_pessoa_dono_fk foreign key (user_id, pessoa_id) references public.credores(user_id, id) on update cascade on delete set null (pessoa_id);
 alter table public.dividas add constraint dividas_user_id_fkey foreign key (user_id) references auth.users(id) on delete cascade;
 alter table public.faturas add constraint faturas_cartao_dono_fk foreign key (user_id, cartao_id) references public.cartoes(user_id, id) on update cascade on delete cascade;
 alter table public.faturas add constraint faturas_user_id_fkey foreign key (user_id) references auth.users(id) on delete cascade;
-alter table public.fixas add constraint fixas_credor_id_fkey foreign key (credor_id) references public.credores(id) on delete set null;
+alter table public.fixas add constraint fixas_credor_dono_fk foreign key (user_id, credor_id) references public.credores(user_id, id) on update cascade on delete set null (credor_id);
 alter table public.fixas add constraint fixas_user_id_fkey foreign key (user_id) references auth.users(id) on delete cascade;
-alter table public.fixas_mes add constraint fixas_mes_fixa_id_fkey foreign key (fixa_id) references public.fixas(id) on delete cascade;
+alter table public.fixas_mes add constraint fixas_mes_fixa_dono_fk foreign key (user_id, fixa_id) references public.fixas(user_id, id) on update cascade on delete cascade;
 alter table public.fixas_mes add constraint fixas_mes_user_id_fkey foreign key (user_id) references auth.users(id) on delete cascade;
 alter table public.grupos add constraint grupos_user_id_fkey foreign key (user_id) references auth.users(id) on delete cascade;
 alter table public.instituicoes add constraint instituicoes_user_id_fkey foreign key (user_id) references auth.users(id) on delete cascade;
@@ -614,6 +624,7 @@ alter table public.liquidacoes add constraint liquidacoes_transacao_dono_fk fore
 alter table public.liquidacoes add constraint liquidacoes_user_id_fkey foreign key (user_id) references auth.users(id) on delete cascade;
 alter table public.membros add constraint membros_grupo_dono_fk foreign key (user_id, grupo_id) references public.grupos(user_id, id) on update cascade on delete cascade;
 alter table public.membros add constraint membros_user_id_fkey foreign key (user_id) references auth.users(id) on delete cascade;
+alter table public.metas add constraint metas_user_id_fkey foreign key (user_id) references auth.users(id) on delete cascade;
 alter table public.pagamentos add constraint pagamentos_user_id_fkey foreign key (user_id) references auth.users(id) on delete cascade;
 alter table public.rateios add constraint rateios_despesa_dono_fk foreign key (user_id, despesa_id) references public.despesas_do_grupo(user_id, id) on update cascade on delete cascade;
 alter table public.rateios add constraint rateios_membro_dono_fk foreign key (user_id, membro_id) references public.membros(user_id, id) on update cascade on delete restrict;
@@ -648,6 +659,7 @@ create index credores_ativo_idx on public.credores using btree (user_id, ativo, 
 create index credores_pai_idx on public.credores using btree (user_id, credor_pai_id, ordem);
 create index credores_user_idx on public.credores using btree (user_id, ordem);
 create index despesas_grupo_idx on public.despesas_do_grupo using btree (user_id, grupo_id, data);
+create index dividas_credor_dono_idx on public.dividas using btree (user_id, credor_id);
 create index dividas_credor_idx on public.dividas using btree (credor_id);
 create index dividas_data_idx on public.dividas using btree (user_id, data_compra);
 create index dividas_meio_idx on public.dividas using btree (user_id, meio, mes_inicial);
@@ -655,6 +667,7 @@ create index dividas_pessoa_idx on public.dividas using btree (user_id, pessoa_i
 create index dividas_user_idx on public.dividas using btree (user_id, ordem);
 create index faturas_cartao_idx on public.faturas using btree (user_id, cartao_id, competencia);
 create index faturas_vencimento_idx on public.faturas using btree (user_id, vencimento);
+create index fixas_credor_dono_idx on public.fixas using btree (user_id, credor_id);
 create index fixas_credor_idx on public.fixas using btree (credor_id);
 create index fixas_user_idx on public.fixas using btree (user_id, ordem);
 create index fixas_mes_idx on public.fixas_mes using btree (user_id, mes);

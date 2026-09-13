@@ -256,6 +256,7 @@ CON acertos.acertos_valor_check CHECK ((valor > (0)::numeric))
 CON alocacoes_de_meta.alocacao_da_meta_do_dono FOREIGN KEY (user_id, meta_id) REFERENCES metas(user_id, id) ON DELETE CASCADE
 CON alocacoes_de_meta.alocacao_valor_check CHECK ((valor <> (0)::numeric))
 CON alocacoes_de_meta.alocacoes_de_meta_pkey PRIMARY KEY (id)
+CON alocacoes_de_meta.alocacoes_de_meta_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE
 CON alocacoes_de_meta.confere_alocacao_de_meta TRIGGER DEFERRABLE INITIALLY DEFERRED
 CON assinaturas.assinatura_fim_depois_do_inicio CHECK (((fim IS NULL) OR (fim >= inicio)))
 CON assinaturas.assinatura_nome_unico UNIQUE (user_id, nome)
@@ -310,9 +311,10 @@ CON contas.contas_pkey PRIMARY KEY (id)
 CON contas.contas_tipo_check CHECK ((tipo = ANY (ARRAY['corrente'::text, 'poupanca'::text, 'carteira'::text, 'investimento'::text, 'fgts'::text, 'outro'::text])))
 CON contas.contas_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE
 CON credores.credor_nome_unico UNIQUE (user_id, nome)
-CON credores.credores_credor_pai_id_fkey FOREIGN KEY (credor_pai_id) REFERENCES credores(id) ON DELETE SET NULL
 CON credores.credores_dia_fechamento_check CHECK (((dia_fechamento IS NULL) OR ((dia_fechamento >= 1) AND (dia_fechamento <= 31))))
 CON credores.credores_dia_vencimento_check CHECK (((dia_vencimento IS NULL) OR ((dia_vencimento >= 1) AND (dia_vencimento <= 31))))
+CON credores.credores_dono_id_unico UNIQUE (user_id, id)
+CON credores.credores_pai_dono_fk FOREIGN KEY (user_id, credor_pai_id) REFERENCES credores(user_id, id) ON UPDATE CASCADE ON DELETE SET NULL (credor_pai_id)
 CON credores.credores_pai_nao_e_si CHECK (((credor_pai_id IS NULL) OR (credor_pai_id <> id)))
 CON credores.credores_pkey PRIMARY KEY (id)
 CON credores.credores_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE
@@ -325,10 +327,10 @@ CON despesas_do_grupo.despesas_do_grupo_user_id_fkey FOREIGN KEY (user_id) REFER
 CON despesas_do_grupo.despesas_do_grupo_valor_check CHECK ((valor > (0)::numeric))
 CON despesas_do_grupo.despesas_grupo_dono_fk FOREIGN KEY (user_id, grupo_id) REFERENCES grupos(user_id, id) ON UPDATE CASCADE ON DELETE CASCADE
 CON despesas_do_grupo.despesas_pagador_dono_fk FOREIGN KEY (user_id, pago_por_id) REFERENCES membros(user_id, id) ON UPDATE CASCADE ON DELETE RESTRICT
-CON dividas.dividas_credor_id_fkey FOREIGN KEY (credor_id) REFERENCES credores(id) ON DELETE SET NULL
+CON dividas.dividas_credor_dono_fk FOREIGN KEY (user_id, credor_id) REFERENCES credores(user_id, id) ON UPDATE CASCADE ON DELETE SET NULL (credor_id)
 CON dividas.dividas_mes_inicial_check CHECK ((mes_inicial ~ '^\d{4}-\d{2}$'::text))
 CON dividas.dividas_parcela_inicial_check CHECK ((parcela_inicial >= 1))
-CON dividas.dividas_pessoa_id_fkey FOREIGN KEY (pessoa_id) REFERENCES credores(id) ON DELETE SET NULL
+CON dividas.dividas_pessoa_dono_fk FOREIGN KEY (user_id, pessoa_id) REFERENCES credores(user_id, id) ON UPDATE CASCADE ON DELETE SET NULL (pessoa_id)
 CON dividas.dividas_pkey PRIMARY KEY (id)
 CON dividas.dividas_total_parcelas_check CHECK ((total_parcelas >= 1))
 CON dividas.dividas_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE
@@ -345,11 +347,12 @@ CON faturas.faturas_competencia_check CHECK ((competencia ~ '^\d{4}-(0[1-9]|1[0-
 CON faturas.faturas_dono_id_unico UNIQUE (user_id, id)
 CON faturas.faturas_pkey PRIMARY KEY (id)
 CON faturas.faturas_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE
-CON fixas.fixas_credor_id_fkey FOREIGN KEY (credor_id) REFERENCES credores(id) ON DELETE SET NULL
+CON fixas.fixas_credor_dono_fk FOREIGN KEY (user_id, credor_id) REFERENCES credores(user_id, id) ON UPDATE CASCADE ON DELETE SET NULL (credor_id)
+CON fixas.fixas_dono_id_unico UNIQUE (user_id, id)
 CON fixas.fixas_pkey PRIMARY KEY (id)
 CON fixas.fixas_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE
 CON fixas.fixas_valor_check CHECK ((valor >= (0)::numeric))
-CON fixas_mes.fixas_mes_fixa_id_fkey FOREIGN KEY (fixa_id) REFERENCES fixas(id) ON DELETE CASCADE
+CON fixas_mes.fixas_mes_fixa_dono_fk FOREIGN KEY (user_id, fixa_id) REFERENCES fixas(user_id, id) ON UPDATE CASCADE ON DELETE CASCADE
 CON fixas_mes.fixas_mes_mes_check CHECK ((mes ~ '^[0-9]{4}-[0-9]{2}$'::text))
 CON fixas_mes.fixas_mes_pkey PRIMARY KEY (user_id, fixa_id, mes)
 CON fixas_mes.fixas_mes_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE
@@ -386,6 +389,7 @@ CON metas.metas_nome_check CHECK (((length(nome) >= 1) AND (length(nome) <= 80))
 CON metas.metas_pkey PRIMARY KEY (id)
 CON metas.metas_prioridade_check CHECK (((prioridade >= 1) AND (prioridade <= 3)))
 CON metas.metas_status_check CHECK ((status = ANY (ARRAY['ativa'::text, 'concluida'::text, 'arquivada'::text])))
+CON metas.metas_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE
 CON metas.metas_valor_alvo_check CHECK ((valor_alvo > (0)::numeric))
 CON pagamentos.pagamentos_mes_check CHECK ((mes ~ '^\d{4}-\d{2}$'::text))
 CON pagamentos.pagamentos_pkey PRIMARY KEY (user_id, mes, item_id)
@@ -1264,6 +1268,7 @@ IDX CREATE INDEX credores_ativo_idx ON public.credores USING btree (user_id, ati
 IDX CREATE INDEX credores_pai_idx ON public.credores USING btree (user_id, credor_pai_id, ordem)
 IDX CREATE INDEX credores_user_idx ON public.credores USING btree (user_id, ordem)
 IDX CREATE INDEX despesas_grupo_idx ON public.despesas_do_grupo USING btree (user_id, grupo_id, data)
+IDX CREATE INDEX dividas_credor_dono_idx ON public.dividas USING btree (user_id, credor_id)
 IDX CREATE INDEX dividas_credor_idx ON public.dividas USING btree (credor_id)
 IDX CREATE INDEX dividas_data_idx ON public.dividas USING btree (user_id, data_compra)
 IDX CREATE INDEX dividas_meio_idx ON public.dividas USING btree (user_id, meio, mes_inicial)
@@ -1271,6 +1276,7 @@ IDX CREATE INDEX dividas_pessoa_idx ON public.dividas USING btree (user_id, pess
 IDX CREATE INDEX dividas_user_idx ON public.dividas USING btree (user_id, ordem)
 IDX CREATE INDEX faturas_cartao_idx ON public.faturas USING btree (user_id, cartao_id, competencia)
 IDX CREATE INDEX faturas_vencimento_idx ON public.faturas USING btree (user_id, vencimento)
+IDX CREATE INDEX fixas_credor_dono_idx ON public.fixas USING btree (user_id, credor_id)
 IDX CREATE INDEX fixas_credor_idx ON public.fixas USING btree (credor_id)
 IDX CREATE INDEX fixas_mes_idx ON public.fixas_mes USING btree (user_id, mes)
 IDX CREATE INDEX fixas_user_idx ON public.fixas USING btree (user_id, ordem)

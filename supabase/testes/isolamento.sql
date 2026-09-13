@@ -103,7 +103,7 @@ end $$;
 
 
 -- ---------------------------------------------------------------------
--- 1 a 7 · o catálogo: o que vale sem depender de nenhuma linha
+-- 1 a 8 · o catálogo: o que vale sem depender de nenhuma linha
 -- ---------------------------------------------------------------------
 
 select pg_temp.confere(1,'toda tabela de public tem RLS ligada',
@@ -159,6 +159,21 @@ select pg_temp.confere(7,'toda função de public tem search_path fixo',
     where s.nspname = 'public'
       and not exists (select 1 from unnest(coalesce(p.proconfig, array[]::text[])) cfg
                        where cfg like 'search_path=%')), 'nenhuma');
+
+
+-- A 015 fechou as cinco últimas FKs de coluna única da V1. Esta linha é o que
+-- impede uma sexta de aparecer: FK que aponta para tabela de `public` sem
+-- levar o `user_id` junto deixa uma linha minha apontar para a linha de outra
+-- pessoa, porque a conferência de FK roda POR FORA do RLS. As FKs para
+-- `auth.users` ficam de fora: `auth.users` não tem dono, ela É o dono.
+select pg_temp.confere(8,'nenhuma FK de coluna única para tabela de public',
+  (select coalesce(string_agg(c.relname || '.' || t.conname, ', ' order by t.conname), 'nenhuma')
+     from pg_constraint t
+     join pg_class c on c.oid = t.conrelid
+     join pg_namespace s on s.oid = c.relnamespace
+    where s.nspname = 'public' and t.contype = 'f'
+      and array_length(t.conkey, 1) = 1
+      and pg_get_constraintdef(t.oid) not like '%auth.users%'), 'nenhuma');
 
 
 -- ---------------------------------------------------------------------
@@ -282,25 +297,25 @@ insert into public.ping (id) values (1);
 
 -- A varredura só vale se NENHUMA tabela tiver ficado vazia: tabela vazia
 -- devolve zero para qualquer papel e passaria de graça no caso 9.
-select pg_temp.confere(8,'o cenário não deixou nenhuma tabela vazia',
+select pg_temp.confere(9,'o cenário não deixou nenhuma tabela vazia',
   pg_temp.tabelas_vazias(), 'nenhuma');
 
 
 -- ---------------------------------------------------------------------
--- 9 a 14 · o outro usuário: enxerga, grava, executa?
+-- 10 a 15 · o outro usuário: enxerga, grava, executa?
 -- ---------------------------------------------------------------------
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"22222222-2222-4222-8222-222222222222"}';
 
 -- `ping` fica de fora: ela não tem dono, e ser legível por todos é o contrato
 -- dela, não um defeito.
-select pg_temp.confere(9,'o outro usuário não enxerga NENHUMA linha de NENHUMA tabela',
+select pg_temp.confere(10,'o outro usuário não enxerga NENHUMA linha de NENHUMA tabela',
   pg_temp.tabelas_com_linha(array['ping']), 'nenhuma');
 
-select pg_temp.confere(10,'nem por NENHUMA view',
+select pg_temp.confere(11,'nem por NENHUMA view',
   pg_temp.views_com_linha(), 'nenhuma');
 
-select pg_temp.deve_falhar(11,'o outro usuário não grava com o dono alheio', $cmd$
+select pg_temp.deve_falhar(12,'o outro usuário não grava com o dono alheio', $cmd$
   insert into public.contas (user_id, nome) values
     ('11111111-1111-4111-8111-111111111111','Conta Invadida')
 $cmd$);
@@ -309,7 +324,7 @@ $cmd$);
 -- nasce do OUTRO, e não de A. O que se prova aqui é que ela não vira linha de
 -- A por omissão.
 insert into public.contas (nome) values ('Conta do Outro');
-select pg_temp.confere(12,'linha sem user_id nasce de quem está logado',
+select pg_temp.confere(13,'linha sem user_id nasce de quem está logado',
   (select user_id from public.contas where nome = 'Conta do Outro'),
   '22222222-2222-4222-8222-222222222222'::uuid);
 
@@ -322,7 +337,7 @@ begin
   update public.transacoes set valor = 1
    where id = '99990001-0000-4000-8000-000000000001';
   get diagnostics atingidas = row_count;
-  insert into resultado values (13,'update por id em linha alheia atinge zero linhas',
+  insert into resultado values (14,'update por id em linha alheia atinge zero linhas',
     atingidas = 0, 'atingidas ' || atingidas);
 end $$;
 
@@ -331,7 +346,7 @@ declare atingidas int;
 begin
   delete from public.transacoes where id = '99990001-0000-4000-8000-000000000001';
   get diagnostics atingidas = row_count;
-  insert into resultado values (14,'delete por id em linha alheia atinge zero linhas',
+  insert into resultado values (15,'delete por id em linha alheia atinge zero linhas',
     atingidas = 0, 'atingidas ' || atingidas);
 end $$;
 
@@ -339,27 +354,27 @@ reset role;
 
 
 -- ---------------------------------------------------------------------
--- 15 a 19 · anon: o visitante que não fez login
+-- 16 a 20 · anon: o visitante que não fez login
 -- ---------------------------------------------------------------------
 set local role anon;
 set local request.jwt.claims = '';
 
-select pg_temp.confere(15,'anon não enxerga NENHUMA linha de NENHUMA tabela',
+select pg_temp.confere(16,'anon não enxerga NENHUMA linha de NENHUMA tabela',
   pg_temp.tabelas_com_linha(array['ping']), 'nenhuma');
 
-select pg_temp.confere(16,'nem por NENHUMA view',
+select pg_temp.confere(17,'nem por NENHUMA view',
   pg_temp.views_com_linha(), 'nenhuma');
 
 -- A exceção declarada, e ela precisa continuar funcionando: é assim que o site
 -- sabe que o banco responde antes de pedir senha.
-select pg_temp.confere(17,'anon LÊ ping, que é a exceção de propósito',
+select pg_temp.confere(18,'anon LÊ ping, que é a exceção de propósito',
   (select count(*) from public.ping), 1::bigint);
 
-select pg_temp.deve_falhar(18,'anon não grava em conta', $cmd$
+select pg_temp.deve_falhar(19,'anon não grava em conta', $cmd$
   insert into public.contas (nome) values ('Conta Anônima')
 $cmd$);
 
-select pg_temp.deve_falhar(19,'anon não grava nem em ping, que ele lê', $cmd$
+select pg_temp.deve_falhar(20,'anon não grava nem em ping, que ele lê', $cmd$
   insert into public.ping (id) values (2)
 $cmd$);
 
@@ -367,22 +382,22 @@ reset role;
 
 
 -- ---------------------------------------------------------------------
--- 20 · o dono continua enxergando o que é dele
+-- 21 · o dono continua enxergando o que é dele
 -- ---------------------------------------------------------------------
 -- O contrário do resto do arquivo, e não é redundância: um schema que negasse
 -- tudo a todo mundo passaria em todos os casos acima.
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"11111111-1111-4111-8111-111111111111"}';
 
-select pg_temp.confere(20,'o dono enxerga as três transações dele',
+select pg_temp.confere(21,'o dono enxerga as três transações dele',
   (select count(*) from public.transacoes), 3::bigint);
-select pg_temp.confere(22,'e o valor que o outro tentou alterar continua o que era',
+select pg_temp.confere(23,'e o valor que o outro tentou alterar continua o que era',
   (select valor from public.transacoes
     where id = '99990001-0000-4000-8000-000000000001'), 100.00::numeric);
 -- 1000 de saldo inicial menos 100. Das três transações, só uma toca a conta: a
 -- parcela de cartão mora na fatura, e a ocorrência de assinatura ainda está
 -- `prevista`. Saldo é o que já saiu, não o que vai sair.
-select pg_temp.confere(21,'e o saldo da conta dele sai pela view',
+select pg_temp.confere(22,'e o saldo da conta dele sai pela view',
   (select saldo from public.saldos_de_conta where nome = 'Conta Um'), 900.00::numeric);
 
 reset role;
