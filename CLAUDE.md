@@ -114,18 +114,53 @@ importar. `docs/CONTRATOS_V1.md` tem o que não pode mudar de comportamento.
 
 Resumindo: `index.html` guarda o HTML e o JS de tela da V1. O CSS saiu para
 `css/` (tokens, base, views-v2) e o cálculo saiu para `js/`, em ES Modules que
-`testes/regras.mjs` importa exatamente iguais. As telas da V2 -- Contas e
-Transações -- nasceram já em `js/ui/v2-screens.js`, e o acesso ao banco mora em
-`js/data/`: nenhum `sb.from` sobrou no `index.html`. Há um segundo `<script>`,
-de 15 linhas, no `<head>`: ele resolve o tema antes da primeira pintura e não
-faz mais nada.
+`testes/regras.mjs` importa exatamente iguais. As telas da V2 -- Contas,
+Cartões, Assinaturas, Grupos e Transações -- moram em `js/ui/v2-screens.js`, e
+o acesso ao banco mora em `js/data/`: nenhum `sb.from` sobrou no `index.html`.
+Há um segundo `<script>`, de 15 linhas, no `<head>`: ele resolve o tema antes
+da primeira pintura e não faz mais nada.
 
-**A V1 e a V2 não se somam.** A V1 responde por compromisso (dívida, fixa,
-receita prevista, projeção); a V2, por movimento (conta, saldo, transação,
-transferência). Marcar dívida como paga NÃO cria transação, e lançar transação
-NÃO marca dívida como paga -- isso é fase seguinte, e inventar a ligação sem
-projeto duplica dinheiro na tela. Não existe "patrimônio líquido" no produto, e
-não deve existir enquanto as duas metades estiverem separadas.
+**A lateral e o rodapé do celular são MONTADOS a partir de
+`js/ui/navigation.js`.** Acrescentar uma tela é acrescentar uma linha no
+registro -- e só isso. Escrever no HTML à mão já fez a tela discordar do
+registro duas vezes.
+
+## A V1 e a V2 se ligam, e continuam sem se somar
+
+A V1 responde por **compromisso** (dívida, fixa, receita prevista, projeção); a
+V2, por **movimento** (conta, saldo, transação, cartão, fatura). As duas hoje se
+ligam pela ponte, e a regra que impede a dupla contagem é uma frase:
+
+> Compromisso liquidado deixa de ser previsto e passa a ser realizado.
+> Ele aparece num lado OU no outro. Nunca nos dois.
+
+Nada acontece automaticamente: transação solta não marca compromisso, marcar
+pago no quadradinho não cria transação, e a ligação só existe quando a pessoa
+usa "Pagar" ou "Receber".
+
+**Quatro contratos governam o que pode ser somado**, e cada um foi escrito
+antes do SQL correspondente:
+
+| Contrato | A frase |
+|---|---|
+| `docs/CONTRATO_PONTE.md` | compromisso liquidado sai do previsto e entra no realizado |
+| `docs/CONTRATO_CARTAO.md` | compra no cartão é despesa; pagamento da fatura não é despesa nova |
+| `docs/CONTRATO_ESTORNO.md` | transação com vínculo estrutural não se estorna, se desfaz |
+| a 008 | assinatura é REGRA, ocorrência é EVENTO |
+
+**Quatro invariantes viraram teste permanente**, e mexer em cálculo sem
+entendê-los é como se quebra o produto:
+
+| | Situação | Resposta |
+|---|---|---|
+| A | compra no cartão 100 + pagamento da fatura 100 | consumo 100, caixa 100 |
+| B | compromisso 500 + o pagamento dele | 500 no mês |
+| C | transferência de A para B | patrimônio inalterado |
+| D | receita prevista 1.000 + o recebimento | 1.000 no mês |
+
+Continua **não existindo** "patrimônio líquido" no produto: obrigação e caixa
+vão para blocos diferentes do Início, e a fórmula que os juntar, se um dia
+existir, precisa estar escrita antes de aparecer na tela.
 
 ## Restrições que não são negociáveis
 
@@ -202,7 +237,7 @@ tem a tabela o erro passa despercebido e só aparece numa instalação nova.
 ```bash
 node testes/regras.mjs
 ```
-152 casos sobre uma fixture sintética, importando os mesmos módulos que o
+297 casos sobre uma fixture sintética, importando os mesmos módulos que o
 navegador carrega -- não uma cópia deles. Inclui a regressão que amarra
 `saldoAberto()` ao valor de conferência do SQL, lido do próprio
 `supabase-setup.sql`: se a carga de exemplo mudar e a fixture não acompanhar, o
@@ -219,14 +254,33 @@ incoerente: recalcula a fatura de cada compra de cartão e aborta se o mês
 declarado não bater com o fechamento.
 
 ```bash
+node testes/fluxos.mjs
+```
+204 casos que dirigem a interface num navegador de verdade, em desktop e
+celular. Eles existem porque `regras.mjs` prova o CÁLCULO e provou certo o
+tempo todo enquanto a transferência estava travada: aquele defeito só existia
+com DOM. Precisa de Playwright e de um Chromium; se não achar, avisa e sai com
+zero em vez de fingir que rodou.
+
+Ele pega o que nenhum outro pega: identificador usado fora do módulo onde foi
+declarado, tela que não se refaz depois de um recarregamento, e rolagem lateral
+em 320 px.
+
+```bash
 node testes/audita.mjs
 ```
 Auditoria de repositório público. Crítico bloqueia commit e push.
 
-`supabase/testes/002_integridade.sql` são 27 casos de **modelo**, que rodam no
-banco de verdade: cole no SQL Editor ou mande por `execute_sql`. O arquivo
-abre em `begin` e fecha em `rollback`, então não grava nada. Migração que muda
-regra de modelo vem com teste assim.
+Os arquivos de `supabase/testes/` rodam no banco de VERDADE: cole no SQL Editor
+ou mande por `execute_sql`. Cada um abre em `begin` e fecha em `rollback`, então
+não grava nada. Migração que muda regra de modelo vem com teste assim, e ele
+roda como `authenticated` e como `anon` -- teste de autorização rodando como
+`postgres` não prova nada, porque `postgres` passa por cima de RLS e de grant.
+
+**Rode a suíte ANTES de aplicar a migração**, junto com o próprio DDL numa
+transação revertida no fim. Esse ensaio já encontrou dois defeitos reais que só
+apareceriam em produção: uma variável com o mesmo nome de uma coluna, que o
+plpgsql só recusa em tempo de execução, e uma soma de fatura sem sinal.
 
 Cinco hooks rodam sozinhos depois de cada Write/Edit:
 

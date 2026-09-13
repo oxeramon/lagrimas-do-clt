@@ -187,21 +187,52 @@ vira botão: com etiqueta "média" enquanto é palpite, sem ela depois de inform
 
 ## Schema
 
-8 tabelas da V1. 5 seções: TABELAS, SEGURANÇA, CARGA INICIAL, MIGRAÇÃO,
-CONFERÊNCIA. As 4 tabelas da V2 e as 4 funções de transferência vieram depois,
-pelas migrações 001 a 004; o registro está em `MIGRACOES.md`.
+8 tabelas da V1, em `supabase-setup.sql`, com 5 seções: TABELAS, SEGURANÇA,
+CARGA INICIAL, MIGRAÇÃO, CONFERÊNCIA. As 13 tabelas e 5 views da V2 vieram
+pelas migrações 001 a 010; o registro está em `MIGRACOES.md`.
 
-**A fronteira entre as duas metades.** A V1 responde por compromisso: dívida,
-parcela, conta fixa, receita prevista, projeção. A V2 responde por movimento:
-conta, saldo, transação, transferência. Elas NÃO conversam -- marcar dívida
-como paga não cria transação, e lançar transação não marca dívida como paga.
-Isso é deliberado nesta fase, e quem for ligar as duas precisa desenhar a
-regra antes: sem ela, o mesmo dinheiro aparece nos dois lados.
+**A fronteira entre as duas metades, e a ponte.** A V1 responde por
+compromisso: dívida, parcela, conta fixa, receita prevista, projeção. A V2
+responde por movimento: conta, saldo, transação, cartão, fatura.
+
+Elas **se ligam** pela tabela `liquidacoes`, e a regra que impede a dupla
+contagem é uma frase:
+
+> Compromisso liquidado deixa de ser previsto e passa a ser realizado.
+> Ele aparece num lado OU no outro. Nunca nos dois.
+
+**Nada acontece automaticamente.** Transação solta não marca compromisso;
+marcar pago no quadradinho não cria transação. A ponte só existe quando a
+pessoa usa "Pagar" ou "Receber", e isso é deliberado: adivinhar qual transação
+corresponde a qual compromisso é a maneira mais rápida de contar duas vezes.
+
+Quem for mexer em cálculo precisa ler os quatro contratos antes:
+`CONTRATO_PONTE.md`, `CONTRATO_CARTAO.md`, `CONTRATO_ESTORNO.md`, e a seção de
+assinaturas em `MIGRACOES.md`. Cada um foi escrito **antes** do SQL, porque a
+decisão errada nesses pontos não aparece como erro -- aparece como um número
+plausível e errado.
 
 | Tabela | RLS | Policy | Trigger |
 |---|---|---|---|
 | dividas, fixas, fixas_mes, credores, receitas, pagamentos, config | sim | `user_id = auth.uid()` | `set_user_id` |
+| instituicoes, contas, categorias, transacoes, liquidacoes | sim | `user_id = auth.uid()` | `set_user_id` |
+| cartoes, faturas, compras_de_cartao, assinaturas | sim | `user_id = auth.uid()` | `set_user_id` |
+| grupos, membros, despesas_do_grupo, rateios, acertos | sim | `user_id = auth.uid()` | `set_user_id` |
 | ping | sim | `select` para `anon` | — (sem `user_id`, de propósito) |
+
+**As FKs da V2 são compostas, `(user_id, id)`**, e não só `id`. A checagem de
+chave estrangeira roda por dentro do banco e **não passa por RLS** -- sem o
+dono na chave, ela seria a única porta que aceita apontar para linha alheia.
+
+**As cinco views são `security_invoker`**: `saldos_de_conta`,
+`faturas_resolvidas`, `assinaturas_resolvidas`, `saldos_do_grupo` e
+`transacoes_com_estorno`. Sem isso elas rodariam com a permissão de quem as
+criou e entregariam dado de outra pessoa.
+
+**Nenhuma view guarda o que deriva.** Total de fatura, situação, custo
+equivalente de assinatura e saldo de grupo são calculados na leitura. Guardar
+criaria dois números com o mesmo nome, e eles discordariam na primeira
+correção.
 
 `set_user_id()` só preenche se vier nulo; a policy `with check` barra quem tentar
 mandar `user_id` alheio.
@@ -350,6 +381,12 @@ O que segue é dívida técnica conhecida, levantada por leitura do próprio
 | O rateio não chega ao fluxo nem à projeção: `totalDividas` usa a parcela cheia, então nenhuma tela desconta o que volta de terceiro | `totalDividas`, `renderFluxo`, `renderProj` |
 | Conta variável aparece com a média sem etiqueta na aba Dívidas, enquanto na aba Mês a etiqueta existe | `renderFixas` |
 | `pagamentos` é carregada sem paginação. O PostgREST corta em 1000 linhas por padrão, e aí item pago volta como não pago | `carregaAgora` |
+| `v2-screens.js` passou de 1.800 linhas e comporta cinco telas; quebrar por tela é o próximo passo natural | `js/ui/v2-screens.js` |
+| A regra do ciclo do cartão e a divisão em centavos existem em SQL e em JS. A duplicação é deliberada -- a tela precisa responder antes de ir ao banco -- e está amarrada pelos mesmos casos de teste dos dois lados | 007/009 e `cards.js`/`groups.js` |
+| Assinatura semanal é cadastrada, entra no custo e não vira ocorrência: a competência por mês não distingue quatro cobranças do mesmo mês | 008 |
+| Pagamento parcial de fatura não existe: juros rotativo sem modelo de juros vira número errado com cara de certo | 007 |
+| Estorno tem contrato, banco, regra e teste, e não tem botão | 010 |
+| Nenhum hook confere ESCOPO de identificador entre módulos. Usar no `index.html` algo declarado em `v2-screens.js` compila, passa nos hooks e só quebra no navegador | `.claude/hooks/` |
 | A projeção recalcula `saldoAposMes` por linha da tabela, e `renderAll` redesenha as sete telas a cada mudança | `saldoRestante`, `renderAll` |
 
 ## Onde mexer para cada coisa
@@ -357,7 +394,10 @@ O que segue é dívida técnica conhecida, levantada por leitura do próprio
 | Tarefa | Arquivos e pontos |
 |---|---|
 | Nova tabela | `supabase-setup.sql` seções 1 e 2 (os quatro blocos juntos); use `/nova-migration`; **rode o SQL antes de publicar** |
-| Nova regra de cálculo | `index.html` 1378–1594, e um caso em `testes/regras.mjs` |
+| Nova regra de cálculo | um módulo em `js/domain/`, e um caso em `testes/regras.mjs` |
+| Nova tela da V2 | painel no `index.html`, uma LINHA no registro de `js/ui/navigation.js` (a lateral e o rodapé se montam sozinhos), render e ligação em `js/ui/v2-screens.js` |
+| Nova regra que o banco precisa garantir | migração nova, teste em `supabase/testes/` rodando como `authenticated` E como `anon`, e o ensaio junto com o DDL numa transação revertida ANTES de aplicar |
+| Mudar o que entra num total | leia os quatro contratos primeiro; depois `reconciliation.js` ou `cards.js`, e um caso para cada invariante que o número toca |
 | Novo gráfico | `index.html` 2328+, usando `svgEl` e `ligaTip`; cor por `corCat` |
 | Novo campo num formulário | markup em 1010–1359, `abre*` e o submit em 3021–4239, coluna no SQL |
 | Mudar cor ou espaçamento | só a camada semântica do CSS e o bloco escuro |

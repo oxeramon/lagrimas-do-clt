@@ -14,8 +14,13 @@ Pages entrega por HTTPS.
 ## Estrutura
 
 ```
-index.html            4380 linhas · CSS 35–784, HTML 786–1399, JS 1400–4378
+index.html            4554 linhas · HTML e o render da V1
                       um segundo <script> de 15 linhas no <head>, só para o tema
+
+css/
+  tokens.css    125   cores, espaços, pesos. Um bloco escuro, e só um
+  base.css      709   o que a V1 já usava
+  views-v2.css  403   contas, cartões, assinaturas, grupos
 
 js/
   core/               não conhece dinheiro nem dívida
@@ -26,29 +31,41 @@ js/
     dom.js        6   o único atalho de DOM do projeto
 
   domain/             conhece dinheiro, NÃO conhece DOM
-    debts.js    161   parcela, saldo, quitado, prazo, progresso, rateio
-    income.js    46   receita pontual e recorrente como intervalo
-    creditors.js 35   hierarquia banco/cartão de dois níveis
-    fixed.js     34   conta fixa e a média que não reescreve o passado
-    billing.js   26   em que fatura uma compra cai (função pura)
+    debts.js         161  parcela, saldo, quitado, prazo, progresso, rateio
+    income.js         46  receita pontual e recorrente como intervalo
+    creditors.js      35  hierarquia banco/cartão de dois níveis
+    fixed.js          34  conta fixa e a média que não reescreve o passado
+    billing.js        26  em que fatura uma compra cai, na régua da V1
+    accounts.js      102  tipos, liquidez e os indicadores de conta
+    categories.js     78  árvore de até três níveis, entrada e saída separadas
+    transactions.js  135  sinal, filtro, agrupamento, totais
+    reconciliation.js 164 previsto × realizado, e o que NÃO se soma
+    cards.js         200  ciclo da fatura, consumo × caixa, parcelamento
+    subscriptions.js  92  regra de assinatura e custo equivalente
+    groups.js        112  divisão em centavos, saldos e quem paga a quem
+
+  data/               a única porta para o Supabase
+    client.js         65  conexão, erro legível, embrulho { dados, erro }
+    session.js        33  entrar, sair, observar
+    v1-repository.js 110  as oito tabelas da V1
+    v2-repository.js 346  as treze da V2, e todas as RPCs
 
   ui/                 conhece DOM
-    navigation.js 69  registro de abas e troca de painel
+    navigation.js    153  o registro de abas, e a lateral montada a partir dele
+    v2-screens.js   1887  contas, cartões, assinaturas, grupos, transações
+    institution-catalog.js 67   marcas conhecidas e o monograma de reserva
+    category-catalog.js    62   a árvore padrão de categorias
 
 supabase/
-  migrations/                      todas aplicadas; ver docs/MIGRACOES.md
-    001_v2_foundation.sql          as quatro tabelas da V2
-    002_v2_integrity_hardening.sql FK por dono, sinal, transferência, estorno
-    003_v2_search_path_das_funcoes.sql  duas linhas de endurecimento
-  testes/
-    002_integridade.sql            27 casos de modelo, rodam e dão rollback
-  README.md                        qual arquivo é o quê
-supabase-setup.sql                 instalação limpa da V1
+  migrations/          dez, todas aplicadas; ver docs/MIGRACOES.md
+  testes/              casos que rodam no banco real e terminam em rollback
+supabase-setup.sql     instalação limpa da V1
 
 testes/
-  regras.mjs        152 casos de cálculo, importando os módulos de produção
-  preview.mjs       gera preview.html com o Supabase dublado
-  audita.mjs        auditoria de repositório público
+  regras.mjs      297 casos de cálculo, importando os módulos de produção
+  fluxos.mjs      204 casos que dirigem a interface num navegador de verdade
+  preview.mjs     gera preview.html com o Supabase dublado
+  audita.mjs      auditoria de repositório público
 ```
 
 ## Dependências: o que pode e o que não pode
@@ -194,22 +211,56 @@ composta por `(user_id, coluna)`. A checagem de FK roda por fora do RLS, por
 definição do Postgres, então sem isso uma linha podia apontar para objeto
 alheio -- e RLS esconde, não impede.
 
-## Tabelas preparadas
+## As tabelas da V2
 
-`supabase/migrations/001_v2_foundation.sql`, **aplicada em 12/09/2026**
-(versão `20260912185920`; o registro está em `MIGRACOES.md`):
+Dez migrações aplicadas; o histórico completo está em
+[`MIGRACOES.md`](MIGRACOES.md).
 
-| Tabela | Guarda |
+| Tabela | Guarda | Migração |
+|---|---|---|
+| `instituicoes` | nome, tipo, logo, cor de marca | 001 |
+| `contas` | instituição, tipo, saldo inicial e sua data, liquidez | 001 |
+| `categorias` | árvore de até 3 níveis, entrada e saída separadas | 001 |
+| `transacoes` | conta **ou** fatura, categoria, tipo, natureza, valor, data, status, origem, transferência, estorno, compra, parcela, assinatura, competência | 001, 007, 008 |
+| `liquidacoes` | a ponte: qual compromisso, de qual competência, por qual transação | 005 |
+| `cartoes` | ciclo, limite, conta padrão, **no máximo quatro dígitos** | 007 |
+| `faturas` | cartão, competência e as três datas do ciclo | 007 |
+| `compras_de_cartao` | a compra lógica que vira N parcelas | 007 |
+| `assinaturas` | a REGRA: valor, frequência, início, fim | 008 |
+| `grupos`, `membros` | grupo e quem participa. Nome e apelido, nada mais | 009 |
+| `despesas_do_grupo`, `rateios` | a despesa e as partes, com a soma cobrada pelo banco | 009 |
+| `acertos` | a quitação da obrigação, com vínculo opcional a uma transação | 009 |
+
+E cinco views, todas `security_invoker`: `saldos_de_conta`,
+`faturas_resolvidas`, `assinaturas_resolvidas`, `saldos_do_grupo` e
+`transacoes_com_estorno`. **Nenhuma delas guarda o que dá para derivar** --
+total de fatura, situação, custo equivalente e saldo de grupo saem da view, e
+não de coluna.
+
+## Os quatro contratos
+
+Cada um foi escrito **antes** do SQL correspondente, porque a decisão errada
+nestes pontos não aparece como erro: aparece como número plausível e errado.
+
+| Contrato | A frase que o resume |
 |---|---|
-| `instituicoes` | nome, tipo, logo, cor de marca, ativo |
-| `contas` | instituição, tipo, saldo inicial, data do saldo, liquidez, ativo |
-| `categorias` | hierarquia de até 3 níveis, entrada e saída em árvores separadas |
-| `transacoes` | conta, categoria, tipo, natureza, valor, data, status, origem, grupo de transferência, estorno de |
+| [ponte V1↔V2](CONTRATO_PONTE.md) | compromisso liquidado deixa de ser previsto e passa a ser realizado; aparece num lado ou no outro, nunca nos dois |
+| [cartão e fatura](CONTRATO_CARTAO.md) | compra no cartão é despesa; pagamento da fatura não é despesa nova |
+| [estorno](CONTRATO_ESTORNO.md) | transação que carrega vínculo estrutural não se estorna, se desfaz |
+| assinatura (na 008) | assinatura é REGRA, ocorrência é EVENTO |
 
-A 001 foi puramente aditiva e a V1 não sentiu nada, porque não consulta nada
-dali. A **002** endureceu o modelo com as tabelas ainda vazias, que era a hora
-certa: com dado dentro ela teria cortado linha. As quatro seguem vazias, e
-**nenhuma tela consulta nenhuma delas ainda**.
+Os quatro são o mesmo cuidado visto de ângulos diferentes: **duas coisas que se
+relacionam não são a mesma coisa, e somá-las conta o mesmo dinheiro duas
+vezes.**
+
+### Os quatro invariantes que viraram teste permanente
+
+| | Situação | Resposta certa |
+|---|---|---|
+| A | compra no cartão 100 + pagamento da fatura 100 | consumo 100, caixa 100. Nunca 200 |
+| B | compromisso de 500 + o pagamento dele | 500 no mês. Nunca 1.000 |
+| C | transferência de A para B | patrimônio inalterado |
+| D | receita prevista 1.000 + o recebimento | 1.000 no mês. Nunca 2.000 |
 
 ## Estratégia de migração
 
@@ -253,33 +304,33 @@ proibidos seria publicar os dados.
 
 | O quê | Onde |
 |---|---|
-| Render, diálogos, CSV e sessão ainda no `index.html` | 2900 linhas de JS |
-| Acesso ao Supabase espalhado pelos handlers, não isolado numa camada | 31 chamadas `sb.from` |
+| Render da V1, diálogos, CSV e sessão ainda no `index.html` | ~3.200 linhas de JS |
+| `v2-screens.js` passou de 1.800 linhas e comporta quatro telas | `js/ui/v2-screens.js` |
+| A regra do ciclo do cartão e a divisão em centavos existem em SQL e em JS | 007/009 e `cards.js`/`groups.js`; amarradas pelos mesmos casos de teste |
 | `fixasEstimadas` existe e nunca é chamada | `js/domain/fixed.js` |
 | "Sobra" do Painel e "Sobra estimada" do Mês podem divergir | `renderPainel` e `renderMes` |
-| Rateio não chega ao fluxo nem à projeção | `totalDividas` |
+| Rateio da V1 não chega ao fluxo nem à projeção | `totalDividas` |
 | `pagamentos` carregada sem paginação; PostgREST corta em 1000 | `carregaAgora` |
-| `Math.min` do progresso é defensivo e inalcançável com dado consistente | `js/domain/debts.js` |
-| Conta variável mostra a média sem etiqueta na aba Dívidas | `renderFixas` |
-| `auth.uid()` reavaliada por linha nas 12 policies; o conserto pede mexer também nas oito da V1 | policies de RLS |
-| Instalação do zero já não cabe num arquivo só: são três migrações depois dele | `supabase-setup.sql` |
+| Assinatura semanal é cadastrada e não vira ocorrência | 008, declarado em três lugares |
+| Pagamento parcial de fatura não existe | 007, por causa de juros rotativo |
+| Estorno tem contrato, banco e regra, e não tem botão | 010 |
+| `auth.uid()` reavaliada por linha nas policies | aceito; a escala aqui é um usuário |
+| Instalação do zero já não cabe num arquivo só | `supabase-setup.sql` + dez migrações |
+| Nenhum hook confere ESCOPO de identificador entre módulos | dois erros assim só apareceram no navegador |
 
 ## Roadmap
 
-**Agora:** contas e transações na tela. O banco deixou de ser o que falta -- as
-três migrações rodaram, o modelo está provado por 27 casos e as quatro tabelas
-esperam vazias. Falta a interface, e ela é o único passo entre o modelo e o
-uso.
+**Feito:** contas, transações, transferências, a ponte com a V1, previsto ×
+realizado, cartões, faturas, parcelamento, pagamento de fatura, assinaturas com
+recorrência, grupos com rateio e acerto, e o contrato de estorno.
 
-**Junto:** extrair o acesso ao Supabase para `js/data/`, e depois o render em
-`js/ui/render-*.js`. É o que falta para o `index.html` virar só a casca, e a
-tela nova é a hora natural de estrear a camada em vez de espalhar mais 31
-chamadas soltas.
+**Agora:** o botão de estorno -- a regra já está provada, falta a tela. E o
+calendário financeiro, que hoje é a lista do Mês.
 
-**Em seguida:** cartões e faturas como entidade própria, saindo de `credores`;
-calendário financeiro; metas.
+**Em seguida:** metas; quebrar `v2-screens.js` por tela; tirar o render da V1
+do `index.html`.
 
-**Mais adiante:** grupos e rateio no estilo Tricount, projeção de caixa,
-simulador de quitação, entrada por mensagem com IA.
+**Fora de escopo, e continua fora:** WhatsApp, IA, OCR, chatbot, agente
+financeiro, classificação automática e importação bancária automática.
 
 A ordem importa: cada uma depende da anterior estar testada.

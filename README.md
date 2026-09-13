@@ -15,25 +15,38 @@ e sem dependência de conta corporativa.
 | **Projeção** | 12 meses de compromisso contra a renda de cada mês |
 | **Ajustes** | renda base, credores, categorias, instituições, importação e backup |
 
-### Duas metades, e elas não se somam
+### Duas metades que se ligam, e nunca se somam
 
-O app está no meio de uma troca de motor, e é importante saber qual metade
-responde o quê:
+O app tem dois lados, e saber qual responde o quê é o que faz os números
+fazerem sentido:
 
 | | Responde por | Onde vive |
 |---|---|---|
-| **Compromisso** | dívidas, parcelas, contas fixas, receitas previstas, projeção | Dívidas, Receitas, Projeção |
-| **Movimento** | contas, saldo, o que entrou e saiu, transferências | Contas, Transações |
+| **Compromisso** | dívidas, parcelas, contas fixas, receitas previstas, projeção | Mês, Dívidas, Receitas, Projeção |
+| **Movimento** | contas, saldo, o que entrou e saiu, cartões, faturas | Contas, Cartões, Transações |
 
 A primeira fala do que **ainda vai** acontecer. A segunda, do que **já**
-aconteceu. Somar as duas num número só contaria o mesmo dinheiro duas vezes,
-então o app não faz isso -- e é por isso que ainda não existe um "patrimônio
-líquido" na tela.
+aconteceu. Somar as duas num número só contaria o mesmo dinheiro duas vezes.
 
-**Marcar uma dívida como paga NÃO cria transação, e lançar uma transação NÃO
-marca dívida como paga.** As duas pontas são independentes de propósito nesta
-fase. A ligação entre elas é trabalho de uma fase seguinte, e inventá-la sem
-projeto é a maneira mais rápida de duplicar dinheiro na tela.
+Os dois lados hoje **se ligam**: dá para pagar um compromisso escolhendo a
+conta, e receber uma receita prevista. A regra que impede a dupla contagem cabe
+numa frase:
+
+> Compromisso liquidado deixa de ser previsto e passa a ser realizado.
+> Ele aparece num lado **ou** no outro. Nunca nos dois.
+
+E nada acontece sozinho. Lançar uma transação solta não marca compromisso
+nenhum; marcar pago no quadradinho não cria transação. A ligação só existe
+quando você usa **Pagar** ou **Receber** — adivinhar qual transação corresponde
+a qual compromisso é a maneira mais rápida de contar dinheiro duas vezes.
+
+Pelo mesmo motivo, **compra no cartão é despesa e pagamento da fatura não é
+despesa nova.** Uma compra de R$ 100 paga na fatura é R$ 100 de gasto e R$ 100
+que saíram da conta — nunca R$ 200 em lugar nenhum.
+
+Continua sem existir um "patrimônio líquido" na tela: obrigação e caixa ficam
+em blocos separados no Início, e a fórmula que os juntar, se um dia existir,
+precisa estar escrita antes de aparecer.
 
 ### O que ele sabe fazer
 
@@ -53,6 +66,28 @@ Quando a conta chega, você informa o real daquele mês, sem reescrever os outro
 
 **Compra antiga.** Lançando uma dívida na parcela 4 de 9, o app entende que 3
 já foram pagas e as mostra nos meses delas.
+
+**Pagar e receber.** No Mês, cada compromisso ganha um botão: escolha a conta e
+a data, e ele vira uma saída de verdade — e sai do "falta pagar" no mesmo
+movimento. Em Receitas, o mesmo com **Receber**. A conta do mês não muda por
+causa disso: o dinheiro só troca de coluna.
+
+**Cartões e faturas.** Cadastre o cartão com o dia de fechamento e o de
+vencimento, e o app diz em qual fatura cada compra cai — inclusive quando o
+fechamento é dia 31 e o mês tem 28. A fatura nunca é rotulada por um mês solto:
+ela mostra as duas datas, porque "a fatura de setembro" quer dizer coisas
+diferentes para o app e para você.
+
+**Compra parcelada.** Uma compra em 3x vira três parcelas em três faturas, e os
+centavos que não dividem vão para a primeira. A soma é exatamente o valor.
+
+**Assinaturas.** Aquelas cobranças que chegam sozinhas. O app mostra quanto
+custam por mês somadas — e converte a anual para o equivalente mensal, porque
+R$ 120 por ano parece maior que R$ 30 por mês e é um terço.
+
+**Contas divididas.** Grupos com quem você racha: quem pagou, quanto cabe a
+cada um, quem deve a quem, e o acerto quando alguém paga. O grupo calcula a
+obrigação; o dinheiro só entra na sua conta quando você escolhe a conta.
 
 **Tema claro ou escuro.** O botão **Tema**, no rodapé da lateral e no topo do
 celular, gira entre três posições: automático, claro e escuro. Em automático ele
@@ -230,6 +265,28 @@ Há exatamente **duas exceções**, e as duas existem porque o dado não se calc
 `pagamentos` guarda qual item foi pago em qual mês, e `fixas_mes` guarda quanto
 uma conta variável veio. Pagar é um ato; a conta de luz chega.
 
+### E as tabelas do lado do movimento
+
+| Tabela | Conteúdo |
+|---|---|
+| `instituicoes`, `contas` | onde o dinheiro está, com saldo inicial e liquidez |
+| `categorias` | árvore de até três níveis, entrada e saída separadas |
+| `transacoes` | o que entrou e saiu, e de onde |
+| `liquidacoes` | a ponte: qual compromisso, de qual mês, por qual transação |
+| `cartoes`, `faturas`, `compras_de_cartao` | cartão, ciclo e a compra que vira N parcelas |
+| `assinaturas` | a regra da cobrança que se repete |
+| `grupos`, `membros`, `despesas_do_grupo`, `rateios`, `acertos` | contas divididas |
+
+**O cartão guarda no máximo os quatro últimos dígitos**, e o banco recusa
+qualquer coisa diferente disso. Número completo, CVV, validade e senha não têm
+onde ser guardados. Membro de grupo guarda nome e apelido, e nada mais: sem
+e-mail, sem telefone, sem documento.
+
+**Nenhuma dessas tabelas guarda o que dá para derivar.** Total de fatura,
+situação da fatura, custo anual de assinatura e saldo de grupo saem de views, e
+não de colunas — número guardado envelhece sozinho e passa a discordar do que
+lhe deu origem.
+
 Todas as tabelas com dados pessoais têm RLS ligado, policy por `auth.uid()` e
 trigger que preenche o `user_id`. O repositório é público e a chave publicável
 fica visível no HTML, então **RLS é a única coisa que separa os seus dados de
@@ -251,10 +308,20 @@ scripts abaixo precisam só do Node.
 node testes/regras.mjs
 ```
 
-Roda 152 casos sobre os mesmos módulos que o navegador carrega: parcelas,
+Roda 297 casos sobre os mesmos módulos que o navegador carrega: parcelas,
 intervalos de receita, renda do mês, contas fixas variáveis, fatura de cartão,
-hierarquia banco/cartão e a regressão que amarra o saldo devedor ao valor de
-conferência do `supabase-setup.sql`. Rode depois de mexer em qualquer conta.
+hierarquia banco/cartão, ciclo de fatura, divisão em centavos, e a regressão
+que amarra o saldo devedor ao valor de conferência do `supabase-setup.sql`.
+Rode depois de mexer em qualquer conta.
+
+```bash
+node testes/fluxos.mjs
+```
+
+Roda 204 casos dirigindo a interface num navegador de verdade, em desktop e em
+celular. Ele pega o que teste de cálculo não pega: botão que não responde,
+tela que não se atualiza, e rolagem lateral em 320 px. Precisa de Playwright e
+de um Chromium; sem eles, avisa e sai sem falhar.
 
 ```bash
 node testes/preview.mjs
