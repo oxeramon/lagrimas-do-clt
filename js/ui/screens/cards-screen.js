@@ -106,11 +106,19 @@ export function renderCartoes(){
 
    A situação vai por rótulo E por cor, nunca só por cor. */
 function linhaDeFatura(f){
-  const rotulo = { aberta: "Aberta", fechada: "A pagar", paga: "Paga" }[f.situacao] || f.situacao;
+  const rotulo = { aberta: "Aberta", fechada: "A pagar", paga: "Paga",
+                   parcial: "Parcial" }[f.situacao] || f.situacao;
+  /* Numa fatura parcial, o número que decide é o que FALTA. Mostrar o total
+     faria a linha dizer que se deve mais do que se deve -- é exatamente o tipo
+     de rótulo certo sobre o número errado que já custou três defeitos. O total
+     não some: ele vira contexto, ao lado das datas. */
+  const parcial = f.situacao === "parcial";
   return '<button type="button" class="fatura-linha" data-fatura="' + esc(f.faturaId) + '">'
-    + '<span class="fatura-quando">' + esc(rotuloDaFatura(f)) + '</span>'
+    + '<span class="fatura-quando">' + esc(rotuloDaFatura(f))
+    + (parcial ? " · de " + esc(money(f.total)) : "") + '</span>'
     + '<span class="pill sit-' + esc(f.situacao) + '">' + esc(rotulo) + '</span>'
-    + '<span class="fatura-total num">' + money(f.total) + '</span>'
+    + '<span class="fatura-total num">'
+    + money(parcial ? Number(f.restante || 0) : Number(f.total || 0)) + '</span>'
     + '</button>';
 }
 

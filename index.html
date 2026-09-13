@@ -1016,7 +1016,17 @@
   <div class="dlg-h"><h2 id="ftTitulo">Fatura</h2><button type="button" class="btn ghost" data-fechar="dlgFatura" aria-label="Fechar"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M18 6L6 18M6 6l12 12"/></svg></button></div>
   <div class="formgrid">
     <p class="hint full" id="ftResumo"></p>
+    <!-- Total, pago e o que falta, lado a lado. "Falta" é o número que decide a
+         próxima ação, então ele não fica escondido dentro de uma frase. -->
+    <div class="full fatura-saldo" id="ftSaldo" hidden>
+      <div><span class="rot">Total</span><b id="ftTotal">—</b></div>
+      <div><span class="rot">Pago</span><b id="ftPago">—</b></div>
+      <div><span class="rot">Falta</span><b id="ftRestante">—</b></div>
+    </div>
     <div class="full" id="ftItens"></div>
+    <!-- Os pagamentos já feitos, cada um com o próprio desfazer. Desfazer é por
+         pagamento desde a 012, porque uma fatura recebe N. -->
+    <div class="full" id="ftPagamentos"></div>
     <div class="full formgrid" id="ftPagar" style="padding:0">
       <div class="field"><label for="ft_conta">Pagar com</label><select id="ft_conta" required></select></div>
       <div class="field"><label for="ft_valor">Valor (R$)</label>
@@ -1027,7 +1037,6 @@
     <p class="hint full" id="ftErro" role="alert" hidden></p>
   </div>
   <div class="dlg-f">
-    <button type="button" class="btn ghost" id="ftDesfazer" hidden>Desfazer o pagamento</button>
     <span style="flex:1"></span>
     <button type="button" class="btn" data-fechar="dlgFatura">Fechar</button>
     <button type="button" class="btn primary" id="ftPagarBtn">Pagar fatura</button>

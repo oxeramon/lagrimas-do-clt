@@ -62,6 +62,24 @@ const DOCS_DE_POLITICA = [
   /^\.claude\/skills\/public-repo-hygiene\/SKILL\.md$/,
   /^docs\/ARCHITECTURE_V2\.md$/,
   /^testes\/audita\.mjs$/,
+  /* MIGRAÇÃO FALA DE PAPEL DE BANCO, e não tem como não falar: `grant ... to
+     service_role` é o comando, e o comentário que explica o comando repete o
+     nome. A 013 existe inteira por causa de um default do Supabase que concede
+     execute a anon, authenticated e service_role -- descrever isso sem escrever
+     os três nomes seria descrever pela metade.
+
+     Só as regras de FORMATO continuam valendo aqui: um JWT, uma chave de
+     serviço ou um CPF dentro de uma migração segue sendo crítico. O que sai de
+     cena é a regra de NOME, que acusava a própria explicação.
+
+     (E repare que este comentário não soletra o prefixo da chave de serviço:
+     a regra dele é de FORMATO, e vale até aqui dentro. Foi assim que ele
+     acusou a si mesmo na primeira escrita desta explicação.)
+
+     E migração aplicada é imutável, o que torna esta entrada obrigatória e não
+     conveniente: sem ela a única saída seria editar um arquivo que já rodou,
+     que é exatamente o que o projeto proíbe. */
+  /^supabase\/migrations\/.+\.sql$/,
 ];
 const ehDocDePolitica = (rel) => DOCS_DE_POLITICA.some((re) => re.test(rel));
 

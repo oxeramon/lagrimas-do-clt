@@ -269,6 +269,20 @@ export const pagaFatura = (p) => consulta(
     p_data: p.data, p_obs: p.obs || "",
   }), "fatura");
 
+/* Os pagamentos de UMA fatura, do mais recente para o mais antigo. Desde a 012
+   uma fatura recebe N; antes era um só, e o id dele vinha na própria view. */
+export const pagamentosDaFatura = (faturaId) => consulta(
+  bancoV2().from("liquidacoes").select("*")
+    .eq("tipo", "fatura").eq("item_id", faturaId)
+    .order("criado_em", { ascending: false }), "pagamentos da fatura");
+
+/* Desfaz UM pagamento. `desfazLiquidacao` não serve aqui: ela apaga tudo
+   daquela competência, e numa fatura com três pagamentos apagaria os três --
+   quem clicou queria desfazer um. Ver `supabase/migrations/012_...`. */
+export const desfazPagamentoDeFatura = (pagamentoId) => consulta(
+  bancoV2().rpc("desfaz_pagamento_de_fatura", { p_pagamento: pagamentoId }),
+  "desfazer o pagamento");
+
 /* Encontra OU cria a fatura do ciclo daquela data. Idempotente: chamar duas
    vezes devolve a mesma fatura, e quem garante é o `unique` do banco. */
 export const faturaDoCartao = (cartaoId, data) => consulta(

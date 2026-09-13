@@ -484,12 +484,54 @@ console.log("\ncartão e fatura");
     valor: document.getElementById("ft_valor").value,
     avisa: !document.getElementById("ftAviso").hidden,
     itens: document.querySelectorAll("#ftItens .row").length,
+    total: document.getElementById("ftTotal").textContent.replace(/ /g, " "),
+    falta: document.getElementById("ftRestante").textContent.replace(/ /g, " "),
   }));
   eq("o diálogo da fatura abre", noDlg.aberto, true);
-  eq("com o total já preenchido", noDlg.valor, "100.00");
-  eq("e avisa que o pagamento é integral ANTES do clique", noDlg.avisa, true);
+  eq("com o que FALTA já preenchido", noDlg.valor, "100.00");
+  eq("e diz o que sabe e o que não sabe ANTES do clique", noDlg.avisa, true);
   eq("os lançamentos da fatura aparecem", noDlg.itens, 1);
+  eq("o bloco mostra total e o que falta", [noDlg.total, noDlg.falta],
+    ["R$ 100,00", "R$ 100,00"]);
 
+  /* ---- PAGAMENTO PARCIAL: 40 de 100 (contrato da 012) ----
+     A fatura NÃO pode virar "paga" com o primeiro pedaço, e o que falta tem de
+     ser 60. Isto era impossível antes: a unique da 005 recusava o segundo
+     pagamento, então o produto só sabia pagar tudo. */
+  await p.fill("#ft_valor", "40");
+  await p.click("#ftPagarBtn");
+  await p.waitForTimeout(500);
+  await p.click("#listaCartoes [data-fatura]");
+  await p.waitForTimeout(400);
+  const parcial = await p.evaluate(() => ({
+    pago: document.getElementById("ftPago").textContent.replace(/ /g, " "),
+    falta: document.getElementById("ftRestante").textContent.replace(/ /g, " "),
+    sugerido: document.getElementById("ft_valor").value,
+    aindaPaga: !document.getElementById("ftPagarBtn").hidden,
+    pagamentos: document.querySelectorAll("#ftPagamentos [data-desfaz]").length,
+    situacao: document.querySelector("#listaCartoes .pill").textContent,
+  }));
+  eq("pagamento parcial: pago 40", parcial.pago, "R$ 40,00");
+  eq("pagamento parcial: falta 60", parcial.falta, "R$ 60,00");
+  /* o padrão é o que falta, não o total: propor 100 seria propor um valor que
+     o banco recusa */
+  eq("e o campo já vem com o que falta, não com o total", parcial.sugerido, "60.00");
+  eq("a fatura NÃO virou paga com o primeiro pedaço", parcial.aindaPaga, true);
+  eq("o pagamento feito aparece com o próprio desfazer", parcial.pagamentos, 1);
+  eq("e a situação na lista é Parcial", parcial.situacao, "Parcial");
+
+  /* o excesso é BARRADO, e a recusa chega como mensagem, não como silêncio */
+  await p.fill("#ft_valor", "500");
+  await p.click("#ftPagarBtn");
+  await p.waitForTimeout(400);
+  eq("pagar acima do que falta é recusado, com motivo na tela",
+    await p.evaluate(() => { const e = document.getElementById("ftErro");
+      return e.hidden ? "" : e.textContent.length > 0; }), true);
+  eq("e nada foi lançado por causa da tentativa recusada",
+    await p.evaluate(() => globalThis.__T.liquidacoes.filter(l => l.tipo === "fatura").length), 1);
+
+  /* fecha os 60 que faltavam */
+  await p.fill("#ft_valor", "60");
   await p.click("#ftPagarBtn");
   await p.waitForTimeout(500);
 
@@ -512,7 +554,9 @@ console.log("\ncartão e fatura");
   eq("CASO A · somados dariam 200, e nenhum indicador da tela faz isso",
     aposPagar.consumo + aposPagar.caixa, 200);
   eq("o pagamento NÃO é item da fatura", aposPagar.pagamentoSemFatura, true);
-  eq("o vínculo da ponte registra a quitação", aposPagar.vinculos, 1);
+  /* DOIS vínculos: 40 + 60. O consumo continua 100 e o caixa continua 100,
+     que é o ponto -- fatiar o pagamento não muda nenhum dos dois lados. */
+  eq("os vínculos registram os dois pedaços do pagamento", aposPagar.vinculos, 2);
   eq("e a fatura passa a dizer Paga", aposPagar.situacao, "Paga");
 
   await vaiPara(p, "contas");
@@ -525,13 +569,33 @@ console.log("\ncartão e fatura");
   await p.waitForTimeout(200);
   await p.click("#listaCartoes [data-fatura]");
   await p.waitForTimeout(400);
-  eq("na fatura paga, o diálogo oferece desfazer e não pagar de novo",
-    await p.evaluate(() => ({ desfazer: !document.getElementById("ftDesfazer").hidden,
-                              pagar: document.getElementById("ftPagarBtn").hidden })),
-    { desfazer: true, pagar: true });
-  await p.click("#ftDesfazer");
+  /* O botão único de desfazer saiu com a 012: uma fatura recebe N pagamentos e
+     não há UM id que a represente. Cada pagamento traz o próprio botão. */
+  eq("na fatura paga, o diálogo oferece desfazer por pagamento e não pagar de novo",
+    await p.evaluate(() => ({
+      desfazer: document.querySelectorAll("#ftPagamentos [data-desfaz]").length,
+      pagar: document.getElementById("ftPagarBtn").hidden })),
+    { desfazer: 2, pagar: true });
+
+  /* Desfaz o PRIMEIRO e confere que o outro sobreviveu. É a regressão contra
+     `desfaz_liquidacao`, que apagaria a competência inteira: com ela no lugar,
+     este número seria zero. */
+  await p.click("#ftPagamentos [data-desfaz]");
   await p.waitForTimeout(120);
-  await p.click("#ftDesfazer");
+  await p.click("#ftPagamentos [data-desfaz]");
+  await p.waitForTimeout(500);
+  eq("desfazer UM pagamento não apaga o outro",
+    await p.evaluate(() => globalThis.__T.liquidacoes.filter(l => l.tipo === "fatura").length), 1);
+  eq("e a fatura volta a ser Parcial, não 'A pagar'",
+    await p.textContent("#listaCartoes .pill"), "Parcial");
+
+  /* agora desfaz o que sobrou, para o resto do arquivo continuar no mesmo
+     cenário de antes */
+  await p.click("#listaCartoes [data-fatura]");
+  await p.waitForTimeout(400);
+  await p.click("#ftPagamentos [data-desfaz]");
+  await p.waitForTimeout(120);
+  await p.click("#ftPagamentos [data-desfaz]");
   await p.waitForTimeout(500);
 
   eq("desfazer apaga o pagamento e o vínculo junto",

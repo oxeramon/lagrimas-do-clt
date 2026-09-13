@@ -123,14 +123,22 @@ function faturasResolvidas(){
   return T.faturas.map(f => {
     const itens = T.transacoes.filter(t => t.fatura_id === f.id
       && ["realizada","conciliada"].includes(t.status));
-    const l = T.liquidacoes.find(x => x.tipo === "fatura" && x.item_id === f.id);
+    /* N pagamentos desde a 012, não um. E o pago é SOMA: se o dublê pegasse só
+       o primeiro, ele concordaria com uma tela errada, que é o pior que um
+       dublê pode fazer. */
+    const pagos = T.liquidacoes.filter(x => x.tipo === "fatura" && x.item_id === f.id);
+    const total = itens.reduce((s,t) =>
+      s + (t.tipo === "entrada" ? -Number(t.valor) : Number(t.valor)), 0);
+    const pago = pagos.reduce((s,l) => s + Number(l.valor), 0);
     return { fatura_id:f.id, user_id:"u1", cartao_id:f.cartao_id, competencia:f.competencia,
              abertura:f.abertura, fechamento:f.fechamento, vencimento:f.vencimento, obs:"",
-             total: itens.reduce((s,t) => s + Number(t.valor), 0),
-             itens: itens.length,
-             pago: l ? Number(l.valor) : 0,
-             pagamento_id: l ? l.transacao_id : null,
-             situacao: l ? "paga" : (hoje >= f.fechamento ? "fechada" : "aberta") };
+             total, itens: itens.length, pago,
+             restante: total - pago,
+             pagamentos: pagos.length,
+             /* "paga" exige ter havido o que pagar: fatura vazia não é quitada */
+             situacao: (total > 0 && pago >= total) ? "paga"
+                     : pago > 0 ? "parcial"
+                     : (hoje >= f.fechamento ? "fechada" : "aberta") };
   });
 }
 /* a view assinaturas_resolvidas: custo equivalente e próxima cobrança, os dois
@@ -329,8 +337,23 @@ export function createClient(){
         if (!a.p_conta) return Promise.resolve({ data:null, error:{ message:"fatura: escolha a conta" } });
         if (!(a.p_valor > 0))
           return Promise.resolve({ data:null, error:{ message:"fatura: o valor precisa ser maior que zero" } });
-        if (T.liquidacoes.some(l => l.tipo === "fatura" && l.item_id === f.id))
-          return Promise.resolve({ data:null, error:{ message:"duplicate key value violates unique constraint" } });
+        /* A 012 trocou a trava: não é mais "uma liquidação por fatura", e
+           sim "a soma não passa do devido". Com a regra antiga aqui, o dublê
+           recusaria o segundo pagamento e o teste concordaria com um produto
+           que já não existe. */
+        {
+          const fr = faturasResolvidas().find(x => x.fatura_id === f.id);
+          const devido = fr ? fr.total : 0;
+          const pago = fr ? fr.pago : 0;
+          if (devido <= 0)
+            return Promise.resolve({ data:null, error:{ message:"fatura: não há nada a pagar nesta fatura" } });
+          if (devido - pago <= 0)
+            return Promise.resolve({ data:null, error:{ message:"fatura: esta fatura já está paga" } });
+          if (a.p_valor > devido - pago)
+            return Promise.resolve({ data:null, error:{ message:
+              "fatura: falta " + (devido - pago).toFixed(2) + " e você lançou " + Number(a.p_valor).toFixed(2)
+              + ". Pagamento acima do devido não é aceito." } });
+        }
         const c = T.cartoes.find(x => x.id === f.cartao_id);
         const t = { id:uid(), user_id:"u1", conta_id:a.p_conta,
                     /* o pagamento NÃO é item da fatura: se fosse, entraria no total */
@@ -388,6 +411,16 @@ export function createClient(){
         return liquida(a.p_tipo, a.p_item_id, a, false);
       }
       if (nome === "recebe_receita") return liquida("receita", a.p_receita, a, true);
+      /* Desfaz UM pagamento de fatura. Separado de desfaz_liquidacao porque
+         aquela apaga a liquidação da competência inteira -- com três
+         pagamentos, apagaria os três. */
+      if (nome === "desfaz_pagamento_de_fatura"){
+        const l = T.liquidacoes.find(x => x.tipo === "fatura" && x.transacao_id === a.p_pagamento);
+        if (!l) return Promise.resolve({ data:null, error:{ message:"fatura: pagamento não encontrado" } });
+        T.liquidacoes = T.liquidacoes.filter(x => x !== l);
+        T.transacoes = T.transacoes.filter(t => t.id !== a.p_pagamento);
+        return Promise.resolve({ data:true, error:null });
+      }
       if (nome === "desfaz_liquidacao"){
         const l = T.liquidacoes.find(x => x.tipo === a.p_tipo && x.item_id === a.p_item_id
                                        && x.competencia === a.p_competencia);

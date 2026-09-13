@@ -354,6 +354,25 @@
 .pill.sit-aberta{background:var(--surface-3); color:var(--ink-2)}
 .pill.sit-fechada{background:var(--warn-soft); color:var(--ink)}
 .pill.sit-paga{background:var(--good-soft); color:var(--good)}
+/* Parcial não é "quase paga" nem "atrasada": é um terceiro estado, e ganha cor
+   própria para não ser lido como um dos outros dois. O rótulo continua vindo
+   junto, como nos outros -- cor sozinha nunca decide. */
+.pill.sit-parcial{background:var(--brand-soft); color:var(--brand)}
+
+/* Total, pago e falta lado a lado. `auto-fit` com mínimo pequeno porque em
+   320px três colunas fixas estouram a largura; aqui elas empilham sozinhas. */
+.fatura-saldo{display:grid; gap:var(--e-2);
+  grid-template-columns:repeat(auto-fit, minmax(88px, 1fr));
+  padding:var(--e-3); border:1px solid var(--line); border-radius:var(--raio-2)}
+.fatura-saldo .rot{display:block; font-size:10px; letter-spacing:.08em;
+  text-transform:uppercase; color:var(--ink-3)}
+.fatura-saldo b{font-family:"IBM Plex Mono",ui-monospace,monospace;
+  font-variant-numeric:tabular-nums; font-weight:var(--peso-medio)}
+/* O que falta é o número que decide a próxima ação. */
+.fatura-saldo div:last-child b{color:var(--brand)}
+
+.sub-titulo{font-size:12px; color:var(--ink-2);
+  font-weight:var(--peso-medio); margin:var(--e-3) 0 var(--e-2)}
 
 .fatura-itens{border:1px solid var(--line); border-radius:var(--raio-2);
   max-height:260px; overflow-y:auto}
