@@ -1023,6 +1023,23 @@ console.log("\nmetas");
   eq("e o histórico guarda as DUAS linhas, não uma", aposLiberar.linhas, 2);
   eq("a soma com sinal dá 200", aposLiberar.soma, 200);
 
+  /* O PAINEL NÃO SOMA. Reservado está DENTRO do saldo, não ao lado -- somar os
+     dois contaria o mesmo real duas vezes, que é o defeito que o contrato de
+     metas existe para impedir. */
+  await vaiPara(p, "painel");
+  await p.waitForTimeout(400);
+  const noPainel = await p.evaluate(() => ({
+    bloco: !document.getElementById("blocoMetas").hidden,
+    reservado: document.getElementById("pbReservado").textContent.replace(/\u00a0/g, " "),
+    disponivel: document.getElementById("pbDisponivel").textContent.replace(/\u00a0/g, " "),
+    saldo: document.getElementById("pnSaldoContas").textContent.replace(/\u00a0/g, " "),
+  }));
+  eq("o Painel ganha o bloco de Metas", noPainel.bloco, true);
+  eq("com reservado 200 e livre de promessa 800",
+    [noPainel.reservado, noPainel.disponivel], ["R$ 200,00", "R$ 800,00"]);
+  /* o saldo em contas continua INTEIRO: a meta não tirou nada de lá */
+  eq("e o saldo em contas continua 1.000, inteiro", noPainel.saldo, "R$ 1.000,00");
+
   eq("nenhum erro de JavaScript no caminho das metas", erros, []);
   await p.close();
 }

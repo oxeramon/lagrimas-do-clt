@@ -79,13 +79,14 @@ completo, está em `.claude/skills/public-repo-hygiene/SKILL.md`. A auditoria é
 | O que vai ao ar | **só o artefato**: `index.html`, `css/*.css`, `js/**/*.js`. `docs/`, `supabase/`, `testes/`, `.claude/` e `ferramentas/` ficam no repositório e NÃO são publicados — ver `docs/PUBLICACAO.md` |
 | Projeto Supabase | região São Paulo; a URL e a chave publicável ficam no topo do `<script type="module">` do `index.html`, que é a fonte para qualquer coisa que precise delas |
 
-Estrutura do banco: **12 tabelas e 1 view**, todas com RLS ligada, 1 policy e 1
-trigger cada — `ping` sem trigger, como sempre. São as 8 da V1 mais as 4 da V2;
-a view `saldos_de_conta` roda com `security_invoker`. Três migrações já rodaram
-e o registro do que cada uma fez está em `docs/MIGRACOES.md`.
+Estrutura do banco: **24 tabelas e 6 views**, todas com RLS ligada e 24
+policies — `ping` sem trigger, como sempre. As views rodam com
+`security_invoker`. **Catorze migrações** já rodaram, e o registro do que cada
+uma fez está em `docs/MIGRACOES.md`.
 
-As 4 tabelas da V2 estão criadas e vazias: **o app ainda não consulta nenhuma
-delas.** Ligar a tela é passo seguinte, não consequência da migração.
+Todas as tabelas da V2 estão ligadas a alguma tela. `ferramentas/confere-migracoes.mjs`
+compara o arquivo de cada migração com o que de fato rodou no banco: quando os
+dois discordam, some a única fonte confiável sobre o que aconteceu.
 
 **Migração aplicada é imutável**, comentário incluído. Quando o arquivo e o
 banco discordam, some a única fonte confiável sobre o que rodou; conserto vira
@@ -115,9 +116,12 @@ importar. `docs/CONTRATOS_V1.md` tem o que não pode mudar de comportamento.
 
 Resumindo: `index.html` guarda o HTML e o JS de tela da V1. O CSS saiu para
 `css/` (tokens, base, views-v2) e o cálculo saiu para `js/`, em ES Modules que
-`testes/regras.mjs` importa exatamente iguais. As telas da V2 -- Contas,
-Cartões, Assinaturas, Grupos e Transações -- moram em `js/ui/v2-screens.js`, e
-o acesso ao banco mora em `js/data/`: nenhum `sb.from` sobrou no `index.html`.
+`testes/regras.mjs` importa exatamente iguais. As telas da V2 moram em
+**`js/ui/screens/`**, uma por responsabilidade, e `js/ui/v2-screens.js` é só a
+fachada que o `index.html` conhece. **Nenhuma tela importa outra tela**: o que
+duas telas precisam ler mora em `screens/estado.js`, e o que duas telas
+desenham igual mora em `screens/pecas.js`. O acesso ao banco mora em
+`js/data/`: nenhum `sb.from` sobrou no `index.html`.
 Há um segundo `<script>`, de 15 linhas, no `<head>`: ele resolve o tema antes
 da primeira pintura e não faz mais nada.
 
@@ -147,7 +151,8 @@ antes do SQL correspondente:
 | `docs/CONTRATO_PONTE.md` | compromisso liquidado sai do previsto e entra no realizado |
 | `docs/CONTRATO_CARTAO.md` | compra no cartão é despesa; pagamento da fatura não é despesa nova |
 | `docs/CONTRATO_ESTORNO.md` | transação com vínculo estrutural não se estorna, se desfaz |
-| a 008 | assinatura é REGRA, ocorrência é EVENTO |
+| `docs/CONTRATO_METAS.md` | meta é envelope: ela não cria dinheiro nem muda saldo |
+| a 011 | assinatura é REGRA, ocorrência é EVENTO com DATA própria |
 
 **Quatro invariantes viraram teste permanente**, e mexer em cálculo sem
 entendê-los é como se quebra o produto:
@@ -202,6 +207,17 @@ tabela que ainda não existe derruba o app — aconteceu duas vezes em 12/09/202
 Rode o SQL primeiro e só então empurre; se não der para rodar na hora, segure o
 push.
 
+**Meta é envelope, conta é onde o dinheiro está.** Uma meta não cria dinheiro,
+não move dinheiro e não altera saldo bancário: alocar não gera transação e não
+tem coluna de conta. Saldo 10.000 com meta de 5.000 é 10.000, nunca 15.000 --
+os 5.000 estão DENTRO. A única relação entre saldo e reservado é de subtração,
+e nenhum número do produto os soma. Ver `docs/CONTRATO_METAS.md`.
+
+**Um acontecimento é UM evento no calendário.** Compromisso previsto e pago não
+são duas linhas: são uma linha com dois estados, e quem liga as duas é a ponte
+da 005. Duas linhas de 100 fazem quem lê concluir que pagou 200. Ver
+`js/domain/calendar.js`.
+
 **Nada é armazenado mês a mês, e há exatamente duas exceções.** A parcela de um
 mês existe se o mês cai entre `mes_inicial` e
 `mes_inicial + (total_parcelas - parcela_inicial)`. Uma receita mensal vale no
@@ -244,6 +260,20 @@ tem a tabela o erro passa despercebido e só aparece numa instalação nova.
   outra pergunta.
 
 ## Comandos
+
+```bash
+node testes/rotas.mjs
+```
+85 casos que percorrem o REGISTRO de abas num navegador de verdade: uma entrada
+por aba na lateral, cada aba abrindo o painel certo e nenhum outro junto, o
+celular com quatro no rodapé e o resto atrás do "Mais", e os módulos do site
+importando sem erro. A matriz sai de `ABAS`, nunca de lista à mão -- tela nova
+entra na prova no commit em que for registrada.
+
+Ele existe porque duas classes de defeito passaram por todos os hooks:
+identificador de outro módulo usado como global (compila, passa, quebra no
+navegador) e id duplicado criado em tempo de execução (o arquivo tem um, o DOM
+tem dois).
 
 ```bash
 node testes/regras.mjs

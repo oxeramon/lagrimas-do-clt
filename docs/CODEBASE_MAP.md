@@ -23,16 +23,16 @@ graph TB
     end
     subgraph "Supabase (São Paulo)"
         Auth["Auth — e-mail e senha"]
-        PG[("Postgres · 12 tabelas + 4 RPCs<br/>RLS por auth.uid()")]
+        PG[("Postgres · 24 tabelas + 6 views<br/>RLS por auth.uid()")]
     end
     subgraph GitHub
-        Pages["Pages — deploy no push"]
+        Pages["Pages — artefato por whitelist"]
         Cron["keepalive.yml — cron diário"]
     end
     subgraph "Verificação local"
-        Regras["testes/regras.mjs<br/>33 casos"]
+        Regras["testes/regras.mjs<br/>332 casos"]
         Preview["testes/preview.mjs<br/>Supabase dublado"]
-        Hooks[".claude/hooks<br/>sintaxe · html · rls"]
+        Hooks[".claude/hooks<br/>publico · sintaxe · modulos · html · rls"]
     end
     HTML -->|supabase-js via CDN| Auth
     HTML -->|REST| PG
@@ -52,22 +52,55 @@ suspensas são escritos à mão.
 
 | Caminho | Papel | Linhas |
 |---|---|---|
-| `index.html` | CSS, HTML e o JS de tela | 4380 |
-| `js/` | núcleo, domínio e navegação, como ES Modules | 445 |
+| `index.html` | HTML e o JS de tela da V1 | ~4700 |
+| `js/` | núcleo, domínio, telas e dados, como ES Modules | ~4600 |
 | `supabase-setup.sql` | Fonte única do schema, em 5 seções, re-executável | 429 |
 | `testes/preview.mjs` | Gera `preview.html` com Supabase dublado | 190 |
 | `README.md` | Instalação e uso | 190 |
-| `testes/regras.mjs` | 33 casos sobre funções recortadas do `index.html` | 150 |
+| `testes/regras.mjs` | 332 casos, importando os mesmos módulos do navegador | ~1000 |
+| `testes/fluxos.mjs` | 273 casos num navegador de verdade | ~1150 |
+| `testes/rotas.mjs` | 85 casos derivados do registro de abas | ~200 |
 | `.claude/skills/nova-migration/SKILL.md` | Roteiro para mexer no schema | 127 |
 | `.claude/hooks/checa-html.mjs` | Tags fechadas, ids únicos | 121 |
 | `.claude/hooks/checa-rls.mjs` | RLS, policy, trigger, ordem das FKs | 98 |
 | `.claude/hooks/checa-sintaxe.mjs` | O JS compila e todo `$("id")` existe | 64 |
 | `.github/workflows/keepalive.yml` | Ping diário no Supabase + commit semanal | 70 |
 
+### As telas da V2, depois da modularização
+
+`js/ui/v2-screens.js` já teve 1.887 linhas e cinco telas dentro. Hoje são doze
+módulos em `js/ui/screens/`, e a fachada tem 94 linhas.
+
+| Módulo | O que é | Linhas |
+|---|---|---|
+| `estado.js` | o espelho do banco, os consultores por id, a recarga | ~160 |
+| `pecas.js` | selo, dois cliques, campo de erro, pirulito | ~90 |
+| `shell.js` | diálogos e a folha "Mais" | ~38 |
+| `accounts-screen.js` | contas e as instituições que ela cadastra | ~228 |
+| `transactions-screen.js` | a lista do mês e o lançamento | ~195 |
+| `transfer-dialog.js` | as duas pernas como uma operação só | ~107 |
+| `categories-screen.js` | a árvore, dentro de Ajustes | ~116 |
+| `reconciliation-screen.js` | a ponte com a V1: pagar e receber | ~168 |
+| `cards-screen.js` | cadastro, ciclo e compra | ~275 |
+| `invoice-screen.js` | a fatura, incluindo pagamento parcial | ~160 |
+| `reversal-dialog.js` | estorno, conforme o contrato | ~140 |
+| `subscriptions-screen.js` | o que se repete sozinho | ~175 |
+| `groups-screen.js` | rateios e acertos | ~381 |
+| `goals-screen.js` | metas e alocações | ~235 |
+| `calendar-screen.js` | o calendário financeiro da aba Mês | ~180 |
+
+**A regra que governa a pasta:** nenhuma tela importa outra tela. Quando isso
+quase aconteceu — cartões com fatura, transações com transferência — a resposta
+foi mover a LEITURA DE ESTADO para `estado.js`, não criar um `utils.js`.
+
+`groups-screen.js` continua com 381 linhas num arquivo só de propósito: grupo,
+membro, despesa e acerto são a MESMA tela, e quebrar em quatro daria quatro
+módulos que só conversam entre si.
+
 ### O que dessa estrutura vai ao ar
 
-Só três entradas: `index.html`, `css/*.css` e `js/**/*.js` — 29 arquivos,
-466 KiB. Todo o resto da tabela acima (documentação, SQL, testes, hooks,
+Só três entradas: `index.html`, `css/*.css` e `js/**/*.js` — 47 arquivos,
+549 KiB. Todo o resto da tabela acima (documentação, SQL, testes, hooks,
 ferramentas, workflows) fica no repositório e **não** é publicado.
 
 Quem monta é `ferramentas/artefato.mjs`, por whitelist; quem confere é

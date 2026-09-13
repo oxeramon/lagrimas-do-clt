@@ -153,6 +153,14 @@
             <div class="pr-linha"><span>Assinaturas por mês</span><strong id="pbAssinaturas">—</strong></div>
             <p class="hint" id="pbProxima" hidden></p>
           </div>
+          <!-- Metas. Os três números NUNCA aparecem somados: reservado está
+               DENTRO do saldo, não ao lado. Ver docs/CONTRATO_METAS.md. -->
+          <div class="pr-col" id="blocoMetas" hidden>
+            <span class="eyebrow">Metas</span>
+            <div class="pr-linha"><span>Reservado</span><strong id="pbReservado">—</strong></div>
+            <div class="pr-linha"><span>Livre de promessa</span><strong id="pbDisponivel">—</strong></div>
+            <p class="hint" id="pbMetas" hidden></p>
+          </div>
           <div class="pr-col" id="blocoCompartilhado" hidden>
             <span class="eyebrow">Compartilhado</span>
             <div class="pr-linha"><span>Você tem a receber</span><strong id="pbAReceber">—</strong></div>
@@ -1570,6 +1578,7 @@ import { ligaTelasV2, carregaV2, renderV2, atualizaFiltrosDeTela, V2,
          registraFonteDaV1, renderCalendario }
   from "./js/ui/v2-screens.js";
 import { proximaAVencer, vencidas } from "./js/domain/cards.js";
+import { indicadoresDeMetas } from "./js/domain/goals.js";
 import { indicadoresDeAssinaturas, proximasCobrancas } from "./js/domain/subscriptions.js";
 import { chaveDe, resumoDoMes } from "./js/domain/reconciliation.js";
 
@@ -2473,6 +2482,23 @@ function renderBlocosDoPainel(){
         + ", em " + diaLegivel(proximas[0].proximaCobranca) + ".";
   }
 
+  /* --- metas ---
+     Reservado e disponível são LEITURAS DO MESMO DINHEIRO, e por isso nunca
+     aparecem somados: os dois juntos dariam o saldo contado duas vezes. */
+  const indMt = indicadoresDeMetas(V2.metas, V2.saldoLivre, null);
+  $("blocoMetas").hidden = indMt.quantas === 0 && indMt.reservado === 0;
+  if (!$("blocoMetas").hidden){
+    $("pbReservado").textContent = money(indMt.reservado);
+    $("pbDisponivel").textContent = money(indMt.disponivel);
+    const aviso = $("pbMetas");
+    /* o estouro vem primeiro e sem piada: é dinheiro prometido que já saiu */
+    aviso.hidden = !indMt.estourado && indMt.quantas === 0;
+    aviso.className = indMt.estourado ? "hint alerta" : "hint";
+    if (!aviso.hidden) aviso.textContent = indMt.estourado
+      ? "Você reservou mais do que tem livre em conta."
+      : indMt.quantas === 1 ? "1 meta ativa." : indMt.quantas + " metas ativas.";
+  }
+
   /* --- compartilhado ---
      "A receber" e "a pagar" NÃO viram um saldo líquido: você pode dever a uma
      pessoa e ter a receber de outra, e um número só esconderia isso. */
@@ -2488,7 +2514,7 @@ function renderBlocosDoPainel(){
   }
 
   bloco.hidden = $("blocoObrigacoes").hidden && $("blocoRotinas").hidden
-                 && $("blocoCompartilhado").hidden;
+                 && $("blocoMetas").hidden && $("blocoCompartilhado").hidden;
 }
 
 function renderPrevistoRealizado(){
