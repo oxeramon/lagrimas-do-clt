@@ -193,10 +193,17 @@ insert into public.assinaturas (id, nome, valor, frequencia, inicio, conta_id)
 values ('dddd0006-0000-4000-8000-000000000006','Semanal Exemplo', 9.00,'semanal',
         current_date, 'bbbb0001-0000-4000-8000-000000000001');
 select public.materializa_assinaturas((current_date + interval '2 months')::date);
-select pg_temp.confere(28,'semanal fica fora da geração, e a exclusão é declarada',
-  (select count(*) from public.transacoes
-    where assinatura_id='dddd0006-0000-4000-8000-000000000006'), 0::bigint);
-select pg_temp.confere(29,'mas ela entra no custo equivalente: 52 semanas por ano',
+-- Este caso testava a EXCLUSÃO da semanal, que era o desvio da 008: sem onde
+-- guardar quatro ocorrências no mesmo mês, ela simplesmente não gerava. A 011
+-- trouxe `ocorrencia_em` e desfez o desvio, e o caso ficou afirmando um
+-- contrato que o banco deixou de ter -- falhando em qualquer banco com a 011
+-- aplicada, produção inclusive.
+-- Quantas ocorrências saem, e em que datas, é o que `011_semanal.sql` mede em
+-- 27 casos. Aqui basta o que a 008 sozinha não conseguia dizer: que gera.
+select pg_temp.confere(28,'semanal materializa desde a 011 (quantas, ver 011_semanal.sql)',
+  ((select count(*) from public.transacoes
+    where assinatura_id='dddd0006-0000-4000-8000-000000000006') > 0), true);
+select pg_temp.confere(29,'e entra no custo equivalente: 52 semanas por ano',
   (select custo_anual from public.assinaturas_resolvidas where nome='Semanal Exemplo'),
   468.00::numeric);
 
