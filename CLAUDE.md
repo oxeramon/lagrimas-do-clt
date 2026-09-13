@@ -105,6 +105,46 @@ O valor de conferência da seção 5 do SQL vale para uma instalação do zero, 
 com a carga de exemplo. Em base já em uso ele é outro, e serve para comparar
 antes e depois de uma migração, não como constante do projeto.
 
+**`supabase-setup.sql` é a V1, e é história.** Ele instala oito das vinte e
+quatro tabelas, e num projeto novo produz um banco que o site não consegue
+usar. Não o reescreva para virar o schema atual: o schema atual já está inteiro
+em `supabase/bootstrap/schema.sql`, e reescrever aquele apagaria a história sem
+dar nada em troca. Ele fica reexecutável porque `testes/regras.mjs` lê o valor
+de conferência da seção 5 dele.
+
+## Reconstruir o banco do zero
+
+`supabase/bootstrap/` existe para o dia em que o projeto Supabase se perder.
+São três arquivos — `schema.sql` (o schema inteiro), `seed.sql` (carga de
+exemplo, opcional, inventada) e `inventario-esperado.txt` (como o banco deve
+ficar) — e o passo a passo está em `supabase/bootstrap/README.md`.
+
+`schema.sql` **não é reexecutável, de propósito**: aborta se achar qualquer
+objeto em `public`, e não usa `if not exists` em lugar nenhum. É a regra
+oposta à do `supabase-setup.sql`, e o hook `checa-rls.mjs` sabe disso — as
+invariantes de segurança continuam valendo iguais lá dentro.
+
+**Migração nova não atualiza o bootstrap sozinha.** A ordem, e ela não tem
+atalho:
+
+1. escrever a migração em `supabase/migrations/` e aplicá-la;
+2. atualizar `supabase/bootstrap/schema.sql` para um banco novo já nascer com
+   a mudança;
+3. `ferramentas/reconstroi.sh --i-know-this-is-disposable`;
+4. regravar `inventario-esperado.txt` **a partir do banco reconstruído**;
+5. conferir que o inventário do banco em uso bate com a referência nova.
+
+O passo 4 nunca é à mão. Uma referência escrita à mão desfaz a única prova que
+ela dá: passa a descrever o que alguém achou que o banco tinha, e é exatamente
+aí que o drift some.
+
+**O banco em uso não é laboratório de reconstrução.** Para provar qualquer
+coisa sobre o bootstrap, o lugar é o Postgres descartável de
+`ferramentas/reconstroi.sh`, que se recusa a apontar para o projeto em uso de
+quatro maneiras diferentes. No banco em uso cabe leitura de catálogo,
+comparação e conferência — nunca `drop`, `truncate` nem "recriar para ver se
+funciona".
+
 ## O mapa
 
 `docs/CODEBASE_MAP.md` tem a planta completa: o modelo de dados, os quatro eixos,
@@ -278,7 +318,7 @@ tem dois).
 ```bash
 node testes/regras.mjs
 ```
-297 casos sobre uma fixture sintética, importando os mesmos módulos que o
+332 casos sobre uma fixture sintética, importando os mesmos módulos que o
 navegador carrega -- não uma cópia deles. Inclui a regressão que amarra
 `saldoAberto()` ao valor de conferência do SQL, lido do próprio
 `supabase-setup.sql`: se a carga de exemplo mudar e a fixture não acompanhar, o
@@ -297,7 +337,7 @@ declarado não bater com o fechamento.
 ```bash
 node testes/fluxos.mjs
 ```
-204 casos que dirigem a interface num navegador de verdade, em desktop e
+273 casos que dirigem a interface num navegador de verdade, em desktop e
 celular. Eles existem porque `regras.mjs` prova o CÁLCULO e provou certo o
 tempo todo enquanto a transferência estava travada: aquele defeito só existia
 com DOM. Precisa de Playwright e de um Chromium; se não achar, avisa e sai com
@@ -314,14 +354,36 @@ Auditoria de repositório público. Crítico bloqueia commit e push.
 
 ```bash
 node ferramentas/artefato.mjs     # constrói _site/, fora do git
-node testes/artefato.mjs          # 92 conferências sobre o que vai ao ar
-SERVIR_ARTEFATO=1 node testes/fluxos.mjs   # os 204 fluxos contra o artefato
+node testes/artefato.mjs          # 110 conferências sobre o que vai ao ar
+SERVIR_ARTEFATO=1 node testes/fluxos.mjs   # os 273 fluxos contra o artefato
 ```
 A fronteira da publicação. `artefato.mjs` confere que nada de proibido entrou,
 que nada de que o navegador precisa ficou de fora, que o servidor devolve 404
 no que não é do site e que nenhuma chave além da publicável está no pacote.
 **Rode depois de mexer em `index.html`, em `css/` ou em `js/`** — e antes de
 qualquer mudança na whitelist. `docs/PUBLICACAO.md` explica o desenho.
+
+```bash
+ferramentas/reconstroi.sh --i-know-this-is-disposable
+```
+Levanta um banco descartável, aplica `supabase/bootstrap/schema.sql` do zero,
+confere o inventário estrutural contra `inventario-esperado.txt` e roda as
+onze suítes de `supabase/testes/` -- 357 casos. É a prova de que o bootstrap
+reconstrói o banco, e não só de que o arquivo parece certo. **Rode depois de
+qualquer migração nova**, junto com o passo 4 da seção "Reconstruir o banco do
+zero".
+
+Ele se recusa a apontar para o projeto em uso de quatro maneiras: exige a opção
+escrita por extenso, recusa destino com a referência do projeto ou com
+`supabase.co` no nome, exige socket local em vez de TCP, e pergunta ao servidor
+se ele tem papéis de plataforma do Supabase.
+
+```bash
+node ferramentas/confere-schema.mjs /caminho/do/inventario.txt
+```
+Compara o inventário de qualquer banco com a referência versionada e FALHA na
+divergência. Para o banco em uso, rode `ferramentas/inventario.sql` no SQL
+Editor -- é só leitura de catálogo -- e salve a coluna num arquivo.
 
 Os arquivos de `supabase/testes/` rodam no banco de VERDADE: cole no SQL Editor
 ou mande por `execute_sql`. Cada um abre em `begin` e fecha em `rollback`, então
@@ -342,7 +404,7 @@ Cinco hooks rodam sozinhos depois de cada Write/Edit:
 | `checa-sintaxe.mjs` | cada arquivo JS compila e todo `$("id")` existe no HTML |
 | `checa-modulos.mjs` | import aponta para arquivo existente, nome é exportado, sem ciclo |
 | `checa-html.mjs` | tags fecham na ordem certa, nenhum id repete |
-| `checa-rls.mjs` | RLS, policy, trigger, ordem das FKs, sem `raise exception` |
+| `checa-rls.mjs` | RLS, policy, trigger, ordem das FKs, e `raise exception` fora de função — esta última só no SQL reexecutável, não no bootstrap |
 
 Não há lint nem type-check.
 

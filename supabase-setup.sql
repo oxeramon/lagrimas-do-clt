@@ -1,7 +1,25 @@
 -- =====================================================================
--- QUITAÇÃO · configuração do banco no Supabase
+-- QUITAÇÃO · configuração do banco no Supabase  ·  V1, HISTÓRICO
 -- =====================================================================
--- Como usar:
+--
+-- >>> NÃO USE ESTE ARQUIVO PARA INSTALAR UM BANCO NOVO. <<<
+--
+-- Ele instala a V1, e só ela: oito tabelas. O banco de hoje tem vinte e
+-- quatro, e as outras dezesseis vieram das catorze migrações de
+-- `supabase/migrations/`, que se corrigem umas às outras. Num projeto novo,
+-- este arquivo sozinho produz um banco que o site não consegue usar.
+--
+-- Para instalar do zero:  supabase/bootstrap/README.md
+--
+-- Ele fica onde está, e continua reexecutável, por duas razões concretas: é
+-- o registro de como o banco começou, e o valor de conferência da seção 5 é
+-- lido por `testes/regras.mjs`, que amarra a carga de exemplo ao cálculo de
+-- saldo. Não o reescreva para virar o schema atual -- isso apagaria a
+-- história sem dar nada em troca, porque o schema atual já está inteiro em
+-- `supabase/bootstrap/schema.sql`.
+--
+-- =====================================================================
+-- Como usar (V1, referência histórica):
 --   1. Crie o usuário primeiro em Authentication > Users > Add user
 --      (marque "Auto Confirm User").
 --   2. Troque o e-mail na linha marcada com  <<< TROQUE AQUI  logo abaixo.

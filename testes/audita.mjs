@@ -80,6 +80,18 @@ const DOCS_DE_POLITICA = [
      conveniente: sem ela a única saída seria editar um arquivo que já rodou,
      que é exatamente o que o projeto proíbe. */
   /^supabase\/migrations\/.+\.sql$/,
+  /* O BOOTSTRAP É A MESMA CONVERSA, consolidada. Ele é o resultado daquelas
+     migrações num arquivo só, e concede as mesmas permissões aos mesmos três
+     papéis: escrever o schema sem escrever os nomes deles é impossível, não
+     inconveniente. `inventario-esperado.txt` é saída de catálogo, e lista
+     grant por papel justamente porque foi aí que morou o defeito da 012.
+
+     A lista é por arquivo, e não por pasta, de propósito: uma exceção ampla
+     em `ferramentas/` acabaria cobrindo script que não tem por que falar de
+     papel nenhum. */
+  /^supabase\/bootstrap\/(schema\.sql|seed\.sql|inventario-esperado\.txt|README\.md)$/,
+  /^ferramentas\/(inventario|sala-limpa)\.sql$/,
+  /^supabase\/testes\/.+\.sql$/,
 ];
 const ehDocDePolitica = (rel) => DOCS_DE_POLITICA.some((re) => re.test(rel));
 
