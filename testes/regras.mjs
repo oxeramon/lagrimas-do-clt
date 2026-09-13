@@ -34,6 +34,8 @@ import { diaNoMes, competenciaDaCompra, cicloDaFatura, situacaoDaFatura,
 import { custoMensal, custoAnual, indicadoresDeAssinaturas, proximasCobrancas,
          meioDaAssinatura, venceu, materializa, rotuloDaFrequencia }
   from "../js/domain/subscriptions.js";
+import { divisaoIgual, faltaFechar, fecha, contaFecha, meuSaldo,
+         acertosSugeridos, indicadoresDoGrupo } from "../js/domain/groups.js";
 import { indicadoresDeContas, porInstituicao, porTipo, saldoDaConta,
          rotuloDoTipo, podeExcluirConta } from "../js/domain/accounts.js";
 import { sinalDe, valorComSinal, contaNoSaldo, ehTransferencia, filtraTransacoes,
@@ -990,6 +992,91 @@ eq("o consumo também", painelEstornado.saidas.consumo, 0);
 eq("a coluna Entrou desconta a entrada que foi devolvida",
   painelEstornado.entradas.realizado, 150);
 eq("e o resultado do mês sai das duas líquidas", painelEstornado.resultadoRealizado, 150);
+
+
+console.log("\ngrupos: a divisão e os centavos");
+
+/* 100 em três não divide. A soma é exatamente 100, sempre -- e quem RECUSA uma
+   divisão que não fecha é o gatilho postergado da 009, não esta função. */
+eq("100 em três soma exatamente 100",
+  divisaoIgual(100, 3).reduce((s, v) => s + v, 0), 100);
+eq("e o centavo que sobra vai para o primeiro", divisaoIgual(100, 3), [33.34, 33.33, 33.33]);
+/* espalhar de um em um evita alguém pagar três centavos a mais que os outros */
+eq("dois centavos de sobra vão para os DOIS primeiros, um para cada",
+  divisaoIgual(10, 4), [2.5, 2.5, 2.5, 2.5]);
+eq("divisão que sobra um centavo dá ele ao primeiro",
+  divisaoIgual(1, 3), [0.34, 0.33, 0.33]);
+/* Com UM centavo de sobra, espalhar e amontoar dão o mesmo resultado -- por
+   isso o caso acima não prova nada sozinho. Com QUATRO, a diferença aparece:
+   espalhado ninguém paga mais de um centavo a mais que os outros; amontoado, o
+   primeiro pagaria quatro. */
+eq("quatro centavos de sobra vão para os QUATRO primeiros, um para cada",
+  divisaoIgual(100, 7), [14.29, 14.29, 14.29, 14.29, 14.28, 14.28, 14.28]);
+eq("e a soma continua exata", divisaoIgual(100, 7).reduce((s, v) => s + v, 0), 100);
+eq("valor que divide certo não ganha sobra", divisaoIgual(90, 3), [30, 30, 30]);
+eq("uma pessoa só leva tudo", divisaoIgual(50, 1), [50]);
+
+eq("divisão que fecha tem falta zero", faltaFechar(100, [33.34, 33.33, 33.33]), 0);
+eq("e a que falta um centavo diz quanto falta", faltaFechar(100, [33.33, 33.33, 33.33]), 0.01);
+eq("passar do valor devolve negativo", faltaFechar(100, [50, 60]), -10);
+eq("fecha() é o atalho do zero", fecha(100, [33.34, 33.33, 33.33]), true);
+eq("e recusa o que não fecha", fecha(100, [33.33, 33.33, 33.33]), false);
+
+console.log("\ngrupos: saldos e quem paga a quem");
+
+const saldosGrupo = [
+  { membroId:"m1", nome:"Eu",       souEu:true,  saldo: 66.66, pagou:100, coube:33.34 },
+  { membroId:"m2", nome:"Pessoa B", souEu:false, saldo:-33.33, pagou:0,   coube:33.33 },
+  { membroId:"m3", nome:"Pessoa C", souEu:false, saldo:-33.33, pagou:0,   coube:33.33 },
+];
+/* É assim que se sabe que a conta fecha. */
+eq("a soma dos saldos de um grupo é zero", contaFecha(saldosGrupo), true);
+eq("e um grupo que não fecha é detectado",
+  contaFecha([{ saldo: 10 }, { saldo: -5 }]), false);
+eq("o meu saldo sai do membro marcado como eu", meuSaldo(saldosGrupo), 66.66);
+/* null NÃO é zero: um diz "não sei quem é você", o outro diz "estamos quites" */
+eq("sem ninguém marcado como eu, o meu saldo é null e não zero",
+  meuSaldo([{ membroId:"m1", souEu:false, saldo:10 }]), null);
+
+const sugestoes = acertosSugeridos(saldosGrupo);
+eq("as duas pessoas pagam a quem tem a receber",
+  sugestoes.map(a => a.deNome + "→" + a.paraNome + ":" + a.valor),
+  ["Pessoa B→Eu:33.33", "Pessoa C→Eu:33.33"]);
+eq("e a soma dos acertos zera o grupo",
+  sugestoes.reduce((s, a) => s + a.valor, 0), 66.66);
+eq("grupo já quite não sugere acerto nenhum",
+  acertosSugeridos([{ membroId:"m1", nome:"Eu", saldo:0 }]), []);
+
+/* o guloso não é o mínimo de transferências possível, e não precisa ser: ele é
+   determinístico, explicável e sempre correto na soma */
+const quatro = [
+  { membroId:"a", nome:"A", saldo: 50 },
+  { membroId:"b", nome:"B", saldo: 30 },
+  { membroId:"c", nome:"C", saldo:-60 },
+  { membroId:"d", nome:"D", saldo:-20 },
+];
+const s4 = acertosSugeridos(quatro);
+eq("num grupo de quatro, cada devedor paga o que deve",
+  s4.reduce((s, a) => s + a.valor, 0), 80);
+eq("e ninguém paga mais do que devia",
+  s4.filter(a => a.deNome === "D").reduce((s, a) => s + a.valor, 0), 20);
+/* O outro lado da mesma moeda, e o que a suíte não pegava: ninguém pode
+   RECEBER mais do que lhe era devido. Sem esta conferência, um acerto que não
+   se limita ao menor dos dois lados passaria batido -- a soma total continua
+   certa, e o dinheiro vai para a pessoa errada. */
+eq("e ninguém recebe mais do que lhe era devido",
+  quatro.filter(m => m.saldo > 0).map(m =>
+    m.nome + ":" + s4.filter(a => a.paraNome === m.nome).reduce((s, a) => s + a.valor, 0)),
+  ["A:50", "B:30"]);
+
+console.log("\ngrupos: indicadores");
+
+const indGrupo = indicadoresDoGrupo(saldosGrupo, [{ valor: 100 }]);
+eq("o gasto do grupo é a soma das despesas", indGrupo.gastoTotal, 100);
+eq("e ele NÃO é o seu gasto: você pagou 100 e lhe couberam 33,34",
+  [indGrupo.gastoTotal, indGrupo.meuSaldo], [100, 66.66]);
+eq("a conta fechando é um indicador próprio", indGrupo.fecha, true);
+eq("quantas pessoas", indGrupo.membros, 3);
 
 console.log(`\n${ok} passaram, ${bad} falharam`);
 process.exit(bad ? 1 : 0);

@@ -76,6 +76,7 @@
       </nav>
       <div class="sep"></div>
       <div class="rodape">
+        <button class="navitem" id="nav-grupos" role="tab" aria-selected="false" aria-controls="p-grupos"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="8" r="3"/><path d="M3 19a6 6 0 0 1 12 0"/><path d="M16 6.5a2.8 2.8 0 0 1 0 5.4M17 19a6 6 0 0 0-1.5-4"/></svg><span>Grupos</span></button>
         <button class="navitem" id="nav-ajustes" role="tab" aria-selected="false" aria-controls="p-ajustes"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2.2"/><circle cx="10" cy="17" r="2.2"/></svg><span>Ajustes</span></button>
         <button class="navitem" id="btnAtualizar" title="Recarregar os dados"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12a9 9 0 11-3-6.7"/><path d="M21 3v6h-6"/></svg><span>Atualizar</span></button>
         <button class="navitem" id="btnTema"><svg id="icoTema" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.6"/><path fill="currentColor" stroke="none" d="M12 3.4a8.6 8.6 0 000 17.2z"/></svg><span id="rotTema">Automático</span></button>
@@ -385,6 +386,61 @@
         </div>
 
         <div id="listaAssinaturas"></div>
+      </div>
+    </section>
+
+
+    <!-- ==================== GRUPOS ==================== -->
+    <section class="panel stack" id="p-grupos" role="tabpanel" aria-labelledby="nav-grupos" hidden>
+      <div id="gruposVazio" hidden>
+        <div class="vazio">
+          <div class="emoji" aria-hidden="true">🧾</div>
+          <h3>Nenhum grupo por aqui</h3>
+          <p>Para dividir a conta sem virar aquela conversa. Cadastre quem participa e o app faz a parte chata.</p>
+          <button class="btn primary" id="btnPrimeiroGrupo">Criar o primeiro grupo</button>
+        </div>
+      </div>
+
+      <div id="gruposConteudo" hidden>
+        <div class="linha-acoes">
+          <label class="rot" for="gpSeletor">Grupo</label>
+          <select id="gpSeletor"></select>
+          <span class="sep"></span>
+          <button class="btn ghost sm" id="btnEditarGrupo">Editar</button>
+          <button class="btn ghost sm" id="btnNovoGrupo">Novo grupo</button>
+        </div>
+
+        <div class="lente">
+          <h2 id="gpMeuRotulo">Seu saldo no grupo</h2>
+          <p class="numerao" id="gpMeuSaldo">—</p>
+          <p class="piada" id="gpPiada"></p>
+          <div class="fatias">
+            <div class="fatia"><b id="gpGasto">—</b><span>Gasto do grupo</span></div>
+            <div class="fatia"><b id="gpMembros">—</b><span>Pessoas</span></div>
+            <div class="fatia"><b id="gpDespesas">—</b><span>Despesas</span></div>
+          </div>
+        </div>
+
+        <p class="hint alerta" id="gpNaoFecha" hidden></p>
+
+        <div class="card">
+          <div class="card-h"><h2>Quem está como</h2>
+            <button class="btn ghost sm" id="btnNovoMembro">Adicionar pessoa</button></div>
+          <div id="listaSaldos"></div>
+        </div>
+
+        <div class="card" id="cardAcertos" hidden>
+          <div class="card-h"><h2>Para ficar quite</h2>
+            <span class="hint-r">Sugestão. O grupo calcula obrigação; o dinheiro só se move quando você disser.</span></div>
+          <div id="listaAcertos"></div>
+        </div>
+
+        <div class="linha-acoes">
+          <h2 class="titulo-secao">Despesas</h2>
+          <span class="sep"></span>
+          <button class="btn primary sm" id="btnNovaDespesa">Nova despesa</button>
+        </div>
+        <div id="listaDespesas"></div>
       </div>
     </section>
 
@@ -979,6 +1035,93 @@
       <span style="flex:1"></span>
       <button type="button" class="btn" data-fechar="dlgAssinatura">Cancelar</button>
       <button type="submit" class="btn primary" id="asSalvar">Salvar</button>
+    </div>
+  </form>
+</dialog>
+
+
+<dialog id="dlgGrupo">
+  <form id="formGrupo">
+    <div class="dlg-h"><h2 id="gpTitulo">Novo grupo</h2><button type="button" class="btn ghost" data-fechar="dlgGrupo" aria-label="Fechar"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M18 6L6 18M6 6l12 12"/></svg></button></div>
+    <div class="formgrid">
+      <div class="field full"><label for="gp_nome">Nome do grupo</label>
+        <input id="gp_nome" maxlength="60" required placeholder="Viagem, república, rolê"></div>
+      <div class="field full"><label for="gp_obs">Observação</label><input id="gp_obs" maxlength="200"></div>
+      <p class="hint full" id="gpErro" role="alert" hidden></p>
+    </div>
+    <div class="dlg-f">
+      <button type="button" class="btn ghost" id="gpExcluir" hidden>Excluir</button>
+      <span style="flex:1"></span>
+      <button type="button" class="btn" data-fechar="dlgGrupo">Cancelar</button>
+      <button type="submit" class="btn primary" id="gpSalvar">Salvar</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="dlgMembro">
+  <form id="formMembro">
+    <div class="dlg-h"><h2 id="mbTitulo">Adicionar pessoa</h2><button type="button" class="btn ghost" data-fechar="dlgMembro" aria-label="Fechar"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M18 6L6 18M6 6l12 12"/></svg></button></div>
+    <div class="formgrid">
+      <p class="hint full">Só o nome. O app não pede e-mail, telefone nem documento: não precisa, e dado que não existe não vaza.</p>
+      <div class="field"><label for="mb_nome">Nome</label><input id="mb_nome" maxlength="60" required></div>
+      <div class="field"><label for="mb_apelido">Apelido</label><input id="mb_apelido" maxlength="30"></div>
+      <div class="field"><label for="mb_eu">Quem é</label>
+        <select id="mb_eu"><option value="nao">Outra pessoa</option><option value="sim">Sou eu</option></select></div>
+      <p class="hint full" id="mbErro" role="alert" hidden></p>
+    </div>
+    <div class="dlg-f">
+      <button type="button" class="btn ghost" id="mbExcluir" hidden>Excluir</button>
+      <span style="flex:1"></span>
+      <button type="button" class="btn" data-fechar="dlgMembro">Cancelar</button>
+      <button type="submit" class="btn primary" id="mbSalvar">Salvar</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="dlgDespesaGrupo">
+  <form id="formDespesaGrupo">
+    <div class="dlg-h"><h2>Nova despesa do grupo</h2><button type="button" class="btn ghost" data-fechar="dlgDespesaGrupo" aria-label="Fechar"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M18 6L6 18M6 6l12 12"/></svg></button></div>
+    <div class="formgrid">
+      <p class="hint full">Isto é obrigação do grupo, não movimentação da sua conta. Se você pagou do seu bolso, lance também em Transações.</p>
+      <div class="field full"><label for="dg_descricao">O que foi</label>
+        <input id="dg_descricao" maxlength="120" required></div>
+      <div class="field"><label for="dg_valor">Valor (R$)</label>
+        <input type="number" id="dg_valor" step="0.01" min="0.01" inputmode="decimal" required></div>
+      <div class="field"><label for="dg_data">Quando</label><input type="date" id="dg_data" required></div>
+      <div class="field"><label for="dg_pagou">Quem pagou</label><select id="dg_pagou" required></select></div>
+      <div class="field"><label for="dg_modo">Divisão</label>
+        <select id="dg_modo"><option value="igual">Igual entre todos</option>
+          <option value="custom">Personalizada</option></select></div>
+      <div class="full" id="dg_partes"></div>
+      <p class="hint full" id="dgFalta" hidden></p>
+      <div class="field full"><label for="dg_categoria">Categoria</label><select id="dg_categoria"></select></div>
+      <p class="hint full" id="dgErro" role="alert" hidden></p>
+    </div>
+    <div class="dlg-f">
+      <span style="flex:1"></span>
+      <button type="button" class="btn" data-fechar="dlgDespesaGrupo">Cancelar</button>
+      <button type="submit" class="btn primary" id="dgSalvar">Lançar</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="dlgAcerto">
+  <form id="formAcerto">
+    <div class="dlg-h"><h2>Registrar acerto</h2><button type="button" class="btn ghost" data-fechar="dlgAcerto" aria-label="Fechar"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M18 6L6 18M6 6l12 12"/></svg></button></div>
+    <div class="formgrid">
+      <p class="hint full" id="acSobre"></p>
+      <div class="field"><label for="ac_valor">Valor (R$)</label>
+        <input type="number" id="ac_valor" step="0.01" min="0.01" inputmode="decimal" required></div>
+      <div class="field"><label for="ac_data">Quando</label><input type="date" id="ac_data" required></div>
+      <div class="field full"><label for="ac_conta">Entrou ou saiu de qual conta</label>
+        <select id="ac_conta"></select>
+        <span class="hint">Deixe em branco se foi em espécie. Sem conta escolhida, o app quita a obrigação e não inventa movimentação nenhuma.</span></div>
+      <p class="hint full" id="acErro" role="alert" hidden></p>
+    </div>
+    <div class="dlg-f">
+      <span style="flex:1"></span>
+      <button type="button" class="btn" data-fechar="dlgAcerto">Cancelar</button>
+      <button type="submit" class="btn primary" id="acSalvar">Registrar</button>
     </div>
   </form>
 </dialog>

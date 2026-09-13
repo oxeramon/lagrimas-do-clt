@@ -236,13 +236,26 @@ function varreArquivo(rel, baseline) {
   });
 
   if (ARQUIVOS_DE_EXEMPLO.some((re) => re.test(rel))) {
+    /* Comentário não é dado -- e isso vale para a linha inteira do bloco, não
+       só para a que começa com o marcador. Um comentário de três linhas
+       explicando por que 33,34 e 33,33 são resultado de divisão estava sendo
+       lido como se fosse valor de exemplo, e cada aviso falso desses afoga um
+       verdadeiro. */
+    let dentroDeBloco = false;
     texto.split("\n").forEach((linha, i) => {
-      if (/^\s*(--|\/\*|\*|\/\/)/.test(linha)) return;          /* comentário não é dado */
-      for (const v of linha.match(CENTAVO_VIVO) || []) {
-        if (/[.,]00$/.test(v)) continue;
-        if (/^\d\.\d{2}$/.test(v)) continue;                    /* 0.01, 1.15: CSS/step */
+      const abre = (linha.match(/\/\*/g) || []).length;
+      const fecha = (linha.match(/\*\//g) || []).length;
+      const eraBloco = dentroDeBloco;
+      dentroDeBloco = dentroDeBloco ? fecha < abre + 1 : abre > fecha;
+      if (eraBloco) return;
+      if (/^\s*(--|\/\*|\*|\/\/)/.test(linha)) return;
+      /* um aviso por LINHA, não por valor: uma divisão em sete devolve sete
+         números na mesma linha, e sete avisos idênticos não dizem mais que um */
+      const suspeitos = (linha.match(CENTAVO_VIVO) || [])
+        .filter((v) => !/[.,]00$/.test(v))
+        .filter((v) => !/^\d\.\d{2}$/.test(v));            /* 0.01, 1.15: CSS/step */
+      if (suspeitos.length)
         anota("aviso", "valor de exemplo com centavo não zerado", rel, i + 1, linha);
-      }
     });
   }
 }

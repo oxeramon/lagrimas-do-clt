@@ -294,3 +294,53 @@ export const removeAssinatura = (id) =>
    duas vezes não duplica nada. Devolve quantas criou. */
 export const materializaAssinaturas = (ate) => consulta(
   bancoV2().rpc("materializa_assinaturas", { p_ate: ate || null }), "assinaturas");
+
+/* --------------------------------------------------- grupos e rateios --
+   Grupo calcula OBRIGAÇÃO; transação calcula DINHEIRO. Ver a migração 009. */
+export async function carregaGrupos(){
+  const c = bancoV2();
+  const [g, m, d, s] = await Promise.all([
+    c.from("grupos").select("*").order("ordem").order("nome"),
+    c.from("membros").select("*").order("ordem").order("nome"),
+    c.from("despesas_do_grupo").select("*").order("data", { ascending: false }),
+    c.from("saldos_do_grupo").select("*"),
+  ]);
+  const falha = [g, m, d, s].find((r) => r.error);
+  if (falha) return { dados: null, erro: falha.error.message };
+  return { erro: null, dados: {
+    grupos: doBanco(g.data || []), membros: doBanco(m.data || []),
+    despesas: doBanco(d.data || []), saldos: doBanco(s.data || []) } };
+}
+
+export const salvaGrupo = (modelo, id) => consulta(
+  id ? bancoV2().from("grupos").update(paraBanco(modelo)).eq("id", id)
+     : bancoV2().from("grupos").insert(paraBanco(modelo)), "grupo");
+export const removeGrupo = (id) =>
+  consulta(bancoV2().from("grupos").delete().eq("id", id), "grupo");
+
+export const salvaMembro = (modelo, id) => consulta(
+  id ? bancoV2().from("membros").update(paraBanco(modelo)).eq("id", id)
+     : bancoV2().from("membros").insert(paraBanco(modelo)), "membro");
+export const removeMembro = (id) =>
+  consulta(bancoV2().from("membros").delete().eq("id", id), "membro");
+
+/* A despesa e as partes nascem juntas ou não nascem. E a soma das partes é
+   conferida pelo BANCO, num gatilho postergado que a RPC não contorna. */
+export const registraDespesaDoGrupo = (p) => consulta(
+  bancoV2().rpc("registra_despesa_do_grupo", {
+    p_grupo: p.grupoId, p_descricao: p.descricao, p_valor: p.valor,
+    p_data: p.data, p_pago_por: p.pagoPorId,
+    p_rateios: p.rateios, p_categoria: p.categoriaId || null, p_obs: p.obs || "",
+  }), "despesa");
+
+export const removeDespesaDoGrupo = (id) =>
+  consulta(bancoV2().from("despesas_do_grupo").delete().eq("id", id), "despesa");
+
+/* Com conta escolhida, cria a movimentação e liga as duas. Sem conta,
+   registra só a quitação da obrigação -- o dinheiro pode ter passado em
+   espécie, e inventar uma entrada em conta seria pior que não registrar. */
+export const registraAcerto = (p) => consulta(
+  bancoV2().rpc("registra_acerto", {
+    p_grupo: p.grupoId, p_de: p.deId, p_para: p.paraId, p_valor: p.valor,
+    p_data: p.data, p_conta: p.contaId || null, p_obs: p.obs || "",
+  }), "acerto");

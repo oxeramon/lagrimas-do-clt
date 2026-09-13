@@ -387,3 +387,17 @@
 .assinatura-linha .amt{font-weight:var(--peso-forte); white-space:nowrap;
   font-variant-numeric:tabular-nums}
 .assinatura-linha .btn{flex-shrink:0}
+
+/* ============================================================= grupos =====
+   A situação vai por RÓTULO e por cor, nunca só por cor: quem não distingue
+   matiz continua lendo "deve" e "a receber". */
+#listaSaldos .amt .meta{display:block; font-size:10.5px; font-weight:var(--peso);
+  color:var(--ink-3); text-align:right}
+#listaSaldos .amt.bom, #listaAcertos .amt{color:var(--good)}
+#listaSaldos .amt.ruim{color:var(--critical)}
+.numerao.bom{color:var(--good)}
+.numerao.ruim{color:var(--critical)}
+#listaSaldos .row .btn, #listaAcertos .row .btn, #listaDespesas .row .btn{flex-shrink:0}
+/* o campo de cada parte no rateio: grade que cai para uma coluna em tela
+   estreita, como o resto dos formulários */
+#dg_partes input[readonly]{background:var(--surface-2); color:var(--ink-2)}
