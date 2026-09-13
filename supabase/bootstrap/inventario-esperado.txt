@@ -1,0 +1,1390 @@
+CMT alocacoes_de_meta Uma linha por reserva ou liberação. Valor com SINAL: positivo reserva, negativo libera. NÃO gera transação.
+CMT faturas_resolvidas A fatura com total, pago, restante e situação já derivados. `pago` vem de subconsulta, e não de join, porque com N pagamentos o join multiplicaria os itens e o total sairia errado.
+CMT liquidacao_uma_por_competencia Um compromisso da V1 se liquida uma vez por competência. Fatura fica de fora: ela recebe N pagamentos, e o limite dela é de VALOR, não de contagem.
+CMT metas Objetivo de destinação. NÃO guarda dinheiro e NÃO altera saldo: ver docs/CONTRATO_METAS.md.
+CMT metas_resolvidas Meta com reservado, falta e percentual derivados. NÃO some reservado com saldo de conta: é o mesmo dinheiro visto de outro ângulo.
+CMT transacoes.ocorrencia_em A data da ocorrência de uma assinatura. É a identidade dela: mês não serve, porque semanal tem quatro ou cinco no mesmo mês.
+COL acertos.criado_em timestamp with time zone NOT NULL default=now()
+COL acertos.data date NOT NULL
+COL acertos.de_id uuid NOT NULL
+COL acertos.grupo_id uuid NOT NULL
+COL acertos.id uuid NOT NULL default=gen_random_uuid()
+COL acertos.obs text NOT NULL default=''::text
+COL acertos.para_id uuid NOT NULL
+COL acertos.transacao_id uuid
+COL acertos.user_id uuid NOT NULL
+COL acertos.valor numeric(14,2) NOT NULL
+COL alocacoes_de_meta.criado_em timestamp with time zone NOT NULL default=now()
+COL alocacoes_de_meta.data date NOT NULL default=CURRENT_DATE
+COL alocacoes_de_meta.id uuid NOT NULL default=gen_random_uuid()
+COL alocacoes_de_meta.meta_id uuid NOT NULL
+COL alocacoes_de_meta.obs text NOT NULL default=''::text
+COL alocacoes_de_meta.user_id uuid NOT NULL
+COL alocacoes_de_meta.valor numeric(14,2) NOT NULL
+COL assinaturas.ativo boolean NOT NULL default=true
+COL assinaturas.cartao_id uuid
+COL assinaturas.categoria_id uuid
+COL assinaturas.conta_id uuid
+COL assinaturas.criado_em timestamp with time zone NOT NULL default=now()
+COL assinaturas.fim date
+COL assinaturas.frequencia text NOT NULL default='mensal'::text
+COL assinaturas.id uuid NOT NULL default=gen_random_uuid()
+COL assinaturas.inicio date NOT NULL
+COL assinaturas.logo text NOT NULL default=''::text
+COL assinaturas.nome text NOT NULL
+COL assinaturas.obs text NOT NULL default=''::text
+COL assinaturas.ordem integer NOT NULL default=0
+COL assinaturas.user_id uuid NOT NULL
+COL assinaturas.valor numeric(14,2) NOT NULL
+COL cartoes.apelido text NOT NULL default=''::text
+COL cartoes.ativo boolean NOT NULL default=true
+COL cartoes.conta_padrao_id uuid
+COL cartoes.cor text
+COL cartoes.criado_em timestamp with time zone NOT NULL default=now()
+COL cartoes.dia_fechamento smallint NOT NULL
+COL cartoes.dia_vencimento smallint NOT NULL
+COL cartoes.final text
+COL cartoes.id uuid NOT NULL default=gen_random_uuid()
+COL cartoes.instituicao_id uuid
+COL cartoes.limite numeric(14,2)
+COL cartoes.nome text NOT NULL
+COL cartoes.obs text NOT NULL default=''::text
+COL cartoes.ordem integer NOT NULL default=0
+COL cartoes.user_id uuid NOT NULL
+COL categorias.ativo boolean NOT NULL default=true
+COL categorias.cor text
+COL categorias.criado_em timestamp with time zone NOT NULL default=now()
+COL categorias.fluxo text NOT NULL default='saida'::text
+COL categorias.icone text NOT NULL default=''::text
+COL categorias.id uuid NOT NULL default=gen_random_uuid()
+COL categorias.nivel smallint NOT NULL default=1
+COL categorias.nome text NOT NULL
+COL categorias.ordem integer NOT NULL default=0
+COL categorias.pai_id uuid
+COL categorias.user_id uuid NOT NULL
+COL compras_de_cartao.cartao_id uuid NOT NULL
+COL compras_de_cartao.categoria_id uuid
+COL compras_de_cartao.criado_em timestamp with time zone NOT NULL default=now()
+COL compras_de_cartao.data_compra date NOT NULL
+COL compras_de_cartao.descricao text NOT NULL
+COL compras_de_cartao.id uuid NOT NULL default=gen_random_uuid()
+COL compras_de_cartao.obs text NOT NULL default=''::text
+COL compras_de_cartao.total_parcelas smallint NOT NULL default=1
+COL compras_de_cartao.user_id uuid NOT NULL
+COL compras_de_cartao.valor_total numeric(14,2) NOT NULL
+COL config.renda numeric(12,2) NOT NULL default=0
+COL config.user_id uuid NOT NULL
+COL contas.ativo boolean NOT NULL default=true
+COL contas.criado_em timestamp with time zone NOT NULL default=now()
+COL contas.id uuid NOT NULL default=gen_random_uuid()
+COL contas.instituicao_id uuid
+COL contas.liquidez text NOT NULL default='livre'::text
+COL contas.moeda text NOT NULL default='BRL'::text
+COL contas.nome text NOT NULL
+COL contas.obs text NOT NULL default=''::text
+COL contas.ordem integer NOT NULL default=0
+COL contas.saldo_inicial numeric(14,2) NOT NULL default=0
+COL contas.saldo_inicial_em date NOT NULL default=CURRENT_DATE
+COL contas.tipo text NOT NULL default='corrente'::text
+COL contas.user_id uuid NOT NULL
+COL credores.ativo boolean NOT NULL default=true
+COL credores.contato text NOT NULL default=''::text
+COL credores.credor_pai_id uuid
+COL credores.criado_em timestamp with time zone NOT NULL default=now()
+COL credores.dia_fechamento smallint
+COL credores.dia_vencimento smallint
+COL credores.id uuid NOT NULL default=gen_random_uuid()
+COL credores.nome text NOT NULL
+COL credores.obs text NOT NULL default=''::text
+COL credores.ordem integer NOT NULL default=0
+COL credores.tipo text NOT NULL default='Pessoa'::text
+COL credores.user_id uuid NOT NULL
+COL despesas_do_grupo.categoria_id uuid
+COL despesas_do_grupo.criado_em timestamp with time zone NOT NULL default=now()
+COL despesas_do_grupo.data date NOT NULL
+COL despesas_do_grupo.descricao text NOT NULL
+COL despesas_do_grupo.grupo_id uuid NOT NULL
+COL despesas_do_grupo.id uuid NOT NULL default=gen_random_uuid()
+COL despesas_do_grupo.obs text NOT NULL default=''::text
+COL despesas_do_grupo.pago_por_id uuid NOT NULL
+COL despesas_do_grupo.user_id uuid NOT NULL
+COL despesas_do_grupo.valor numeric(14,2) NOT NULL
+COL dividas.categoria text NOT NULL default='Terceiros'::text
+COL dividas.credor text NOT NULL
+COL dividas.credor_id uuid
+COL dividas.criado_em timestamp with time zone NOT NULL default=now()
+COL dividas.data_compra date
+COL dividas.descricao text NOT NULL
+COL dividas.id uuid NOT NULL default=gen_random_uuid()
+COL dividas.meio text NOT NULL default='Outro'::text
+COL dividas.mes_inicial text NOT NULL
+COL dividas.obs text NOT NULL default=''::text
+COL dividas.ordem integer NOT NULL default=0
+COL dividas.parcela_inicial integer NOT NULL default=1
+COL dividas.pessoa_id uuid
+COL dividas.total_parcelas integer NOT NULL default=1
+COL dividas.user_id uuid NOT NULL
+COL dividas.valor numeric(12,2) NOT NULL
+COL dividas.valor_terceiro numeric(12,2) NOT NULL default=0
+COL faturas.abertura date NOT NULL
+COL faturas.cartao_id uuid NOT NULL
+COL faturas.competencia text NOT NULL
+COL faturas.criado_em timestamp with time zone NOT NULL default=now()
+COL faturas.fechamento date NOT NULL
+COL faturas.id uuid NOT NULL default=gen_random_uuid()
+COL faturas.obs text NOT NULL default=''::text
+COL faturas.user_id uuid NOT NULL
+COL faturas.vencimento date NOT NULL
+COL fixas.categoria text NOT NULL default='Moradia'::text
+COL fixas.credor text NOT NULL default=''::text
+COL fixas.credor_id uuid
+COL fixas.criado_em timestamp with time zone NOT NULL default=now()
+COL fixas.id uuid NOT NULL default=gen_random_uuid()
+COL fixas.meio text NOT NULL default='Debito automatico'::text
+COL fixas.nome text NOT NULL
+COL fixas.obs text NOT NULL default=''::text
+COL fixas.ordem integer NOT NULL default=0
+COL fixas.user_id uuid NOT NULL
+COL fixas.valor numeric(12,2) NOT NULL
+COL fixas.variavel boolean NOT NULL default=false
+COL fixas_mes.criado_em timestamp with time zone NOT NULL default=now()
+COL fixas_mes.fixa_id uuid NOT NULL
+COL fixas_mes.mes text NOT NULL
+COL fixas_mes.user_id uuid NOT NULL
+COL fixas_mes.valor numeric(12,2) NOT NULL
+COL grupos.ativo boolean NOT NULL default=true
+COL grupos.criado_em timestamp with time zone NOT NULL default=now()
+COL grupos.id uuid NOT NULL default=gen_random_uuid()
+COL grupos.nome text NOT NULL
+COL grupos.obs text NOT NULL default=''::text
+COL grupos.ordem integer NOT NULL default=0
+COL grupos.user_id uuid NOT NULL
+COL instituicoes.ativo boolean NOT NULL default=true
+COL instituicoes.cor text
+COL instituicoes.criado_em timestamp with time zone NOT NULL default=now()
+COL instituicoes.id uuid NOT NULL default=gen_random_uuid()
+COL instituicoes.logo text NOT NULL default=''::text
+COL instituicoes.nome text NOT NULL
+COL instituicoes.obs text NOT NULL default=''::text
+COL instituicoes.ordem integer NOT NULL default=0
+COL instituicoes.tipo text NOT NULL default='Banco'::text
+COL instituicoes.user_id uuid NOT NULL
+COL liquidacoes.competencia text NOT NULL
+COL liquidacoes.criado_em timestamp with time zone NOT NULL default=now()
+COL liquidacoes.id uuid NOT NULL default=gen_random_uuid()
+COL liquidacoes.item_id text NOT NULL
+COL liquidacoes.tipo text NOT NULL
+COL liquidacoes.transacao_id uuid NOT NULL
+COL liquidacoes.user_id uuid NOT NULL
+COL liquidacoes.valor numeric(14,2) NOT NULL
+COL membros.apelido text NOT NULL default=''::text
+COL membros.ativo boolean NOT NULL default=true
+COL membros.criado_em timestamp with time zone NOT NULL default=now()
+COL membros.grupo_id uuid NOT NULL
+COL membros.id uuid NOT NULL default=gen_random_uuid()
+COL membros.nome text NOT NULL
+COL membros.ordem integer NOT NULL default=0
+COL membros.sou_eu boolean NOT NULL default=false
+COL membros.user_id uuid NOT NULL
+COL metas.cor text NOT NULL default=''::text
+COL metas.criado_em timestamp with time zone NOT NULL default=now()
+COL metas.icone text NOT NULL default=''::text
+COL metas.id uuid NOT NULL default=gen_random_uuid()
+COL metas.nome text NOT NULL
+COL metas.obs text NOT NULL default=''::text
+COL metas.ordem integer NOT NULL default=0
+COL metas.prazo date
+COL metas.prioridade smallint NOT NULL default=2
+COL metas.status text NOT NULL default='ativa'::text
+COL metas.user_id uuid NOT NULL
+COL metas.valor_alvo numeric(14,2) NOT NULL
+COL pagamentos.item_id text NOT NULL
+COL pagamentos.mes text NOT NULL
+COL pagamentos.pago_em timestamp with time zone NOT NULL default=now()
+COL pagamentos.user_id uuid NOT NULL
+COL ping.id integer NOT NULL
+COL ping.visto_em timestamp with time zone NOT NULL default=now()
+COL rateios.criado_em timestamp with time zone NOT NULL default=now()
+COL rateios.despesa_id uuid NOT NULL
+COL rateios.id uuid NOT NULL default=gen_random_uuid()
+COL rateios.membro_id uuid NOT NULL
+COL rateios.user_id uuid NOT NULL
+COL rateios.valor numeric(14,2) NOT NULL
+COL receitas.categoria text NOT NULL default='Extra'::text
+COL receitas.criado_em timestamp with time zone NOT NULL default=now()
+COL receitas.descricao text NOT NULL
+COL receitas.id uuid NOT NULL default=gen_random_uuid()
+COL receitas.mes_final text
+COL receitas.mes_inicial text
+COL receitas.obs text NOT NULL default=''::text
+COL receitas.ordem integer NOT NULL default=0
+COL receitas.tipo text NOT NULL default='pontual'::text
+COL receitas.user_id uuid NOT NULL
+COL receitas.valor numeric(12,2) NOT NULL
+COL transacoes.assinatura_id uuid
+COL transacoes.categoria_id uuid
+COL transacoes.competencia text
+COL transacoes.compra_id uuid
+COL transacoes.conta_id uuid
+COL transacoes.criado_em timestamp with time zone NOT NULL default=now()
+COL transacoes.data date NOT NULL
+COL transacoes.descricao text NOT NULL
+COL transacoes.estorno_de_id uuid
+COL transacoes.fatura_id uuid
+COL transacoes.id uuid NOT NULL default=gen_random_uuid()
+COL transacoes.natureza text NOT NULL default='normal'::text
+COL transacoes.obs text NOT NULL default=''::text
+COL transacoes.ocorrencia_em date
+COL transacoes.origem text NOT NULL default='manual'::text
+COL transacoes.origem_id text NOT NULL default=''::text
+COL transacoes.parcela smallint
+COL transacoes.status text NOT NULL default='realizada'::text
+COL transacoes.tipo text NOT NULL
+COL transacoes.total_parcelas smallint
+COL transacoes.transferencia_id uuid
+COL transacoes.user_id uuid NOT NULL
+COL transacoes.valor numeric(14,2) NOT NULL
+CON acertos.acerto_entre_dois CHECK ((de_id <> para_id))
+CON acertos.acertos_de_dono_fk FOREIGN KEY (user_id, de_id) REFERENCES membros(user_id, id) ON UPDATE CASCADE ON DELETE RESTRICT
+CON acertos.acertos_dono_id_unico UNIQUE (user_id, id)
+CON acertos.acertos_grupo_dono_fk FOREIGN KEY (user_id, grupo_id) REFERENCES grupos(user_id, id) ON UPDATE CASCADE ON DELETE CASCADE
+CON acertos.acertos_para_dono_fk FOREIGN KEY (user_id, para_id) REFERENCES membros(user_id, id) ON UPDATE CASCADE ON DELETE RESTRICT
+CON acertos.acertos_pkey PRIMARY KEY (id)
+CON acertos.acertos_transacao_dono_fk FOREIGN KEY (user_id, transacao_id) REFERENCES transacoes(user_id, id) ON UPDATE CASCADE ON DELETE SET NULL (transacao_id)
+CON acertos.acertos_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE
+CON acertos.acertos_valor_check CHECK ((valor > (0)::numeric))
+CON alocacoes_de_meta.alocacao_da_meta_do_dono FOREIGN KEY (user_id, meta_id) REFERENCES metas(user_id, id) ON DELETE CASCADE
+CON alocacoes_de_meta.alocacao_valor_check CHECK ((valor <> (0)::numeric))
+CON alocacoes_de_meta.alocacoes_de_meta_pkey PRIMARY KEY (id)
+CON alocacoes_de_meta.confere_alocacao_de_meta TRIGGER DEFERRABLE INITIALLY DEFERRED
+CON assinaturas.assinatura_fim_depois_do_inicio CHECK (((fim IS NULL) OR (fim >= inicio)))
+CON assinaturas.assinatura_nome_unico UNIQUE (user_id, nome)
+CON assinaturas.assinatura_paga_por_um_lugar_so CHECK (((conta_id IS NULL) OR (cartao_id IS NULL)))
+CON assinaturas.assinaturas_cartao_dono_fk FOREIGN KEY (user_id, cartao_id) REFERENCES cartoes(user_id, id) ON UPDATE CASCADE ON DELETE SET NULL (cartao_id)
+CON assinaturas.assinaturas_categoria_dono_fk FOREIGN KEY (user_id, categoria_id) REFERENCES categorias(user_id, id) ON UPDATE CASCADE ON DELETE SET NULL (categoria_id)
+CON assinaturas.assinaturas_conta_dono_fk FOREIGN KEY (user_id, conta_id) REFERENCES contas(user_id, id) ON UPDATE CASCADE ON DELETE SET NULL (conta_id)
+CON assinaturas.assinaturas_dono_id_unico UNIQUE (user_id, id)
+CON assinaturas.assinaturas_frequencia_check CHECK ((frequencia = ANY (ARRAY['semanal'::text, 'mensal'::text, 'bimestral'::text, 'trimestral'::text, 'semestral'::text, 'anual'::text])))
+CON assinaturas.assinaturas_nome_check CHECK (((length(nome) >= 1) AND (length(nome) <= 60)))
+CON assinaturas.assinaturas_pkey PRIMARY KEY (id)
+CON assinaturas.assinaturas_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE
+CON assinaturas.assinaturas_valor_check CHECK ((valor > (0)::numeric))
+CON cartoes.cartao_nome_unico UNIQUE (user_id, nome)
+CON cartoes.cartoes_apelido_check CHECK ((length(apelido) <= 40))
+CON cartoes.cartoes_conta_padrao_dono_fk FOREIGN KEY (user_id, conta_padrao_id) REFERENCES contas(user_id, id) ON UPDATE CASCADE ON DELETE SET NULL (conta_padrao_id)
+CON cartoes.cartoes_cor_check CHECK (((cor IS NULL) OR (cor ~ '^#[0-9A-Fa-f]{6}$'::text)))
+CON cartoes.cartoes_dia_fechamento_check CHECK (((dia_fechamento >= 1) AND (dia_fechamento <= 31)))
+CON cartoes.cartoes_dia_vencimento_check CHECK (((dia_vencimento >= 1) AND (dia_vencimento <= 31)))
+CON cartoes.cartoes_dono_id_unico UNIQUE (user_id, id)
+CON cartoes.cartoes_final_check CHECK (((final IS NULL) OR (final ~ '^[0-9]{4}$'::text)))
+CON cartoes.cartoes_instituicao_dono_fk FOREIGN KEY (user_id, instituicao_id) REFERENCES instituicoes(user_id, id) ON UPDATE CASCADE ON DELETE SET NULL (instituicao_id)
+CON cartoes.cartoes_limite_check CHECK (((limite IS NULL) OR (limite >= (0)::numeric)))
+CON cartoes.cartoes_nome_check CHECK (((length(nome) >= 1) AND (length(nome) <= 60)))
+CON cartoes.cartoes_pkey PRIMARY KEY (id)
+CON cartoes.cartoes_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE
+CON categorias.categoria_nao_e_pai_de_si CHECK (((pai_id IS NULL) OR (pai_id <> id)))
+CON categorias.categoria_nome_unico_no_pai UNIQUE NULLS NOT DISTINCT (user_id, pai_id, nome)
+CON categorias.categorias_cor_check CHECK (((cor IS NULL) OR (cor ~ '^#[0-9A-Fa-f]{6}$'::text)))
+CON categorias.categorias_dono_id_unico UNIQUE (user_id, id)
+CON categorias.categorias_fluxo_check CHECK ((fluxo = ANY (ARRAY['entrada'::text, 'saida'::text, 'ambos'::text])))
+CON categorias.categorias_nivel_check CHECK (((nivel >= 1) AND (nivel <= 3)))
+CON categorias.categorias_pai_dono_fk FOREIGN KEY (user_id, pai_id) REFERENCES categorias(user_id, id) ON UPDATE CASCADE ON DELETE CASCADE
+CON categorias.categorias_pkey PRIMARY KEY (id)
+CON categorias.categorias_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE
+CON compras_de_cartao.compras_cartao_dono_fk FOREIGN KEY (user_id, cartao_id) REFERENCES cartoes(user_id, id) ON UPDATE CASCADE ON DELETE CASCADE
+CON compras_de_cartao.compras_categoria_dono_fk FOREIGN KEY (user_id, categoria_id) REFERENCES categorias(user_id, id) ON UPDATE CASCADE ON DELETE SET NULL (categoria_id)
+CON compras_de_cartao.compras_de_cartao_descricao_check CHECK (((length(descricao) >= 1) AND (length(descricao) <= 120)))
+CON compras_de_cartao.compras_de_cartao_pkey PRIMARY KEY (id)
+CON compras_de_cartao.compras_de_cartao_total_parcelas_check CHECK (((total_parcelas >= 1) AND (total_parcelas <= 72)))
+CON compras_de_cartao.compras_de_cartao_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE
+CON compras_de_cartao.compras_de_cartao_valor_total_check CHECK ((valor_total > (0)::numeric))
+CON compras_de_cartao.compras_dono_id_unico UNIQUE (user_id, id)
+CON config.config_pkey PRIMARY KEY (user_id)
+CON config.config_renda_check CHECK ((renda >= (0)::numeric))
+CON config.config_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE
+CON contas.conta_nome_unico UNIQUE (user_id, nome)
+CON contas.contas_dono_id_unico UNIQUE (user_id, id)
+CON contas.contas_instituicao_dono_fk FOREIGN KEY (user_id, instituicao_id) REFERENCES instituicoes(user_id, id) ON UPDATE CASCADE ON DELETE SET NULL (instituicao_id)
+CON contas.contas_liquidez_check CHECK ((liquidez = ANY (ARRAY['livre'::text, 'restrita'::text, 'bloqueada'::text])))
+CON contas.contas_pkey PRIMARY KEY (id)
+CON contas.contas_tipo_check CHECK ((tipo = ANY (ARRAY['corrente'::text, 'poupanca'::text, 'carteira'::text, 'investimento'::text, 'fgts'::text, 'outro'::text])))
+CON contas.contas_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE
+CON credores.credor_nome_unico UNIQUE (user_id, nome)
+CON credores.credores_credor_pai_id_fkey FOREIGN KEY (credor_pai_id) REFERENCES credores(id) ON DELETE SET NULL
+CON credores.credores_dia_fechamento_check CHECK (((dia_fechamento IS NULL) OR ((dia_fechamento >= 1) AND (dia_fechamento <= 31))))
+CON credores.credores_dia_vencimento_check CHECK (((dia_vencimento IS NULL) OR ((dia_vencimento >= 1) AND (dia_vencimento <= 31))))
+CON credores.credores_pai_nao_e_si CHECK (((credor_pai_id IS NULL) OR (credor_pai_id <> id)))
+CON credores.credores_pkey PRIMARY KEY (id)
+CON credores.credores_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE
+CON despesas_do_grupo.despesa_confere_rateio TRIGGER DEFERRABLE INITIALLY DEFERRED
+CON despesas_do_grupo.despesas_categoria_dono_fk FOREIGN KEY (user_id, categoria_id) REFERENCES categorias(user_id, id) ON UPDATE CASCADE ON DELETE SET NULL (categoria_id)
+CON despesas_do_grupo.despesas_do_grupo_descricao_check CHECK (((length(descricao) >= 1) AND (length(descricao) <= 120)))
+CON despesas_do_grupo.despesas_do_grupo_dono_id_unico UNIQUE (user_id, id)
+CON despesas_do_grupo.despesas_do_grupo_pkey PRIMARY KEY (id)
+CON despesas_do_grupo.despesas_do_grupo_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE
+CON despesas_do_grupo.despesas_do_grupo_valor_check CHECK ((valor > (0)::numeric))
+CON despesas_do_grupo.despesas_grupo_dono_fk FOREIGN KEY (user_id, grupo_id) REFERENCES grupos(user_id, id) ON UPDATE CASCADE ON DELETE CASCADE
+CON despesas_do_grupo.despesas_pagador_dono_fk FOREIGN KEY (user_id, pago_por_id) REFERENCES membros(user_id, id) ON UPDATE CASCADE ON DELETE RESTRICT
+CON dividas.dividas_credor_id_fkey FOREIGN KEY (credor_id) REFERENCES credores(id) ON DELETE SET NULL
+CON dividas.dividas_mes_inicial_check CHECK ((mes_inicial ~ '^\d{4}-\d{2}$'::text))
+CON dividas.dividas_parcela_inicial_check CHECK ((parcela_inicial >= 1))
+CON dividas.dividas_pessoa_id_fkey FOREIGN KEY (pessoa_id) REFERENCES credores(id) ON DELETE SET NULL
+CON dividas.dividas_pkey PRIMARY KEY (id)
+CON dividas.dividas_total_parcelas_check CHECK ((total_parcelas >= 1))
+CON dividas.dividas_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE
+CON dividas.dividas_valor_check CHECK ((valor >= (0)::numeric))
+CON dividas.dividas_valor_terceiro_check CHECK ((valor_terceiro >= (0)::numeric))
+CON dividas.parcela_dentro_do_total CHECK ((parcela_inicial <= total_parcelas))
+CON dividas.terceiro_cabe_no_valor CHECK ((valor_terceiro <= valor))
+CON dividas.terceiro_tem_pessoa CHECK (((valor_terceiro = (0)::numeric) OR (pessoa_id IS NOT NULL)))
+CON faturas.fatura_janela_coerente CHECK ((abertura < fechamento))
+CON faturas.fatura_uma_por_ciclo UNIQUE (user_id, cartao_id, competencia)
+CON faturas.fatura_vence_depois_de_fechar CHECK ((vencimento >= fechamento))
+CON faturas.faturas_cartao_dono_fk FOREIGN KEY (user_id, cartao_id) REFERENCES cartoes(user_id, id) ON UPDATE CASCADE ON DELETE CASCADE
+CON faturas.faturas_competencia_check CHECK ((competencia ~ '^\d{4}-(0[1-9]|1[0-2])$'::text))
+CON faturas.faturas_dono_id_unico UNIQUE (user_id, id)
+CON faturas.faturas_pkey PRIMARY KEY (id)
+CON faturas.faturas_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE
+CON fixas.fixas_credor_id_fkey FOREIGN KEY (credor_id) REFERENCES credores(id) ON DELETE SET NULL
+CON fixas.fixas_pkey PRIMARY KEY (id)
+CON fixas.fixas_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE
+CON fixas.fixas_valor_check CHECK ((valor >= (0)::numeric))
+CON fixas_mes.fixas_mes_fixa_id_fkey FOREIGN KEY (fixa_id) REFERENCES fixas(id) ON DELETE CASCADE
+CON fixas_mes.fixas_mes_mes_check CHECK ((mes ~ '^[0-9]{4}-[0-9]{2}$'::text))
+CON fixas_mes.fixas_mes_pkey PRIMARY KEY (user_id, fixa_id, mes)
+CON fixas_mes.fixas_mes_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE
+CON fixas_mes.fixas_mes_valor_check CHECK ((valor >= (0)::numeric))
+CON grupos.grupo_nome_unico UNIQUE (user_id, nome)
+CON grupos.grupos_dono_id_unico UNIQUE (user_id, id)
+CON grupos.grupos_nome_check CHECK (((length(nome) >= 1) AND (length(nome) <= 60)))
+CON grupos.grupos_pkey PRIMARY KEY (id)
+CON grupos.grupos_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE
+CON instituicoes.instituicao_nome_unico UNIQUE (user_id, nome)
+CON instituicoes.instituicoes_cor_check CHECK (((cor IS NULL) OR (cor ~ '^#[0-9A-Fa-f]{6}$'::text)))
+CON instituicoes.instituicoes_dono_id_unico UNIQUE (user_id, id)
+CON instituicoes.instituicoes_pkey PRIMARY KEY (id)
+CON instituicoes.instituicoes_tipo_check CHECK ((tipo = ANY (ARRAY['Banco'::text, 'Corretora'::text, 'Fintech'::text, 'Carteira'::text, 'Empregador'::text, 'Outro'::text])))
+CON instituicoes.instituicoes_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE
+CON liquidacoes.confere_pagamento_de_fatura TRIGGER DEFERRABLE INITIALLY DEFERRED
+CON liquidacoes.liquidacao_uma_por_transacao UNIQUE (user_id, transacao_id)
+CON liquidacoes.liquidacoes_competencia_check CHECK ((competencia ~ '^\d{4}-(0[1-9]|1[0-2])$'::text))
+CON liquidacoes.liquidacoes_item_id_check CHECK (((length(item_id) >= 1) AND (length(item_id) <= 80)))
+CON liquidacoes.liquidacoes_pkey PRIMARY KEY (id)
+CON liquidacoes.liquidacoes_tipo_check CHECK ((tipo = ANY (ARRAY['divida'::text, 'fixa'::text, 'receita'::text, 'fatura'::text])))
+CON liquidacoes.liquidacoes_transacao_dono_fk FOREIGN KEY (user_id, transacao_id) REFERENCES transacoes(user_id, id) ON UPDATE CASCADE ON DELETE CASCADE
+CON liquidacoes.liquidacoes_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE
+CON liquidacoes.liquidacoes_valor_check CHECK ((valor > (0)::numeric))
+CON membros.membro_nome_unico_no_grupo UNIQUE (user_id, grupo_id, nome)
+CON membros.membros_apelido_check CHECK ((length(apelido) <= 30))
+CON membros.membros_dono_id_unico UNIQUE (user_id, id)
+CON membros.membros_grupo_dono_fk FOREIGN KEY (user_id, grupo_id) REFERENCES grupos(user_id, id) ON UPDATE CASCADE ON DELETE CASCADE
+CON membros.membros_nome_check CHECK (((length(nome) >= 1) AND (length(nome) <= 60)))
+CON membros.membros_pkey PRIMARY KEY (id)
+CON membros.membros_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE
+CON metas.metas_dono_id_unico UNIQUE (user_id, id)
+CON metas.metas_nome_check CHECK (((length(nome) >= 1) AND (length(nome) <= 80)))
+CON metas.metas_pkey PRIMARY KEY (id)
+CON metas.metas_prioridade_check CHECK (((prioridade >= 1) AND (prioridade <= 3)))
+CON metas.metas_status_check CHECK ((status = ANY (ARRAY['ativa'::text, 'concluida'::text, 'arquivada'::text])))
+CON metas.metas_valor_alvo_check CHECK ((valor_alvo > (0)::numeric))
+CON pagamentos.pagamentos_mes_check CHECK ((mes ~ '^\d{4}-\d{2}$'::text))
+CON pagamentos.pagamentos_pkey PRIMARY KEY (user_id, mes, item_id)
+CON pagamentos.pagamentos_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE
+CON ping.ping_pkey PRIMARY KEY (id)
+CON rateios.rateio_um_por_membro UNIQUE (user_id, despesa_id, membro_id)
+CON rateios.rateios_despesa_dono_fk FOREIGN KEY (user_id, despesa_id) REFERENCES despesas_do_grupo(user_id, id) ON UPDATE CASCADE ON DELETE CASCADE
+CON rateios.rateios_dono_id_unico UNIQUE (user_id, id)
+CON rateios.rateios_membro_dono_fk FOREIGN KEY (user_id, membro_id) REFERENCES membros(user_id, id) ON UPDATE CASCADE ON DELETE RESTRICT
+CON rateios.rateios_pkey PRIMARY KEY (id)
+CON rateios.rateios_somam_a_despesa TRIGGER DEFERRABLE INITIALLY DEFERRED
+CON rateios.rateios_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE
+CON rateios.rateios_valor_check CHECK ((valor >= (0)::numeric))
+CON receitas.receita_intervalo_valido CHECK (((mes_final IS NULL) OR (mes_inicial IS NULL) OR (mes_final >= mes_inicial)))
+CON receitas.receita_pontual_tem_mes CHECK (((tipo <> 'pontual'::text) OR (mes_inicial IS NOT NULL)))
+CON receitas.receitas_mes_final_check CHECK ((mes_final ~ '^\d{4}-\d{2}$'::text))
+CON receitas.receitas_mes_inicial_check CHECK ((mes_inicial ~ '^\d{4}-\d{2}$'::text))
+CON receitas.receitas_pkey PRIMARY KEY (id)
+CON receitas.receitas_tipo_check CHECK ((tipo = ANY (ARRAY['mensal'::text, 'pontual'::text])))
+CON receitas.receitas_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE
+CON receitas.receitas_valor_check CHECK ((valor >= (0)::numeric))
+CON transacoes.estorno_tem_original CHECK (((natureza = 'estorno'::text) = (estorno_de_id IS NOT NULL)))
+CON transacoes.ocorrencia_tem_data CHECK (((assinatura_id IS NULL) = (ocorrencia_em IS NULL)))
+CON transacoes.ocorrencia_unica_por_data UNIQUE (user_id, assinatura_id, ocorrencia_em)
+CON transacoes.pagamento_de_fatura_sai_de_conta CHECK (((natureza <> 'pagamento_de_fatura'::text) OR (conta_id IS NOT NULL)))
+CON transacoes.parcela_mora_numa_fatura CHECK (((compra_id IS NULL) OR (fatura_id IS NOT NULL)))
+CON transacoes.parcela_numerada_direito CHECK (((parcela IS NULL) OR ((parcela >= 1) AND (total_parcelas IS NOT NULL) AND (parcela <= total_parcelas))))
+CON transacoes.parcela_tem_compra CHECK (((compra_id IS NULL) = (parcela IS NULL)))
+CON transacoes.parcela_unica_por_compra UNIQUE (user_id, compra_id, parcela)
+CON transacoes.transacao_competencia_formato CHECK (((competencia IS NULL) OR (competencia ~ '^\d{4}-(0[1-9]|1[0-2])$'::text)))
+CON transacoes.transacao_nao_e_conta_e_fatura CHECK (((fatura_id IS NULL) OR (conta_id IS NULL)))
+CON transacoes.transacao_nao_estorna_a_si CHECK (((estorno_de_id IS NULL) OR (estorno_de_id <> id)))
+CON transacoes.transacoes_assinatura_dono_fk FOREIGN KEY (user_id, assinatura_id) REFERENCES assinaturas(user_id, id) ON UPDATE CASCADE ON DELETE SET NULL (assinatura_id)
+CON transacoes.transacoes_categoria_dono_fk FOREIGN KEY (user_id, categoria_id) REFERENCES categorias(user_id, id) ON UPDATE CASCADE ON DELETE SET NULL (categoria_id)
+CON transacoes.transacoes_compra_dono_fk FOREIGN KEY (user_id, compra_id) REFERENCES compras_de_cartao(user_id, id) ON UPDATE CASCADE ON DELETE CASCADE
+CON transacoes.transacoes_confere_estorno TRIGGER DEFERRABLE INITIALLY DEFERRED
+CON transacoes.transacoes_conta_dono_fk FOREIGN KEY (user_id, conta_id) REFERENCES contas(user_id, id) ON UPDATE CASCADE ON DELETE SET NULL (conta_id)
+CON transacoes.transacoes_dono_id_unico UNIQUE (user_id, id)
+CON transacoes.transacoes_estorno_dono_fk FOREIGN KEY (user_id, estorno_de_id) REFERENCES transacoes(user_id, id) ON UPDATE CASCADE ON DELETE RESTRICT
+CON transacoes.transacoes_fatura_dono_fk FOREIGN KEY (user_id, fatura_id) REFERENCES faturas(user_id, id) ON UPDATE CASCADE ON DELETE CASCADE
+CON transacoes.transacoes_natureza_check CHECK ((natureza = ANY (ARRAY['normal'::text, 'transferencia'::text, 'estorno'::text, 'pagamento_de_fatura'::text])))
+CON transacoes.transacoes_origem_check CHECK ((origem = ANY (ARRAY['manual'::text, 'divida'::text, 'fixa'::text, 'receita'::text, 'recorrencia'::text, 'cartao'::text, 'importacao'::text, 'mensagem'::text])))
+CON transacoes.transacoes_pkey PRIMARY KEY (id)
+CON transacoes.transacoes_status_check CHECK ((status = ANY (ARRAY['prevista'::text, 'realizada'::text, 'conciliada'::text, 'cancelada'::text])))
+CON transacoes.transacoes_tipo_check CHECK ((tipo = ANY (ARRAY['entrada'::text, 'saida'::text])))
+CON transacoes.transacoes_transferencia_completa TRIGGER DEFERRABLE INITIALLY DEFERRED
+CON transacoes.transacoes_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE
+CON transacoes.transacoes_valor_check CHECK ((valor > (0)::numeric))
+CON transacoes.transferencia_tem_grupo CHECK (((natureza = 'transferencia'::text) = (transferencia_id IS NOT NULL)))
+FN alocacoes_set_user_id() -> trigger func invoker volatile search_path=public
+FN atualiza_transferencia(p_transferencia uuid, p_conta_origem uuid, p_conta_destino uuid, p_valor numeric, p_data date, p_descricao text DEFAULT 'Transferência'::text, p_obs text DEFAULT ''::text, p_status text DEFAULT 'realizada'::text) -> uuid func invoker volatile search_path=public
+FN ciclo_da_fatura(p_competencia text, p_fechamento integer, p_vencimento integer, OUT abertura date, OUT fechamento date, OUT vencimento date) -> record func invoker immutable search_path=public
+FN competencia_da_compra(p_data date, p_fechamento integer) -> text func invoker immutable search_path=public
+FN competencia_da_ocorrencia(p_data date, p_frequencia text) -> text func invoker immutable search_path=public
+FN confere_alocacao_de_meta() -> trigger func invoker volatile search_path=public
+FN confere_estorno() -> trigger func invoker volatile search_path=public
+FN confere_liquidacao(p_tipo text, p_item_id text, p_competencia text, p_conta uuid, p_valor numeric) -> void func invoker volatile search_path=public
+FN confere_pagamento_de_fatura() -> trigger func invoker volatile search_path=public
+FN confere_pernas_da_transferencia(origem uuid, destino uuid, valor numeric) -> void func invoker volatile search_path=public
+FN confere_soma_da_despesa() -> trigger func invoker volatile search_path=public
+FN confere_soma_do_rateio() -> trigger func invoker volatile search_path=public
+FN cria_transferencia(p_conta_origem uuid, p_conta_destino uuid, p_valor numeric, p_data date, p_descricao text DEFAULT 'Transferência'::text, p_obs text DEFAULT ''::text, p_status text DEFAULT 'realizada'::text) -> uuid func invoker volatile search_path=public
+FN desfaz_liquidacao(p_tipo text, p_item_id text, p_competencia text) -> integer func invoker volatile search_path=public
+FN desfaz_pagamento_de_fatura(p_pagamento uuid) -> boolean func invoker volatile search_path=public
+FN dia_no_mes(p_mes text, p_dia integer) -> date func invoker immutable search_path=public
+FN estorna_transacao(p_transacao uuid, p_valor numeric DEFAULT NULL::numeric, p_data date DEFAULT NULL::date, p_obs text DEFAULT ''::text) -> uuid func invoker volatile search_path=public
+FN fatura_do_cartao(p_cartao uuid, p_data date) -> uuid func invoker volatile search_path=public
+FN fatura_na_competencia(p_cartao uuid, p_competencia text) -> uuid func invoker volatile search_path=public
+FN limpa_marca_da_liquidacao() -> trigger func invoker volatile search_path=public
+FN liquida_compromisso(p_tipo text, p_item_id text, p_competencia text, p_conta uuid, p_valor numeric, p_data date, p_descricao text, p_categoria uuid DEFAULT NULL::uuid, p_obs text DEFAULT ''::text) -> uuid func invoker volatile search_path=public
+FN materializa_assinaturas(p_ate date DEFAULT NULL::date) -> integer func invoker volatile search_path=public
+FN metas_set_user_id() -> trigger func invoker volatile search_path=public
+FN nivel_da_categoria() -> trigger func invoker volatile search_path=public
+FN paga_fatura(p_fatura uuid, p_conta uuid, p_valor numeric, p_data date, p_obs text DEFAULT ''::text) -> uuid func invoker volatile search_path=public
+FN passo_da_frequencia(p_frequencia text) -> interval func invoker immutable search_path=public
+FN recebe_receita(p_receita uuid, p_competencia text, p_conta uuid, p_valor numeric, p_data date, p_descricao text, p_categoria uuid DEFAULT NULL::uuid, p_obs text DEFAULT ''::text) -> uuid func invoker volatile search_path=public
+FN registra_acerto(p_grupo uuid, p_de uuid, p_para uuid, p_valor numeric, p_data date, p_conta uuid DEFAULT NULL::uuid, p_obs text DEFAULT ''::text) -> uuid func invoker volatile search_path=public
+FN registra_compra_de_cartao(p_cartao uuid, p_descricao text, p_valor_total numeric, p_data date, p_parcelas integer DEFAULT 1, p_categoria uuid DEFAULT NULL::uuid, p_obs text DEFAULT ''::text) -> uuid func invoker volatile search_path=public
+FN registra_despesa_do_grupo(p_grupo uuid, p_descricao text, p_valor numeric, p_data date, p_pago_por uuid, p_rateios jsonb, p_categoria uuid DEFAULT NULL::uuid, p_obs text DEFAULT ''::text) -> uuid func invoker volatile search_path=public
+FN remove_transferencia(p_transferencia uuid) -> integer func invoker volatile search_path=public
+FN saldo_livre_do_usuario() -> numeric func invoker stable search_path=public
+FN set_user_id() -> trigger func DEFINER volatile search_path=public
+FN total_devido_da_fatura(p_fatura uuid) -> numeric func invoker stable search_path=public
+FN total_pago_da_fatura(p_fatura uuid) -> numeric func invoker stable search_path=public
+FN total_reservado_em_metas() -> numeric func invoker stable search_path=public
+FN valida_transferencia() -> trigger func invoker volatile search_path=public
+FNBODY alocacoes_set_user_id() 0bf135911e89bf011cac69f3c9f484db
+FNBODY atualiza_transferencia(p_transferencia uuid, p_conta_origem uuid, p_conta_destino uuid, p_valor numeric, p_data date, p_descricao text, p_obs text, p_status text) 5e66fc5da502e6e77b73463fd767908a
+FNBODY ciclo_da_fatura(p_competencia text, p_fechamento integer, p_vencimento integer, OUT abertura date, OUT fechamento date, OUT vencimento date) 72dfd1024519c330fcccc5eaa02d45bf
+FNBODY competencia_da_compra(p_data date, p_fechamento integer) 5fa03b0e7824b40f73bb25439ca9642c
+FNBODY competencia_da_ocorrencia(p_data date, p_frequencia text) f39cfe7272d00c18d9ceb643e5249f78
+FNBODY confere_alocacao_de_meta() 9d934543c21c7496fa952af161812d49
+FNBODY confere_estorno() 3781ebf40f74b9ab9929f69a423a2115
+FNBODY confere_liquidacao(p_tipo text, p_item_id text, p_competencia text, p_conta uuid, p_valor numeric) b10dd170479580be0f3c054f46991eea
+FNBODY confere_pagamento_de_fatura() bed8b845c06c01b0d181caa049785076
+FNBODY confere_pernas_da_transferencia(origem uuid, destino uuid, valor numeric) 5cdc9c3575b941241a150feada853cda
+FNBODY confere_soma_da_despesa() 15d064e7dcca06b82101c3662dcfa27f
+FNBODY confere_soma_do_rateio() be5a62bab90c0363a9b0b2a88391d9df
+FNBODY cria_transferencia(p_conta_origem uuid, p_conta_destino uuid, p_valor numeric, p_data date, p_descricao text, p_obs text, p_status text) aa5739965e24cf539b0fa8ab30d90e4c
+FNBODY desfaz_liquidacao(p_tipo text, p_item_id text, p_competencia text) 3670de052cd442b20fc24a768f731892
+FNBODY desfaz_pagamento_de_fatura(p_pagamento uuid) d052ea0c9736d0a3aefe62bbc99d5cb2
+FNBODY dia_no_mes(p_mes text, p_dia integer) 474866bca555555e09de2671a1c2544e
+FNBODY estorna_transacao(p_transacao uuid, p_valor numeric, p_data date, p_obs text) 419ff1e12ef3b22b10c59c1bffe3ac59
+FNBODY fatura_do_cartao(p_cartao uuid, p_data date) 7a207674bd4bf7499b3bdfc16829b27f
+FNBODY fatura_na_competencia(p_cartao uuid, p_competencia text) 427af468cc7740448478d99a61e00309
+FNBODY limpa_marca_da_liquidacao() 304d01b06740b702d992c2727805887b
+FNBODY liquida_compromisso(p_tipo text, p_item_id text, p_competencia text, p_conta uuid, p_valor numeric, p_data date, p_descricao text, p_categoria uuid, p_obs text) 051419a8f098033b5b50f4bd3fe7b44a
+FNBODY materializa_assinaturas(p_ate date) 6c24973a36d1a5ace55adf857849c0fd
+FNBODY metas_set_user_id() 0bf135911e89bf011cac69f3c9f484db
+FNBODY nivel_da_categoria() 044d2c38e0ea28f048694ceedaab0528
+FNBODY paga_fatura(p_fatura uuid, p_conta uuid, p_valor numeric, p_data date, p_obs text) 85c68ea3e6cc53d3ffd2bcb1710fc21b
+FNBODY passo_da_frequencia(p_frequencia text) faa717844b31ff48c7a696c7097b2e31
+FNBODY recebe_receita(p_receita uuid, p_competencia text, p_conta uuid, p_valor numeric, p_data date, p_descricao text, p_categoria uuid, p_obs text) 47f4b9254830e10f7f2d36b87d0c78ab
+FNBODY registra_acerto(p_grupo uuid, p_de uuid, p_para uuid, p_valor numeric, p_data date, p_conta uuid, p_obs text) 07b9bebca35fef954801067eab522110
+FNBODY registra_compra_de_cartao(p_cartao uuid, p_descricao text, p_valor_total numeric, p_data date, p_parcelas integer, p_categoria uuid, p_obs text) c2e9672e524a86866cba40558323f66a
+FNBODY registra_despesa_do_grupo(p_grupo uuid, p_descricao text, p_valor numeric, p_data date, p_pago_por uuid, p_rateios jsonb, p_categoria uuid, p_obs text) e7079c661b7f4e2642d2ca491956005f
+FNBODY remove_transferencia(p_transferencia uuid) d2e3e4f457cf868bcf990e0ea613c0e6
+FNBODY saldo_livre_do_usuario() 2414a64fb0aa90dca86c7c2914eb3e5d
+FNBODY set_user_id() 6334fa58fe2b5b203d708f62fa4bf166
+FNBODY total_devido_da_fatura(p_fatura uuid) dd9c49ee480a31592fc32c491e74703e
+FNBODY total_pago_da_fatura(p_fatura uuid) 76228b807b553f6126ada11cf3f81741
+FNBODY total_reservado_em_metas() 8731852ab974d791ddb0f43a1a1e9c79
+FNBODY valida_transferencia() 0f47edb64cab4f08f4d6fc48bb6efb86
+GFN alocacoes_set_user_id() anon=nao
+GFN alocacoes_set_user_id() authenticated=nao
+GFN alocacoes_set_user_id() service_role=EXECUTE
+GFN atualiza_transferencia(p_transferencia uuid, p_conta_origem uuid, p_conta_destino uuid, p_valor numeric, p_data date, p_descricao text, p_obs text, p_status text) anon=nao
+GFN atualiza_transferencia(p_transferencia uuid, p_conta_origem uuid, p_conta_destino uuid, p_valor numeric, p_data date, p_descricao text, p_obs text, p_status text) authenticated=EXECUTE
+GFN atualiza_transferencia(p_transferencia uuid, p_conta_origem uuid, p_conta_destino uuid, p_valor numeric, p_data date, p_descricao text, p_obs text, p_status text) service_role=EXECUTE
+GFN ciclo_da_fatura(p_competencia text, p_fechamento integer, p_vencimento integer, OUT abertura date, OUT fechamento date, OUT vencimento date) anon=nao
+GFN ciclo_da_fatura(p_competencia text, p_fechamento integer, p_vencimento integer, OUT abertura date, OUT fechamento date, OUT vencimento date) authenticated=EXECUTE
+GFN ciclo_da_fatura(p_competencia text, p_fechamento integer, p_vencimento integer, OUT abertura date, OUT fechamento date, OUT vencimento date) service_role=EXECUTE
+GFN competencia_da_compra(p_data date, p_fechamento integer) anon=nao
+GFN competencia_da_compra(p_data date, p_fechamento integer) authenticated=EXECUTE
+GFN competencia_da_compra(p_data date, p_fechamento integer) service_role=EXECUTE
+GFN competencia_da_ocorrencia(p_data date, p_frequencia text) anon=nao
+GFN competencia_da_ocorrencia(p_data date, p_frequencia text) authenticated=EXECUTE
+GFN competencia_da_ocorrencia(p_data date, p_frequencia text) service_role=EXECUTE
+GFN confere_alocacao_de_meta() anon=nao
+GFN confere_alocacao_de_meta() authenticated=nao
+GFN confere_alocacao_de_meta() service_role=EXECUTE
+GFN confere_estorno() anon=nao
+GFN confere_estorno() authenticated=nao
+GFN confere_estorno() service_role=EXECUTE
+GFN confere_liquidacao(p_tipo text, p_item_id text, p_competencia text, p_conta uuid, p_valor numeric) anon=nao
+GFN confere_liquidacao(p_tipo text, p_item_id text, p_competencia text, p_conta uuid, p_valor numeric) authenticated=EXECUTE
+GFN confere_liquidacao(p_tipo text, p_item_id text, p_competencia text, p_conta uuid, p_valor numeric) service_role=EXECUTE
+GFN confere_pagamento_de_fatura() anon=nao
+GFN confere_pagamento_de_fatura() authenticated=nao
+GFN confere_pagamento_de_fatura() service_role=EXECUTE
+GFN confere_pernas_da_transferencia(origem uuid, destino uuid, valor numeric) anon=nao
+GFN confere_pernas_da_transferencia(origem uuid, destino uuid, valor numeric) authenticated=EXECUTE
+GFN confere_pernas_da_transferencia(origem uuid, destino uuid, valor numeric) service_role=EXECUTE
+GFN confere_soma_da_despesa() anon=nao
+GFN confere_soma_da_despesa() authenticated=nao
+GFN confere_soma_da_despesa() service_role=EXECUTE
+GFN confere_soma_do_rateio() anon=nao
+GFN confere_soma_do_rateio() authenticated=nao
+GFN confere_soma_do_rateio() service_role=EXECUTE
+GFN cria_transferencia(p_conta_origem uuid, p_conta_destino uuid, p_valor numeric, p_data date, p_descricao text, p_obs text, p_status text) anon=nao
+GFN cria_transferencia(p_conta_origem uuid, p_conta_destino uuid, p_valor numeric, p_data date, p_descricao text, p_obs text, p_status text) authenticated=EXECUTE
+GFN cria_transferencia(p_conta_origem uuid, p_conta_destino uuid, p_valor numeric, p_data date, p_descricao text, p_obs text, p_status text) service_role=EXECUTE
+GFN desfaz_liquidacao(p_tipo text, p_item_id text, p_competencia text) anon=nao
+GFN desfaz_liquidacao(p_tipo text, p_item_id text, p_competencia text) authenticated=EXECUTE
+GFN desfaz_liquidacao(p_tipo text, p_item_id text, p_competencia text) service_role=EXECUTE
+GFN desfaz_pagamento_de_fatura(p_pagamento uuid) anon=nao
+GFN desfaz_pagamento_de_fatura(p_pagamento uuid) authenticated=EXECUTE
+GFN desfaz_pagamento_de_fatura(p_pagamento uuid) service_role=EXECUTE
+GFN dia_no_mes(p_mes text, p_dia integer) anon=nao
+GFN dia_no_mes(p_mes text, p_dia integer) authenticated=EXECUTE
+GFN dia_no_mes(p_mes text, p_dia integer) service_role=EXECUTE
+GFN estorna_transacao(p_transacao uuid, p_valor numeric, p_data date, p_obs text) anon=nao
+GFN estorna_transacao(p_transacao uuid, p_valor numeric, p_data date, p_obs text) authenticated=EXECUTE
+GFN estorna_transacao(p_transacao uuid, p_valor numeric, p_data date, p_obs text) service_role=EXECUTE
+GFN fatura_do_cartao(p_cartao uuid, p_data date) anon=nao
+GFN fatura_do_cartao(p_cartao uuid, p_data date) authenticated=EXECUTE
+GFN fatura_do_cartao(p_cartao uuid, p_data date) service_role=EXECUTE
+GFN fatura_na_competencia(p_cartao uuid, p_competencia text) anon=nao
+GFN fatura_na_competencia(p_cartao uuid, p_competencia text) authenticated=EXECUTE
+GFN fatura_na_competencia(p_cartao uuid, p_competencia text) service_role=EXECUTE
+GFN limpa_marca_da_liquidacao() anon=nao
+GFN limpa_marca_da_liquidacao() authenticated=nao
+GFN limpa_marca_da_liquidacao() service_role=EXECUTE
+GFN liquida_compromisso(p_tipo text, p_item_id text, p_competencia text, p_conta uuid, p_valor numeric, p_data date, p_descricao text, p_categoria uuid, p_obs text) anon=nao
+GFN liquida_compromisso(p_tipo text, p_item_id text, p_competencia text, p_conta uuid, p_valor numeric, p_data date, p_descricao text, p_categoria uuid, p_obs text) authenticated=EXECUTE
+GFN liquida_compromisso(p_tipo text, p_item_id text, p_competencia text, p_conta uuid, p_valor numeric, p_data date, p_descricao text, p_categoria uuid, p_obs text) service_role=EXECUTE
+GFN materializa_assinaturas(p_ate date) anon=nao
+GFN materializa_assinaturas(p_ate date) authenticated=EXECUTE
+GFN materializa_assinaturas(p_ate date) service_role=EXECUTE
+GFN metas_set_user_id() anon=nao
+GFN metas_set_user_id() authenticated=nao
+GFN metas_set_user_id() service_role=EXECUTE
+GFN nivel_da_categoria() anon=nao
+GFN nivel_da_categoria() authenticated=nao
+GFN nivel_da_categoria() service_role=EXECUTE
+GFN paga_fatura(p_fatura uuid, p_conta uuid, p_valor numeric, p_data date, p_obs text) anon=nao
+GFN paga_fatura(p_fatura uuid, p_conta uuid, p_valor numeric, p_data date, p_obs text) authenticated=EXECUTE
+GFN paga_fatura(p_fatura uuid, p_conta uuid, p_valor numeric, p_data date, p_obs text) service_role=EXECUTE
+GFN passo_da_frequencia(p_frequencia text) anon=nao
+GFN passo_da_frequencia(p_frequencia text) authenticated=EXECUTE
+GFN passo_da_frequencia(p_frequencia text) service_role=EXECUTE
+GFN recebe_receita(p_receita uuid, p_competencia text, p_conta uuid, p_valor numeric, p_data date, p_descricao text, p_categoria uuid, p_obs text) anon=nao
+GFN recebe_receita(p_receita uuid, p_competencia text, p_conta uuid, p_valor numeric, p_data date, p_descricao text, p_categoria uuid, p_obs text) authenticated=EXECUTE
+GFN recebe_receita(p_receita uuid, p_competencia text, p_conta uuid, p_valor numeric, p_data date, p_descricao text, p_categoria uuid, p_obs text) service_role=EXECUTE
+GFN registra_acerto(p_grupo uuid, p_de uuid, p_para uuid, p_valor numeric, p_data date, p_conta uuid, p_obs text) anon=nao
+GFN registra_acerto(p_grupo uuid, p_de uuid, p_para uuid, p_valor numeric, p_data date, p_conta uuid, p_obs text) authenticated=EXECUTE
+GFN registra_acerto(p_grupo uuid, p_de uuid, p_para uuid, p_valor numeric, p_data date, p_conta uuid, p_obs text) service_role=EXECUTE
+GFN registra_compra_de_cartao(p_cartao uuid, p_descricao text, p_valor_total numeric, p_data date, p_parcelas integer, p_categoria uuid, p_obs text) anon=nao
+GFN registra_compra_de_cartao(p_cartao uuid, p_descricao text, p_valor_total numeric, p_data date, p_parcelas integer, p_categoria uuid, p_obs text) authenticated=EXECUTE
+GFN registra_compra_de_cartao(p_cartao uuid, p_descricao text, p_valor_total numeric, p_data date, p_parcelas integer, p_categoria uuid, p_obs text) service_role=EXECUTE
+GFN registra_despesa_do_grupo(p_grupo uuid, p_descricao text, p_valor numeric, p_data date, p_pago_por uuid, p_rateios jsonb, p_categoria uuid, p_obs text) anon=nao
+GFN registra_despesa_do_grupo(p_grupo uuid, p_descricao text, p_valor numeric, p_data date, p_pago_por uuid, p_rateios jsonb, p_categoria uuid, p_obs text) authenticated=EXECUTE
+GFN registra_despesa_do_grupo(p_grupo uuid, p_descricao text, p_valor numeric, p_data date, p_pago_por uuid, p_rateios jsonb, p_categoria uuid, p_obs text) service_role=EXECUTE
+GFN remove_transferencia(p_transferencia uuid) anon=nao
+GFN remove_transferencia(p_transferencia uuid) authenticated=EXECUTE
+GFN remove_transferencia(p_transferencia uuid) service_role=EXECUTE
+GFN saldo_livre_do_usuario() anon=nao
+GFN saldo_livre_do_usuario() authenticated=EXECUTE
+GFN saldo_livre_do_usuario() service_role=EXECUTE
+GFN set_user_id() anon=nao
+GFN set_user_id() authenticated=nao
+GFN set_user_id() service_role=EXECUTE
+GFN total_devido_da_fatura(p_fatura uuid) anon=nao
+GFN total_devido_da_fatura(p_fatura uuid) authenticated=EXECUTE
+GFN total_devido_da_fatura(p_fatura uuid) service_role=EXECUTE
+GFN total_pago_da_fatura(p_fatura uuid) anon=nao
+GFN total_pago_da_fatura(p_fatura uuid) authenticated=EXECUTE
+GFN total_pago_da_fatura(p_fatura uuid) service_role=EXECUTE
+GFN total_reservado_em_metas() anon=nao
+GFN total_reservado_em_metas() authenticated=EXECUTE
+GFN total_reservado_em_metas() service_role=EXECUTE
+GFN valida_transferencia() anon=nao
+GFN valida_transferencia() authenticated=nao
+GFN valida_transferencia() service_role=EXECUTE
+GTAB acertos anon DELETE
+GTAB acertos anon INSERT
+GTAB acertos anon REFERENCES
+GTAB acertos anon SELECT
+GTAB acertos anon TRIGGER
+GTAB acertos anon TRUNCATE
+GTAB acertos anon UPDATE
+GTAB acertos authenticated DELETE
+GTAB acertos authenticated INSERT
+GTAB acertos authenticated REFERENCES
+GTAB acertos authenticated SELECT
+GTAB acertos authenticated TRIGGER
+GTAB acertos authenticated TRUNCATE
+GTAB acertos authenticated UPDATE
+GTAB acertos service_role DELETE
+GTAB acertos service_role INSERT
+GTAB acertos service_role REFERENCES
+GTAB acertos service_role SELECT
+GTAB acertos service_role TRIGGER
+GTAB acertos service_role TRUNCATE
+GTAB acertos service_role UPDATE
+GTAB alocacoes_de_meta anon DELETE
+GTAB alocacoes_de_meta anon INSERT
+GTAB alocacoes_de_meta anon REFERENCES
+GTAB alocacoes_de_meta anon SELECT
+GTAB alocacoes_de_meta anon TRIGGER
+GTAB alocacoes_de_meta anon TRUNCATE
+GTAB alocacoes_de_meta anon UPDATE
+GTAB alocacoes_de_meta authenticated DELETE
+GTAB alocacoes_de_meta authenticated INSERT
+GTAB alocacoes_de_meta authenticated REFERENCES
+GTAB alocacoes_de_meta authenticated SELECT
+GTAB alocacoes_de_meta authenticated TRIGGER
+GTAB alocacoes_de_meta authenticated TRUNCATE
+GTAB alocacoes_de_meta authenticated UPDATE
+GTAB alocacoes_de_meta service_role DELETE
+GTAB alocacoes_de_meta service_role INSERT
+GTAB alocacoes_de_meta service_role REFERENCES
+GTAB alocacoes_de_meta service_role SELECT
+GTAB alocacoes_de_meta service_role TRIGGER
+GTAB alocacoes_de_meta service_role TRUNCATE
+GTAB alocacoes_de_meta service_role UPDATE
+GTAB assinaturas anon DELETE
+GTAB assinaturas anon INSERT
+GTAB assinaturas anon REFERENCES
+GTAB assinaturas anon SELECT
+GTAB assinaturas anon TRIGGER
+GTAB assinaturas anon TRUNCATE
+GTAB assinaturas anon UPDATE
+GTAB assinaturas authenticated DELETE
+GTAB assinaturas authenticated INSERT
+GTAB assinaturas authenticated REFERENCES
+GTAB assinaturas authenticated SELECT
+GTAB assinaturas authenticated TRIGGER
+GTAB assinaturas authenticated TRUNCATE
+GTAB assinaturas authenticated UPDATE
+GTAB assinaturas service_role DELETE
+GTAB assinaturas service_role INSERT
+GTAB assinaturas service_role REFERENCES
+GTAB assinaturas service_role SELECT
+GTAB assinaturas service_role TRIGGER
+GTAB assinaturas service_role TRUNCATE
+GTAB assinaturas service_role UPDATE
+GTAB assinaturas_resolvidas anon DELETE
+GTAB assinaturas_resolvidas anon INSERT
+GTAB assinaturas_resolvidas anon REFERENCES
+GTAB assinaturas_resolvidas anon SELECT
+GTAB assinaturas_resolvidas anon TRIGGER
+GTAB assinaturas_resolvidas anon TRUNCATE
+GTAB assinaturas_resolvidas anon UPDATE
+GTAB assinaturas_resolvidas authenticated DELETE
+GTAB assinaturas_resolvidas authenticated INSERT
+GTAB assinaturas_resolvidas authenticated REFERENCES
+GTAB assinaturas_resolvidas authenticated SELECT
+GTAB assinaturas_resolvidas authenticated TRIGGER
+GTAB assinaturas_resolvidas authenticated TRUNCATE
+GTAB assinaturas_resolvidas authenticated UPDATE
+GTAB assinaturas_resolvidas service_role DELETE
+GTAB assinaturas_resolvidas service_role INSERT
+GTAB assinaturas_resolvidas service_role REFERENCES
+GTAB assinaturas_resolvidas service_role SELECT
+GTAB assinaturas_resolvidas service_role TRIGGER
+GTAB assinaturas_resolvidas service_role TRUNCATE
+GTAB assinaturas_resolvidas service_role UPDATE
+GTAB cartoes anon DELETE
+GTAB cartoes anon INSERT
+GTAB cartoes anon REFERENCES
+GTAB cartoes anon SELECT
+GTAB cartoes anon TRIGGER
+GTAB cartoes anon TRUNCATE
+GTAB cartoes anon UPDATE
+GTAB cartoes authenticated DELETE
+GTAB cartoes authenticated INSERT
+GTAB cartoes authenticated REFERENCES
+GTAB cartoes authenticated SELECT
+GTAB cartoes authenticated TRIGGER
+GTAB cartoes authenticated TRUNCATE
+GTAB cartoes authenticated UPDATE
+GTAB cartoes service_role DELETE
+GTAB cartoes service_role INSERT
+GTAB cartoes service_role REFERENCES
+GTAB cartoes service_role SELECT
+GTAB cartoes service_role TRIGGER
+GTAB cartoes service_role TRUNCATE
+GTAB cartoes service_role UPDATE
+GTAB categorias anon DELETE
+GTAB categorias anon INSERT
+GTAB categorias anon REFERENCES
+GTAB categorias anon SELECT
+GTAB categorias anon TRIGGER
+GTAB categorias anon TRUNCATE
+GTAB categorias anon UPDATE
+GTAB categorias authenticated DELETE
+GTAB categorias authenticated INSERT
+GTAB categorias authenticated REFERENCES
+GTAB categorias authenticated SELECT
+GTAB categorias authenticated TRIGGER
+GTAB categorias authenticated TRUNCATE
+GTAB categorias authenticated UPDATE
+GTAB categorias service_role DELETE
+GTAB categorias service_role INSERT
+GTAB categorias service_role REFERENCES
+GTAB categorias service_role SELECT
+GTAB categorias service_role TRIGGER
+GTAB categorias service_role TRUNCATE
+GTAB categorias service_role UPDATE
+GTAB compras_de_cartao anon DELETE
+GTAB compras_de_cartao anon INSERT
+GTAB compras_de_cartao anon REFERENCES
+GTAB compras_de_cartao anon SELECT
+GTAB compras_de_cartao anon TRIGGER
+GTAB compras_de_cartao anon TRUNCATE
+GTAB compras_de_cartao anon UPDATE
+GTAB compras_de_cartao authenticated DELETE
+GTAB compras_de_cartao authenticated INSERT
+GTAB compras_de_cartao authenticated REFERENCES
+GTAB compras_de_cartao authenticated SELECT
+GTAB compras_de_cartao authenticated TRIGGER
+GTAB compras_de_cartao authenticated TRUNCATE
+GTAB compras_de_cartao authenticated UPDATE
+GTAB compras_de_cartao service_role DELETE
+GTAB compras_de_cartao service_role INSERT
+GTAB compras_de_cartao service_role REFERENCES
+GTAB compras_de_cartao service_role SELECT
+GTAB compras_de_cartao service_role TRIGGER
+GTAB compras_de_cartao service_role TRUNCATE
+GTAB compras_de_cartao service_role UPDATE
+GTAB config anon DELETE
+GTAB config anon INSERT
+GTAB config anon REFERENCES
+GTAB config anon SELECT
+GTAB config anon TRIGGER
+GTAB config anon TRUNCATE
+GTAB config anon UPDATE
+GTAB config authenticated DELETE
+GTAB config authenticated INSERT
+GTAB config authenticated REFERENCES
+GTAB config authenticated SELECT
+GTAB config authenticated TRIGGER
+GTAB config authenticated TRUNCATE
+GTAB config authenticated UPDATE
+GTAB config service_role DELETE
+GTAB config service_role INSERT
+GTAB config service_role REFERENCES
+GTAB config service_role SELECT
+GTAB config service_role TRIGGER
+GTAB config service_role TRUNCATE
+GTAB config service_role UPDATE
+GTAB contas anon DELETE
+GTAB contas anon INSERT
+GTAB contas anon REFERENCES
+GTAB contas anon SELECT
+GTAB contas anon TRIGGER
+GTAB contas anon TRUNCATE
+GTAB contas anon UPDATE
+GTAB contas authenticated DELETE
+GTAB contas authenticated INSERT
+GTAB contas authenticated REFERENCES
+GTAB contas authenticated SELECT
+GTAB contas authenticated TRIGGER
+GTAB contas authenticated TRUNCATE
+GTAB contas authenticated UPDATE
+GTAB contas service_role DELETE
+GTAB contas service_role INSERT
+GTAB contas service_role REFERENCES
+GTAB contas service_role SELECT
+GTAB contas service_role TRIGGER
+GTAB contas service_role TRUNCATE
+GTAB contas service_role UPDATE
+GTAB credores anon DELETE
+GTAB credores anon INSERT
+GTAB credores anon REFERENCES
+GTAB credores anon SELECT
+GTAB credores anon TRIGGER
+GTAB credores anon TRUNCATE
+GTAB credores anon UPDATE
+GTAB credores authenticated DELETE
+GTAB credores authenticated INSERT
+GTAB credores authenticated REFERENCES
+GTAB credores authenticated SELECT
+GTAB credores authenticated TRIGGER
+GTAB credores authenticated TRUNCATE
+GTAB credores authenticated UPDATE
+GTAB credores service_role DELETE
+GTAB credores service_role INSERT
+GTAB credores service_role REFERENCES
+GTAB credores service_role SELECT
+GTAB credores service_role TRIGGER
+GTAB credores service_role TRUNCATE
+GTAB credores service_role UPDATE
+GTAB despesas_do_grupo anon DELETE
+GTAB despesas_do_grupo anon INSERT
+GTAB despesas_do_grupo anon REFERENCES
+GTAB despesas_do_grupo anon SELECT
+GTAB despesas_do_grupo anon TRIGGER
+GTAB despesas_do_grupo anon TRUNCATE
+GTAB despesas_do_grupo anon UPDATE
+GTAB despesas_do_grupo authenticated DELETE
+GTAB despesas_do_grupo authenticated INSERT
+GTAB despesas_do_grupo authenticated REFERENCES
+GTAB despesas_do_grupo authenticated SELECT
+GTAB despesas_do_grupo authenticated TRIGGER
+GTAB despesas_do_grupo authenticated TRUNCATE
+GTAB despesas_do_grupo authenticated UPDATE
+GTAB despesas_do_grupo service_role DELETE
+GTAB despesas_do_grupo service_role INSERT
+GTAB despesas_do_grupo service_role REFERENCES
+GTAB despesas_do_grupo service_role SELECT
+GTAB despesas_do_grupo service_role TRIGGER
+GTAB despesas_do_grupo service_role TRUNCATE
+GTAB despesas_do_grupo service_role UPDATE
+GTAB dividas anon DELETE
+GTAB dividas anon INSERT
+GTAB dividas anon REFERENCES
+GTAB dividas anon SELECT
+GTAB dividas anon TRIGGER
+GTAB dividas anon TRUNCATE
+GTAB dividas anon UPDATE
+GTAB dividas authenticated DELETE
+GTAB dividas authenticated INSERT
+GTAB dividas authenticated REFERENCES
+GTAB dividas authenticated SELECT
+GTAB dividas authenticated TRIGGER
+GTAB dividas authenticated TRUNCATE
+GTAB dividas authenticated UPDATE
+GTAB dividas service_role DELETE
+GTAB dividas service_role INSERT
+GTAB dividas service_role REFERENCES
+GTAB dividas service_role SELECT
+GTAB dividas service_role TRIGGER
+GTAB dividas service_role TRUNCATE
+GTAB dividas service_role UPDATE
+GTAB faturas anon DELETE
+GTAB faturas anon INSERT
+GTAB faturas anon REFERENCES
+GTAB faturas anon SELECT
+GTAB faturas anon TRIGGER
+GTAB faturas anon TRUNCATE
+GTAB faturas anon UPDATE
+GTAB faturas authenticated DELETE
+GTAB faturas authenticated INSERT
+GTAB faturas authenticated REFERENCES
+GTAB faturas authenticated SELECT
+GTAB faturas authenticated TRIGGER
+GTAB faturas authenticated TRUNCATE
+GTAB faturas authenticated UPDATE
+GTAB faturas service_role DELETE
+GTAB faturas service_role INSERT
+GTAB faturas service_role REFERENCES
+GTAB faturas service_role SELECT
+GTAB faturas service_role TRIGGER
+GTAB faturas service_role TRUNCATE
+GTAB faturas service_role UPDATE
+GTAB faturas_resolvidas anon DELETE
+GTAB faturas_resolvidas anon INSERT
+GTAB faturas_resolvidas anon REFERENCES
+GTAB faturas_resolvidas anon SELECT
+GTAB faturas_resolvidas anon TRIGGER
+GTAB faturas_resolvidas anon TRUNCATE
+GTAB faturas_resolvidas anon UPDATE
+GTAB faturas_resolvidas authenticated DELETE
+GTAB faturas_resolvidas authenticated INSERT
+GTAB faturas_resolvidas authenticated REFERENCES
+GTAB faturas_resolvidas authenticated SELECT
+GTAB faturas_resolvidas authenticated TRIGGER
+GTAB faturas_resolvidas authenticated TRUNCATE
+GTAB faturas_resolvidas authenticated UPDATE
+GTAB faturas_resolvidas service_role DELETE
+GTAB faturas_resolvidas service_role INSERT
+GTAB faturas_resolvidas service_role REFERENCES
+GTAB faturas_resolvidas service_role SELECT
+GTAB faturas_resolvidas service_role TRIGGER
+GTAB faturas_resolvidas service_role TRUNCATE
+GTAB faturas_resolvidas service_role UPDATE
+GTAB fixas anon DELETE
+GTAB fixas anon INSERT
+GTAB fixas anon REFERENCES
+GTAB fixas anon SELECT
+GTAB fixas anon TRIGGER
+GTAB fixas anon TRUNCATE
+GTAB fixas anon UPDATE
+GTAB fixas authenticated DELETE
+GTAB fixas authenticated INSERT
+GTAB fixas authenticated REFERENCES
+GTAB fixas authenticated SELECT
+GTAB fixas authenticated TRIGGER
+GTAB fixas authenticated TRUNCATE
+GTAB fixas authenticated UPDATE
+GTAB fixas service_role DELETE
+GTAB fixas service_role INSERT
+GTAB fixas service_role REFERENCES
+GTAB fixas service_role SELECT
+GTAB fixas service_role TRIGGER
+GTAB fixas service_role TRUNCATE
+GTAB fixas service_role UPDATE
+GTAB fixas_mes anon DELETE
+GTAB fixas_mes anon INSERT
+GTAB fixas_mes anon REFERENCES
+GTAB fixas_mes anon SELECT
+GTAB fixas_mes anon TRIGGER
+GTAB fixas_mes anon TRUNCATE
+GTAB fixas_mes anon UPDATE
+GTAB fixas_mes authenticated DELETE
+GTAB fixas_mes authenticated INSERT
+GTAB fixas_mes authenticated REFERENCES
+GTAB fixas_mes authenticated SELECT
+GTAB fixas_mes authenticated TRIGGER
+GTAB fixas_mes authenticated TRUNCATE
+GTAB fixas_mes authenticated UPDATE
+GTAB fixas_mes service_role DELETE
+GTAB fixas_mes service_role INSERT
+GTAB fixas_mes service_role REFERENCES
+GTAB fixas_mes service_role SELECT
+GTAB fixas_mes service_role TRIGGER
+GTAB fixas_mes service_role TRUNCATE
+GTAB fixas_mes service_role UPDATE
+GTAB grupos anon DELETE
+GTAB grupos anon INSERT
+GTAB grupos anon REFERENCES
+GTAB grupos anon SELECT
+GTAB grupos anon TRIGGER
+GTAB grupos anon TRUNCATE
+GTAB grupos anon UPDATE
+GTAB grupos authenticated DELETE
+GTAB grupos authenticated INSERT
+GTAB grupos authenticated REFERENCES
+GTAB grupos authenticated SELECT
+GTAB grupos authenticated TRIGGER
+GTAB grupos authenticated TRUNCATE
+GTAB grupos authenticated UPDATE
+GTAB grupos service_role DELETE
+GTAB grupos service_role INSERT
+GTAB grupos service_role REFERENCES
+GTAB grupos service_role SELECT
+GTAB grupos service_role TRIGGER
+GTAB grupos service_role TRUNCATE
+GTAB grupos service_role UPDATE
+GTAB instituicoes anon DELETE
+GTAB instituicoes anon INSERT
+GTAB instituicoes anon REFERENCES
+GTAB instituicoes anon SELECT
+GTAB instituicoes anon TRIGGER
+GTAB instituicoes anon TRUNCATE
+GTAB instituicoes anon UPDATE
+GTAB instituicoes authenticated DELETE
+GTAB instituicoes authenticated INSERT
+GTAB instituicoes authenticated REFERENCES
+GTAB instituicoes authenticated SELECT
+GTAB instituicoes authenticated TRIGGER
+GTAB instituicoes authenticated TRUNCATE
+GTAB instituicoes authenticated UPDATE
+GTAB instituicoes service_role DELETE
+GTAB instituicoes service_role INSERT
+GTAB instituicoes service_role REFERENCES
+GTAB instituicoes service_role SELECT
+GTAB instituicoes service_role TRIGGER
+GTAB instituicoes service_role TRUNCATE
+GTAB instituicoes service_role UPDATE
+GTAB liquidacoes anon DELETE
+GTAB liquidacoes anon INSERT
+GTAB liquidacoes anon REFERENCES
+GTAB liquidacoes anon SELECT
+GTAB liquidacoes anon TRIGGER
+GTAB liquidacoes anon TRUNCATE
+GTAB liquidacoes anon UPDATE
+GTAB liquidacoes authenticated DELETE
+GTAB liquidacoes authenticated INSERT
+GTAB liquidacoes authenticated REFERENCES
+GTAB liquidacoes authenticated SELECT
+GTAB liquidacoes authenticated TRIGGER
+GTAB liquidacoes authenticated TRUNCATE
+GTAB liquidacoes authenticated UPDATE
+GTAB liquidacoes service_role DELETE
+GTAB liquidacoes service_role INSERT
+GTAB liquidacoes service_role REFERENCES
+GTAB liquidacoes service_role SELECT
+GTAB liquidacoes service_role TRIGGER
+GTAB liquidacoes service_role TRUNCATE
+GTAB liquidacoes service_role UPDATE
+GTAB membros anon DELETE
+GTAB membros anon INSERT
+GTAB membros anon REFERENCES
+GTAB membros anon SELECT
+GTAB membros anon TRIGGER
+GTAB membros anon TRUNCATE
+GTAB membros anon UPDATE
+GTAB membros authenticated DELETE
+GTAB membros authenticated INSERT
+GTAB membros authenticated REFERENCES
+GTAB membros authenticated SELECT
+GTAB membros authenticated TRIGGER
+GTAB membros authenticated TRUNCATE
+GTAB membros authenticated UPDATE
+GTAB membros service_role DELETE
+GTAB membros service_role INSERT
+GTAB membros service_role REFERENCES
+GTAB membros service_role SELECT
+GTAB membros service_role TRIGGER
+GTAB membros service_role TRUNCATE
+GTAB membros service_role UPDATE
+GTAB metas anon DELETE
+GTAB metas anon INSERT
+GTAB metas anon REFERENCES
+GTAB metas anon SELECT
+GTAB metas anon TRIGGER
+GTAB metas anon TRUNCATE
+GTAB metas anon UPDATE
+GTAB metas authenticated DELETE
+GTAB metas authenticated INSERT
+GTAB metas authenticated REFERENCES
+GTAB metas authenticated SELECT
+GTAB metas authenticated TRIGGER
+GTAB metas authenticated TRUNCATE
+GTAB metas authenticated UPDATE
+GTAB metas service_role DELETE
+GTAB metas service_role INSERT
+GTAB metas service_role REFERENCES
+GTAB metas service_role SELECT
+GTAB metas service_role TRIGGER
+GTAB metas service_role TRUNCATE
+GTAB metas service_role UPDATE
+GTAB metas_resolvidas anon DELETE
+GTAB metas_resolvidas anon INSERT
+GTAB metas_resolvidas anon REFERENCES
+GTAB metas_resolvidas anon SELECT
+GTAB metas_resolvidas anon TRIGGER
+GTAB metas_resolvidas anon TRUNCATE
+GTAB metas_resolvidas anon UPDATE
+GTAB metas_resolvidas authenticated DELETE
+GTAB metas_resolvidas authenticated INSERT
+GTAB metas_resolvidas authenticated REFERENCES
+GTAB metas_resolvidas authenticated SELECT
+GTAB metas_resolvidas authenticated TRIGGER
+GTAB metas_resolvidas authenticated TRUNCATE
+GTAB metas_resolvidas authenticated UPDATE
+GTAB metas_resolvidas service_role DELETE
+GTAB metas_resolvidas service_role INSERT
+GTAB metas_resolvidas service_role REFERENCES
+GTAB metas_resolvidas service_role SELECT
+GTAB metas_resolvidas service_role TRIGGER
+GTAB metas_resolvidas service_role TRUNCATE
+GTAB metas_resolvidas service_role UPDATE
+GTAB pagamentos anon DELETE
+GTAB pagamentos anon INSERT
+GTAB pagamentos anon REFERENCES
+GTAB pagamentos anon SELECT
+GTAB pagamentos anon TRIGGER
+GTAB pagamentos anon TRUNCATE
+GTAB pagamentos anon UPDATE
+GTAB pagamentos authenticated DELETE
+GTAB pagamentos authenticated INSERT
+GTAB pagamentos authenticated REFERENCES
+GTAB pagamentos authenticated SELECT
+GTAB pagamentos authenticated TRIGGER
+GTAB pagamentos authenticated TRUNCATE
+GTAB pagamentos authenticated UPDATE
+GTAB pagamentos service_role DELETE
+GTAB pagamentos service_role INSERT
+GTAB pagamentos service_role REFERENCES
+GTAB pagamentos service_role SELECT
+GTAB pagamentos service_role TRIGGER
+GTAB pagamentos service_role TRUNCATE
+GTAB pagamentos service_role UPDATE
+GTAB ping anon DELETE
+GTAB ping anon INSERT
+GTAB ping anon REFERENCES
+GTAB ping anon SELECT
+GTAB ping anon TRIGGER
+GTAB ping anon TRUNCATE
+GTAB ping anon UPDATE
+GTAB ping authenticated DELETE
+GTAB ping authenticated INSERT
+GTAB ping authenticated REFERENCES
+GTAB ping authenticated SELECT
+GTAB ping authenticated TRIGGER
+GTAB ping authenticated TRUNCATE
+GTAB ping authenticated UPDATE
+GTAB ping service_role DELETE
+GTAB ping service_role INSERT
+GTAB ping service_role REFERENCES
+GTAB ping service_role SELECT
+GTAB ping service_role TRIGGER
+GTAB ping service_role TRUNCATE
+GTAB ping service_role UPDATE
+GTAB rateios anon DELETE
+GTAB rateios anon INSERT
+GTAB rateios anon REFERENCES
+GTAB rateios anon SELECT
+GTAB rateios anon TRIGGER
+GTAB rateios anon TRUNCATE
+GTAB rateios anon UPDATE
+GTAB rateios authenticated DELETE
+GTAB rateios authenticated INSERT
+GTAB rateios authenticated REFERENCES
+GTAB rateios authenticated SELECT
+GTAB rateios authenticated TRIGGER
+GTAB rateios authenticated TRUNCATE
+GTAB rateios authenticated UPDATE
+GTAB rateios service_role DELETE
+GTAB rateios service_role INSERT
+GTAB rateios service_role REFERENCES
+GTAB rateios service_role SELECT
+GTAB rateios service_role TRIGGER
+GTAB rateios service_role TRUNCATE
+GTAB rateios service_role UPDATE
+GTAB receitas anon DELETE
+GTAB receitas anon INSERT
+GTAB receitas anon REFERENCES
+GTAB receitas anon SELECT
+GTAB receitas anon TRIGGER
+GTAB receitas anon TRUNCATE
+GTAB receitas anon UPDATE
+GTAB receitas authenticated DELETE
+GTAB receitas authenticated INSERT
+GTAB receitas authenticated REFERENCES
+GTAB receitas authenticated SELECT
+GTAB receitas authenticated TRIGGER
+GTAB receitas authenticated TRUNCATE
+GTAB receitas authenticated UPDATE
+GTAB receitas service_role DELETE
+GTAB receitas service_role INSERT
+GTAB receitas service_role REFERENCES
+GTAB receitas service_role SELECT
+GTAB receitas service_role TRIGGER
+GTAB receitas service_role TRUNCATE
+GTAB receitas service_role UPDATE
+GTAB saldos_de_conta anon DELETE
+GTAB saldos_de_conta anon INSERT
+GTAB saldos_de_conta anon REFERENCES
+GTAB saldos_de_conta anon SELECT
+GTAB saldos_de_conta anon TRIGGER
+GTAB saldos_de_conta anon TRUNCATE
+GTAB saldos_de_conta anon UPDATE
+GTAB saldos_de_conta authenticated DELETE
+GTAB saldos_de_conta authenticated INSERT
+GTAB saldos_de_conta authenticated REFERENCES
+GTAB saldos_de_conta authenticated SELECT
+GTAB saldos_de_conta authenticated TRIGGER
+GTAB saldos_de_conta authenticated TRUNCATE
+GTAB saldos_de_conta authenticated UPDATE
+GTAB saldos_de_conta service_role DELETE
+GTAB saldos_de_conta service_role INSERT
+GTAB saldos_de_conta service_role REFERENCES
+GTAB saldos_de_conta service_role SELECT
+GTAB saldos_de_conta service_role TRIGGER
+GTAB saldos_de_conta service_role TRUNCATE
+GTAB saldos_de_conta service_role UPDATE
+GTAB saldos_do_grupo anon DELETE
+GTAB saldos_do_grupo anon INSERT
+GTAB saldos_do_grupo anon REFERENCES
+GTAB saldos_do_grupo anon SELECT
+GTAB saldos_do_grupo anon TRIGGER
+GTAB saldos_do_grupo anon TRUNCATE
+GTAB saldos_do_grupo anon UPDATE
+GTAB saldos_do_grupo authenticated DELETE
+GTAB saldos_do_grupo authenticated INSERT
+GTAB saldos_do_grupo authenticated REFERENCES
+GTAB saldos_do_grupo authenticated SELECT
+GTAB saldos_do_grupo authenticated TRIGGER
+GTAB saldos_do_grupo authenticated TRUNCATE
+GTAB saldos_do_grupo authenticated UPDATE
+GTAB saldos_do_grupo service_role DELETE
+GTAB saldos_do_grupo service_role INSERT
+GTAB saldos_do_grupo service_role REFERENCES
+GTAB saldos_do_grupo service_role SELECT
+GTAB saldos_do_grupo service_role TRIGGER
+GTAB saldos_do_grupo service_role TRUNCATE
+GTAB saldos_do_grupo service_role UPDATE
+GTAB transacoes anon DELETE
+GTAB transacoes anon INSERT
+GTAB transacoes anon REFERENCES
+GTAB transacoes anon SELECT
+GTAB transacoes anon TRIGGER
+GTAB transacoes anon TRUNCATE
+GTAB transacoes anon UPDATE
+GTAB transacoes authenticated DELETE
+GTAB transacoes authenticated INSERT
+GTAB transacoes authenticated REFERENCES
+GTAB transacoes authenticated SELECT
+GTAB transacoes authenticated TRIGGER
+GTAB transacoes authenticated TRUNCATE
+GTAB transacoes authenticated UPDATE
+GTAB transacoes service_role DELETE
+GTAB transacoes service_role INSERT
+GTAB transacoes service_role REFERENCES
+GTAB transacoes service_role SELECT
+GTAB transacoes service_role TRIGGER
+GTAB transacoes service_role TRUNCATE
+GTAB transacoes service_role UPDATE
+GTAB transacoes_com_estorno anon DELETE
+GTAB transacoes_com_estorno anon INSERT
+GTAB transacoes_com_estorno anon REFERENCES
+GTAB transacoes_com_estorno anon SELECT
+GTAB transacoes_com_estorno anon TRIGGER
+GTAB transacoes_com_estorno anon TRUNCATE
+GTAB transacoes_com_estorno anon UPDATE
+GTAB transacoes_com_estorno authenticated DELETE
+GTAB transacoes_com_estorno authenticated INSERT
+GTAB transacoes_com_estorno authenticated REFERENCES
+GTAB transacoes_com_estorno authenticated SELECT
+GTAB transacoes_com_estorno authenticated TRIGGER
+GTAB transacoes_com_estorno authenticated TRUNCATE
+GTAB transacoes_com_estorno authenticated UPDATE
+GTAB transacoes_com_estorno service_role DELETE
+GTAB transacoes_com_estorno service_role INSERT
+GTAB transacoes_com_estorno service_role REFERENCES
+GTAB transacoes_com_estorno service_role SELECT
+GTAB transacoes_com_estorno service_role TRIGGER
+GTAB transacoes_com_estorno service_role TRUNCATE
+GTAB transacoes_com_estorno service_role UPDATE
+IDX CREATE INDEX acertos_grupo_idx ON public.acertos USING btree (user_id, grupo_id, data)
+IDX CREATE INDEX alocacoes_da_meta ON public.alocacoes_de_meta USING btree (user_id, meta_id, data)
+IDX CREATE INDEX assinaturas_user_idx ON public.assinaturas USING btree (user_id, ativo, ordem, nome)
+IDX CREATE INDEX cartoes_user_idx ON public.cartoes USING btree (user_id, ordem, nome)
+IDX CREATE INDEX categorias_pai_idx ON public.categorias USING btree (user_id, pai_id)
+IDX CREATE INDEX categorias_user_idx ON public.categorias USING btree (user_id, ativo, ordem)
+IDX CREATE INDEX compras_cartao_idx ON public.compras_de_cartao USING btree (user_id, cartao_id, data_compra)
+IDX CREATE INDEX contas_instituicao_dono_idx ON public.contas USING btree (user_id, instituicao_id)
+IDX CREATE INDEX contas_instituicao_idx ON public.contas USING btree (instituicao_id)
+IDX CREATE INDEX contas_user_idx ON public.contas USING btree (user_id, ativo, ordem)
+IDX CREATE INDEX credores_ativo_idx ON public.credores USING btree (user_id, ativo, ordem)
+IDX CREATE INDEX credores_pai_idx ON public.credores USING btree (user_id, credor_pai_id, ordem)
+IDX CREATE INDEX credores_user_idx ON public.credores USING btree (user_id, ordem)
+IDX CREATE INDEX despesas_grupo_idx ON public.despesas_do_grupo USING btree (user_id, grupo_id, data)
+IDX CREATE INDEX dividas_credor_idx ON public.dividas USING btree (credor_id)
+IDX CREATE INDEX dividas_data_idx ON public.dividas USING btree (user_id, data_compra)
+IDX CREATE INDEX dividas_meio_idx ON public.dividas USING btree (user_id, meio, mes_inicial)
+IDX CREATE INDEX dividas_pessoa_idx ON public.dividas USING btree (user_id, pessoa_id)
+IDX CREATE INDEX dividas_user_idx ON public.dividas USING btree (user_id, ordem)
+IDX CREATE INDEX faturas_cartao_idx ON public.faturas USING btree (user_id, cartao_id, competencia)
+IDX CREATE INDEX faturas_vencimento_idx ON public.faturas USING btree (user_id, vencimento)
+IDX CREATE INDEX fixas_credor_idx ON public.fixas USING btree (credor_id)
+IDX CREATE INDEX fixas_mes_idx ON public.fixas_mes USING btree (user_id, mes)
+IDX CREATE INDEX fixas_user_idx ON public.fixas USING btree (user_id, ordem)
+IDX CREATE INDEX grupos_user_idx ON public.grupos USING btree (user_id, ordem, nome)
+IDX CREATE INDEX instituicoes_user_idx ON public.instituicoes USING btree (user_id, ativo, ordem)
+IDX CREATE INDEX liquidacoes_item_idx ON public.liquidacoes USING btree (user_id, tipo, item_id)
+IDX CREATE INDEX liquidacoes_transacao_idx ON public.liquidacoes USING btree (user_id, transacao_id)
+IDX CREATE INDEX liquidacoes_user_idx ON public.liquidacoes USING btree (user_id, competencia)
+IDX CREATE INDEX membros_grupo_idx ON public.membros USING btree (user_id, grupo_id, ordem, nome)
+IDX CREATE INDEX metas_do_usuario ON public.metas USING btree (user_id, status, ordem)
+IDX CREATE INDEX pagamentos_user_idx ON public.pagamentos USING btree (user_id, mes)
+IDX CREATE INDEX rateios_despesa_idx ON public.rateios USING btree (user_id, despesa_id)
+IDX CREATE INDEX rateios_membro_idx ON public.rateios USING btree (user_id, membro_id)
+IDX CREATE INDEX receitas_user_idx ON public.receitas USING btree (user_id, ordem)
+IDX CREATE INDEX transacoes_assinatura_idx ON public.transacoes USING btree (user_id, assinatura_id, competencia)
+IDX CREATE INDEX transacoes_categoria_idx ON public.transacoes USING btree (user_id, categoria_id)
+IDX CREATE INDEX transacoes_compra_idx ON public.transacoes USING btree (user_id, compra_id)
+IDX CREATE INDEX transacoes_conta_idx ON public.transacoes USING btree (user_id, conta_id, data)
+IDX CREATE INDEX transacoes_estorno_idx ON public.transacoes USING btree (user_id, estorno_de_id)
+IDX CREATE INDEX transacoes_fatura_idx ON public.transacoes USING btree (user_id, fatura_id)
+IDX CREATE INDEX transacoes_origem_idx ON public.transacoes USING btree (user_id, origem, origem_id)
+IDX CREATE INDEX transacoes_status_idx ON public.transacoes USING btree (user_id, status, data)
+IDX CREATE INDEX transacoes_transferencia_idx ON public.transacoes USING btree (user_id, transferencia_id)
+IDX CREATE INDEX transacoes_user_data_idx ON public.transacoes USING btree (user_id, data DESC)
+IDX CREATE UNIQUE INDEX liquidacao_uma_por_competencia ON public.liquidacoes USING btree (user_id, tipo, item_id, competencia) WHERE (tipo <> 'fatura'::text)
+IDX CREATE UNIQUE INDEX membro_um_sou_eu_por_grupo ON public.membros USING btree (user_id, grupo_id) WHERE sou_eu
+POL acertos.acertos_own cmd=ALL roles=authenticated using=(user_id = auth.uid()) check=(user_id = auth.uid())
+POL alocacoes_de_meta.alocacoes_do_dono cmd=ALL roles=authenticated using=(user_id = ( SELECT auth.uid() AS uid)) check=(user_id = ( SELECT auth.uid() AS uid))
+POL assinaturas.assinaturas_own cmd=ALL roles=authenticated using=(user_id = auth.uid()) check=(user_id = auth.uid())
+POL cartoes.cartoes_own cmd=ALL roles=authenticated using=(user_id = auth.uid()) check=(user_id = auth.uid())
+POL categorias.categorias_own cmd=ALL roles=authenticated using=(user_id = auth.uid()) check=(user_id = auth.uid())
+POL compras_de_cartao.compras_de_cartao_own cmd=ALL roles=authenticated using=(user_id = auth.uid()) check=(user_id = auth.uid())
+POL config.config_own cmd=ALL roles=authenticated using=(user_id = auth.uid()) check=(user_id = auth.uid())
+POL contas.contas_own cmd=ALL roles=authenticated using=(user_id = auth.uid()) check=(user_id = auth.uid())
+POL credores.credores_own cmd=ALL roles=authenticated using=(user_id = auth.uid()) check=(user_id = auth.uid())
+POL despesas_do_grupo.despesas_do_grupo_own cmd=ALL roles=authenticated using=(user_id = auth.uid()) check=(user_id = auth.uid())
+POL dividas.dividas_own cmd=ALL roles=authenticated using=(user_id = auth.uid()) check=(user_id = auth.uid())
+POL faturas.faturas_own cmd=ALL roles=authenticated using=(user_id = auth.uid()) check=(user_id = auth.uid())
+POL fixas.fixas_own cmd=ALL roles=authenticated using=(user_id = auth.uid()) check=(user_id = auth.uid())
+POL fixas_mes.fixas_mes_own cmd=ALL roles=authenticated using=(user_id = auth.uid()) check=(user_id = auth.uid())
+POL grupos.grupos_own cmd=ALL roles=authenticated using=(user_id = auth.uid()) check=(user_id = auth.uid())
+POL instituicoes.instituicoes_own cmd=ALL roles=authenticated using=(user_id = auth.uid()) check=(user_id = auth.uid())
+POL liquidacoes.liquidacoes_own cmd=ALL roles=authenticated using=(user_id = auth.uid()) check=(user_id = auth.uid())
+POL membros.membros_own cmd=ALL roles=authenticated using=(user_id = auth.uid()) check=(user_id = auth.uid())
+POL metas.metas_do_dono cmd=ALL roles=authenticated using=(user_id = ( SELECT auth.uid() AS uid)) check=(user_id = ( SELECT auth.uid() AS uid))
+POL pagamentos.pagamentos_own cmd=ALL roles=authenticated using=(user_id = auth.uid()) check=(user_id = auth.uid())
+POL ping.ping_read cmd=SELECT roles=anon+authenticated using=true check=-
+POL rateios.rateios_own cmd=ALL roles=authenticated using=(user_id = auth.uid()) check=(user_id = auth.uid())
+POL receitas.receitas_own cmd=ALL roles=authenticated using=(user_id = auth.uid()) check=(user_id = auth.uid())
+POL transacoes.transacoes_own cmd=ALL roles=authenticated using=(user_id = auth.uid()) check=(user_id = auth.uid())
+TAB acertos rls=on
+TAB alocacoes_de_meta rls=on
+TAB assinaturas rls=on
+TAB cartoes rls=on
+TAB categorias rls=on
+TAB compras_de_cartao rls=on
+TAB config rls=on
+TAB contas rls=on
+TAB credores rls=on
+TAB despesas_do_grupo rls=on
+TAB dividas rls=on
+TAB faturas rls=on
+TAB fixas rls=on
+TAB fixas_mes rls=on
+TAB grupos rls=on
+TAB instituicoes rls=on
+TAB liquidacoes rls=on
+TAB membros rls=on
+TAB metas rls=on
+TAB pagamentos rls=on
+TAB ping rls=on
+TAB rateios rls=on
+TAB receitas rls=on
+TAB transacoes rls=on
+TRG acertos.acertos_set_user CREATE TRIGGER acertos_set_user BEFORE INSERT ON public.acertos FOR EACH ROW EXECUTE FUNCTION set_user_id() deferrable=nao initdeferred=nao
+TRG alocacoes_de_meta.a_alocacoes_set_user CREATE TRIGGER a_alocacoes_set_user BEFORE INSERT ON public.alocacoes_de_meta FOR EACH ROW EXECUTE FUNCTION alocacoes_set_user_id() deferrable=nao initdeferred=nao
+TRG alocacoes_de_meta.confere_alocacao_de_meta CREATE CONSTRAINT TRIGGER confere_alocacao_de_meta AFTER INSERT OR UPDATE ON public.alocacoes_de_meta DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION confere_alocacao_de_meta() deferrable=sim initdeferred=sim
+TRG assinaturas.assinaturas_set_user CREATE TRIGGER assinaturas_set_user BEFORE INSERT ON public.assinaturas FOR EACH ROW EXECUTE FUNCTION set_user_id() deferrable=nao initdeferred=nao
+TRG cartoes.cartoes_set_user CREATE TRIGGER cartoes_set_user BEFORE INSERT ON public.cartoes FOR EACH ROW EXECUTE FUNCTION set_user_id() deferrable=nao initdeferred=nao
+TRG categorias.categorias_1_set_user CREATE TRIGGER categorias_1_set_user BEFORE INSERT ON public.categorias FOR EACH ROW EXECUTE FUNCTION set_user_id() deferrable=nao initdeferred=nao
+TRG categorias.categorias_2_nivel CREATE TRIGGER categorias_2_nivel BEFORE INSERT OR UPDATE OF pai_id ON public.categorias FOR EACH ROW EXECUTE FUNCTION nivel_da_categoria() deferrable=nao initdeferred=nao
+TRG compras_de_cartao.compras_de_cartao_set_user CREATE TRIGGER compras_de_cartao_set_user BEFORE INSERT ON public.compras_de_cartao FOR EACH ROW EXECUTE FUNCTION set_user_id() deferrable=nao initdeferred=nao
+TRG config.config_set_user CREATE TRIGGER config_set_user BEFORE INSERT ON public.config FOR EACH ROW EXECUTE FUNCTION set_user_id() deferrable=nao initdeferred=nao
+TRG contas.contas_set_user CREATE TRIGGER contas_set_user BEFORE INSERT ON public.contas FOR EACH ROW EXECUTE FUNCTION set_user_id() deferrable=nao initdeferred=nao
+TRG credores.credores_set_user CREATE TRIGGER credores_set_user BEFORE INSERT ON public.credores FOR EACH ROW EXECUTE FUNCTION set_user_id() deferrable=nao initdeferred=nao
+TRG despesas_do_grupo.despesa_confere_rateio CREATE CONSTRAINT TRIGGER despesa_confere_rateio AFTER UPDATE ON public.despesas_do_grupo DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION confere_soma_da_despesa() deferrable=sim initdeferred=sim
+TRG despesas_do_grupo.despesas_do_grupo_set_user CREATE TRIGGER despesas_do_grupo_set_user BEFORE INSERT ON public.despesas_do_grupo FOR EACH ROW EXECUTE FUNCTION set_user_id() deferrable=nao initdeferred=nao
+TRG dividas.dividas_set_user CREATE TRIGGER dividas_set_user BEFORE INSERT ON public.dividas FOR EACH ROW EXECUTE FUNCTION set_user_id() deferrable=nao initdeferred=nao
+TRG faturas.faturas_set_user CREATE TRIGGER faturas_set_user BEFORE INSERT ON public.faturas FOR EACH ROW EXECUTE FUNCTION set_user_id() deferrable=nao initdeferred=nao
+TRG fixas.fixas_set_user CREATE TRIGGER fixas_set_user BEFORE INSERT ON public.fixas FOR EACH ROW EXECUTE FUNCTION set_user_id() deferrable=nao initdeferred=nao
+TRG fixas_mes.fixas_mes_set_user CREATE TRIGGER fixas_mes_set_user BEFORE INSERT ON public.fixas_mes FOR EACH ROW EXECUTE FUNCTION set_user_id() deferrable=nao initdeferred=nao
+TRG grupos.grupos_set_user CREATE TRIGGER grupos_set_user BEFORE INSERT ON public.grupos FOR EACH ROW EXECUTE FUNCTION set_user_id() deferrable=nao initdeferred=nao
+TRG instituicoes.instituicoes_set_user CREATE TRIGGER instituicoes_set_user BEFORE INSERT ON public.instituicoes FOR EACH ROW EXECUTE FUNCTION set_user_id() deferrable=nao initdeferred=nao
+TRG liquidacoes.confere_pagamento_de_fatura CREATE CONSTRAINT TRIGGER confere_pagamento_de_fatura AFTER INSERT OR UPDATE ON public.liquidacoes DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION confere_pagamento_de_fatura() deferrable=sim initdeferred=sim
+TRG liquidacoes.liquidacoes_limpa_marca CREATE TRIGGER liquidacoes_limpa_marca AFTER DELETE ON public.liquidacoes FOR EACH ROW EXECUTE FUNCTION limpa_marca_da_liquidacao() deferrable=nao initdeferred=nao
+TRG liquidacoes.liquidacoes_set_user CREATE TRIGGER liquidacoes_set_user BEFORE INSERT ON public.liquidacoes FOR EACH ROW EXECUTE FUNCTION set_user_id() deferrable=nao initdeferred=nao
+TRG membros.membros_set_user CREATE TRIGGER membros_set_user BEFORE INSERT ON public.membros FOR EACH ROW EXECUTE FUNCTION set_user_id() deferrable=nao initdeferred=nao
+TRG metas.metas_set_user CREATE TRIGGER metas_set_user BEFORE INSERT ON public.metas FOR EACH ROW EXECUTE FUNCTION metas_set_user_id() deferrable=nao initdeferred=nao
+TRG pagamentos.pagamentos_set_user CREATE TRIGGER pagamentos_set_user BEFORE INSERT ON public.pagamentos FOR EACH ROW EXECUTE FUNCTION set_user_id() deferrable=nao initdeferred=nao
+TRG rateios.rateios_set_user CREATE TRIGGER rateios_set_user BEFORE INSERT ON public.rateios FOR EACH ROW EXECUTE FUNCTION set_user_id() deferrable=nao initdeferred=nao
+TRG rateios.rateios_somam_a_despesa CREATE CONSTRAINT TRIGGER rateios_somam_a_despesa AFTER INSERT OR DELETE OR UPDATE ON public.rateios DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION confere_soma_do_rateio() deferrable=sim initdeferred=sim
+TRG receitas.receitas_set_user CREATE TRIGGER receitas_set_user BEFORE INSERT ON public.receitas FOR EACH ROW EXECUTE FUNCTION set_user_id() deferrable=nao initdeferred=nao
+TRG transacoes.transacoes_confere_estorno CREATE CONSTRAINT TRIGGER transacoes_confere_estorno AFTER INSERT OR UPDATE ON public.transacoes DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION confere_estorno() deferrable=sim initdeferred=sim
+TRG transacoes.transacoes_set_user CREATE TRIGGER transacoes_set_user BEFORE INSERT ON public.transacoes FOR EACH ROW EXECUTE FUNCTION set_user_id() deferrable=nao initdeferred=nao
+TRG transacoes.transacoes_transferencia_completa CREATE CONSTRAINT TRIGGER transacoes_transferencia_completa AFTER INSERT OR DELETE OR UPDATE ON public.transacoes DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION valida_transferencia() deferrable=sim initdeferred=sim
+VIEW assinaturas_resolvidas security_invoker=on
+VIEW faturas_resolvidas security_invoker=on
+VIEW metas_resolvidas security_invoker=on
+VIEW saldos_de_conta security_invoker=on
+VIEW saldos_do_grupo security_invoker=on
+VIEW transacoes_com_estorno security_invoker=on
+VIEWDEF assinaturas_resolvidas  SELECT id, user_id, nome, logo, valor, frequencia, categoria_id, conta_id, cartao_id, inicio, fim, ativo, obs, ordem, criado_em, CASE frequencia WHEN 'semanal'::text THEN round(valor * 52::numeric / 12::numeric, 2) WHEN 'mensal'::text THEN valor WHEN 'bimestral'::text THEN round(valor / 2::numeric, 2) WHEN 'trimestral'::text THEN round(valor / 3::numeric, 2) WHEN 'semestral'::text THEN round(valor / 6::numeric, 2) WHEN 'anual'::text THEN round(valor / 12::numeric, 2) ELSE NULL::numeric END AS custo_mensal, CASE frequencia WHEN 'semanal'::text THEN round(valor * 52::numeric, 2) WHEN 'mensal'::text THEN valor * 12::numeric WHEN 'bimestral'::text THEN valor * 6::numeric WHEN 'trimestral'::text THEN valor * 4::numeric WHEN 'semestral'::text THEN valor * 2::numeric WHEN 'anual'::text THEN valor ELSE NULL::numeric END AS custo_anual, ( SELECT min(t.data) AS min FROM transacoes t WHERE t.assinatura_id = a.id AND t.user_id = a.user_id AND t.data >= CURRENT_DATE AND t.status = 'prevista'::text) AS proxima_cobranca FROM assinaturas a;
+VIEWDEF faturas_resolvidas  SELECT f.id AS fatura_id, f.user_id, f.cartao_id, f.competencia, f.abertura, f.fechamento, f.vencimento, f.obs, COALESCE(i.total, 0::numeric)::numeric(14,2) AS total, COALESCE(i.itens, 0::bigint) AS itens, COALESCE(p.pago, 0::numeric)::numeric(14,2) AS pago, (COALESCE(i.total, 0::numeric) - COALESCE(p.pago, 0::numeric))::numeric(14,2) AS restante, COALESCE(p.pagamentos, 0::bigint) AS pagamentos, CASE WHEN COALESCE(i.total, 0::numeric) > 0::numeric AND COALESCE(p.pago, 0::numeric) >= COALESCE(i.total, 0::numeric) THEN 'paga'::text WHEN COALESCE(p.pago, 0::numeric) > 0::numeric THEN 'parcial'::text WHEN CURRENT_DATE >= f.fechamento THEN 'fechada'::text ELSE 'aberta'::text END AS situacao FROM faturas f LEFT JOIN LATERAL ( SELECT sum( CASE WHEN t.tipo = 'entrada'::text THEN - t.valor ELSE t.valor END) AS total, count(*) AS itens FROM transacoes t WHERE t.fatura_id = f.id AND t.user_id = f.user_id AND (t.status = ANY (ARRAY['realizada'::text, 'conciliada'::text]))) i ON true LEFT JOIN LATERAL ( SELECT sum(l.valor) AS pago, count(*) AS pagamentos FROM liquidacoes l WHERE l.user_id = f.user_id AND l.tipo = 'fatura'::text AND l.item_id = f.id::text) p ON true;
+VIEWDEF metas_resolvidas  SELECT m.id AS meta_id, m.user_id, m.nome, m.valor_alvo, m.prazo, m.prioridade, m.cor, m.icone, m.status, m.obs, m.ordem, m.criado_em, COALESCE(a.reservado, 0::numeric)::numeric(14,2) AS reservado, GREATEST(m.valor_alvo - COALESCE(a.reservado, 0::numeric), 0::numeric)::numeric(14,2) AS falta, COALESCE(a.quantas, 0::bigint) AS alocacoes, LEAST(round(COALESCE(a.reservado, 0::numeric) * 100::numeric / m.valor_alvo), 100::numeric)::integer AS percentual, CASE WHEN m.prazo IS NULL THEN NULL::integer ELSE GREATEST(1, (date_part('year'::text, age(m.prazo::timestamp with time zone, CURRENT_DATE::timestamp with time zone)) * 12::double precision + date_part('month'::text, age(m.prazo::timestamp with time zone, CURRENT_DATE::timestamp with time zone)))::integer + 1) END AS meses_ate_prazo FROM metas m LEFT JOIN LATERAL ( SELECT sum(x.valor) AS reservado, count(*) AS quantas FROM alocacoes_de_meta x WHERE x.meta_id = m.id AND x.user_id = m.user_id) a ON true;
+VIEWDEF saldos_de_conta  SELECT c.id AS conta_id, c.user_id, c.nome, c.tipo, c.liquidez, c.saldo_inicial, c.saldo_inicial_em, c.saldo_inicial + COALESCE(sum( CASE WHEN t.tipo = 'entrada'::text THEN t.valor ELSE - t.valor END), 0::numeric) AS saldo FROM contas c LEFT JOIN transacoes t ON t.conta_id = c.id AND t.user_id = c.user_id AND (t.status = ANY (ARRAY['realizada'::text, 'conciliada'::text])) AND t.data >= c.saldo_inicial_em GROUP BY c.id, c.user_id, c.nome, c.tipo, c.liquidez, c.saldo_inicial, c.saldo_inicial_em;
+VIEWDEF saldos_do_grupo  SELECT id AS membro_id, user_id, grupo_id, nome, apelido, sou_eu, ativo, COALESCE(( SELECT sum(d.valor) AS sum FROM despesas_do_grupo d WHERE d.pago_por_id = m.id AND d.user_id = m.user_id), 0::numeric)::numeric(14,2) AS pagou, COALESCE(( SELECT sum(r.valor) AS sum FROM rateios r WHERE r.membro_id = m.id AND r.user_id = m.user_id), 0::numeric)::numeric(14,2) AS coube, COALESCE(( SELECT sum(a.valor) AS sum FROM acertos a WHERE a.para_id = m.id AND a.user_id = m.user_id), 0::numeric)::numeric(14,2) AS recebeu, COALESCE(( SELECT sum(a.valor) AS sum FROM acertos a WHERE a.de_id = m.id AND a.user_id = m.user_id), 0::numeric)::numeric(14,2) AS quitou, (COALESCE(( SELECT sum(d.valor) AS sum FROM despesas_do_grupo d WHERE d.pago_por_id = m.id AND d.user_id = m.user_id), 0::numeric) - COALESCE(( SELECT sum(r.valor) AS sum FROM rateios r WHERE r.membro_id = m.id AND r.user_id = m.user_id), 0::numeric) - COALESCE(( SELECT sum(a.valor) AS sum FROM acertos a WHERE a.para_id = m.id AND a.user_id = m.user_id), 0::numeric) + COALESCE(( SELECT sum(a.valor) AS sum FROM acertos a WHERE a.de_id = m.id AND a.user_id = m.user_id), 0::numeric))::numeric(14,2) AS saldo FROM membros m;
+VIEWDEF transacoes_com_estorno  SELECT id AS transacao_id, user_id, valor, COALESCE(( SELECT sum(e.valor) AS sum FROM transacoes e WHERE e.estorno_de_id = t.id AND e.user_id = t.user_id AND e.status <> 'cancelada'::text), 0::numeric)::numeric(14,2) AS estornado, (valor - COALESCE(( SELECT sum(e.valor) AS sum FROM transacoes e WHERE e.estorno_de_id = t.id AND e.user_id = t.user_id AND e.status <> 'cancelada'::text), 0::numeric))::numeric(14,2) AS estornavel, natureza = 'normal'::text AND NOT (EXISTS ( SELECT 1 FROM liquidacoes l WHERE l.transacao_id = t.id AND l.user_id = t.user_id)) AS pode_estornar FROM transacoes t;
