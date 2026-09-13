@@ -269,6 +269,23 @@ export const pagaFatura = (p) => consulta(
     p_data: p.data, p_obs: p.obs || "",
   }), "fatura");
 
+/* ------------------------------------------------------------- estorno --
+   Uma chamada, uma transação de banco. A RPC herda categoria e origem do
+   original, inverte o sinal e amarra o vínculo por `estorno_de_id` -- e é o
+   BANCO que recusa estorno de transferência, de pagamento de fatura e de
+   estorno, além de impedir que a soma passe do original.
+   Ver `docs/CONTRATO_ESTORNO.md` e a migração 010. */
+export const estornaTransacao = (p) => consulta(
+  bancoV2().rpc("estorna_transacao", {
+    p_transacao: p.transacaoId,
+    /* null = estorno TOTAL. Mandar o valor cheio daria no mesmo, mas obriga a
+       tela a saber o total, e ela passaria a discordar do banco por um centavo
+       de arredondamento. */
+    p_valor: p.valor ?? null,
+    p_data: p.data || null,
+    p_obs: p.obs || "",
+  }), "estorno");
+
 /* Os pagamentos de UMA fatura, do mais recente para o mais antigo. Desde a 012
    uma fatura recebe N; antes era um só, e o id dele vinha na própria view. */
 export const pagamentosDaFatura = (faturaId) => consulta(

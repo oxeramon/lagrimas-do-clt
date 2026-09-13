@@ -50,6 +50,8 @@ import { ABAS, idsDasAbas, grupoDaAba, abasDoRodape, abasDoMais } from "../js/ui
 import { saidasDoMes, entradasDoMes, resumoDoMes, estadoDoCompromisso,
          indiceDeLiquidacoes, chaveDe, mesesEmAtraso,
          ABERTO, LIQUIDADO, PAGO_SEM_MOVIMENTO } from "../js/domain/reconciliation.js";
+import { podeEstornar, jaEstornado, saldoEstornavel, estornosDe }
+  from "../js/domain/reversal.js";
 
 let ok = 0, bad = 0;
 const eq = (nome, got, want) => {
@@ -1080,6 +1082,64 @@ eq("e ele NÃO é o seu gasto: você pagou 100 e lhe couberam 33,34",
   [indGrupo.gastoTotal, indGrupo.meuSaldo], [100, 66.66]);
 eq("a conta fechando é um indicador próprio", indGrupo.fecha, true);
 eq("quantas pessoas", indGrupo.membros, 3);
+
+/* ==================================================================
+   ESTORNO: quem pode, quanto cabe
+   ================================================================== */
+console.log("\nestorno: elegibilidade e saldo estornável");
+
+/* Uma compra normal, realizada, com dois estornos parciais já registrados. */
+const txEstorno = [
+  { id:"t1", natureza:"normal", tipo:"saida", status:"realizada", valor:100,
+    descricao:"Compra Exemplo", data:"2026-09-10" },
+  { id:"e1", natureza:"estorno", estornoDeId:"t1", tipo:"entrada", status:"realizada",
+    valor:30, data:"2026-09-11" },
+  { id:"e2", natureza:"estorno", estornoDeId:"t1", tipo:"entrada", status:"realizada",
+    valor:20, data:"2026-09-12" },
+  { id:"t2", natureza:"transferencia", tipo:"saida", status:"realizada", valor:50,
+    descricao:"Transferência", data:"2026-09-10" },
+  { id:"t3", natureza:"pagamento_de_fatura", tipo:"saida", status:"realizada", valor:80,
+    descricao:"Fatura", data:"2026-09-10" },
+  { id:"t4", natureza:"normal", tipo:"saida", status:"prevista", valor:70,
+    descricao:"Ainda vai acontecer", data:"2026-09-30" },
+  { id:"t5", natureza:"normal", tipo:"saida", status:"realizada", valor:60,
+    descricao:"Quitou uma dívida", data:"2026-09-10" },
+];
+const achaTx = (id) => txEstorno.find((x) => x.id === id);
+const vinculadasTeste = new Set(["t5"]);
+
+eq("lançamento normal e realizado pode ser estornado",
+  podeEstornar(achaTx("t1"), vinculadasTeste).pode, true);
+eq("já voltaram 30 + 20", jaEstornado(achaTx("t1"), txEstorno), 50);
+eq("e ainda cabem 50", saldoEstornavel(achaTx("t1"), txEstorno), 50);
+eq("o histórico vem do mais recente para o mais antigo",
+  estornosDe(achaTx("t1"), txEstorno).map((x) => x.id), ["e2", "e1"]);
+
+/* OS TRÊS "NÃO" DO CONTRATO. Cada um recusa E diz por onde desfazer -- recusa
+   sem caminho faz a pessoa achar que o app quebrou. */
+eq("transferência NÃO se estorna", podeEstornar(achaTx("t2"), vinculadasTeste).pode, false);
+eq("e o motivo aponta a exclusão da transferência",
+  podeEstornar(achaTx("t2"), vinculadasTeste).caminho.includes("exclua"), true);
+eq("pagamento de fatura NÃO se estorna",
+  podeEstornar(achaTx("t3"), vinculadasTeste).pode, false);
+eq("e o motivo aponta o desfazer da fatura",
+  podeEstornar(achaTx("t3"), vinculadasTeste).caminho.includes("fatura"), true);
+eq("liquidação da V1 NÃO se estorna: o compromisso continuaria quitado",
+  podeEstornar(achaTx("t5"), vinculadasTeste).pode, false);
+eq("estorno não se estorna",
+  podeEstornar(achaTx("e1"), vinculadasTeste).pode, false);
+eq("previsto não se estorna: não houve dinheiro para voltar",
+  podeEstornar(achaTx("t4"), vinculadasTeste).pode, false);
+
+/* O saldo nunca é negativo: o banco impede a soma passar do original, então
+   negativo aqui seria sintoma e não estado. */
+eq("estornado por inteiro deixa saldo zero",
+  saldoEstornavel({ id:"t9", valor:40 },
+    [{ natureza:"estorno", estornoDeId:"t9", valor:40 }]), 0);
+eq("e nunca desce abaixo de zero",
+  saldoEstornavel({ id:"t9", valor:40 },
+    [{ natureza:"estorno", estornoDeId:"t9", valor:40 },
+     { natureza:"estorno", estornoDeId:"t9", valor:10 }]), 0);
 
 console.log(`\n${ok} passaram, ${bad} falharam`);
 process.exit(bad ? 1 : 0);

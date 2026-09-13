@@ -914,11 +914,48 @@
     </div>
     <div class="dlg-f">
       <button type="button" class="btn ghost" id="trExcluir" hidden>Excluir</button>
+      <!-- Estornar abre um diálogo próprio em vez de virar mais um campo aqui:
+           são duas operações diferentes. Editar muda o que ESTÁ escrito;
+           estornar registra que o dinheiro VOLTOU, e as duas coisas coexistem
+           no histórico. Ver docs/CONTRATO_ESTORNO.md. -->
+      <button type="button" class="btn ghost" id="trEstornar" hidden>Estornar</button>
       <span style="flex:1"></span>
       <button type="button" class="btn" data-fechar="dlgTransacao">Cancelar</button>
       <button type="submit" class="btn primary" id="trSalvar">Salvar</button>
     </div>
   </form>
+</dialog>
+
+<!-- ================================================================ estorno
+     Dinheiro que voltou. O contrato inteiro está em docs/CONTRATO_ESTORNO.md;
+     esta tela mostra o original, o que já voltou, o que ainda cabe, e o
+     histórico quando há mais de um. -->
+<dialog id="dlgEstorno">
+  <div class="dlg-h"><h2>Estornar</h2><button type="button" class="btn ghost" data-fechar="dlgEstorno" aria-label="Fechar"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M18 6L6 18M6 6l12 12"/></svg></button></div>
+  <div class="formgrid">
+    <p class="hint full" id="esOriginal"></p>
+    <div class="full fatura-saldo" id="esSaldo">
+      <div><span class="rot">Original</span><b id="esValor">—</b></div>
+      <div><span class="rot">Já voltou</span><b id="esJa">—</b></div>
+      <div><span class="rot">Cabe ainda</span><b id="esCabe">—</b></div>
+    </div>
+    <div class="full" id="esHistorico"></div>
+    <div class="full formgrid" id="esForm" style="padding:0">
+      <div class="field"><label for="es_valor">Quanto voltou (R$)</label>
+        <input type="number" id="es_valor" step="0.01" min="0.01" inputmode="decimal" required></div>
+      <div class="field"><label for="es_data">Data</label>
+        <input type="date" id="es_data" required></div>
+      <div class="field full"><label for="es_obs">Motivo (opcional)</label>
+        <input id="es_obs" autocomplete="off" placeholder="Ex.: compra cancelada"></div>
+    </div>
+    <p class="hint full" id="esImpedido" hidden></p>
+    <p class="hint full" id="esErro" role="alert" hidden></p>
+  </div>
+  <div class="dlg-f">
+    <span style="flex:1"></span>
+    <button type="button" class="btn" data-fechar="dlgEstorno">Fechar</button>
+    <button type="button" class="btn primary" id="esConfirmar">Registrar estorno</button>
+  </div>
 </dialog>
 
 <dialog id="dlgTransferencia">

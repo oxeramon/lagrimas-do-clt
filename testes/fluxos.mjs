@@ -824,6 +824,119 @@ console.log("\nassinaturas");
 }
 
 /* ==================================================================
+   ESTORNO: dinheiro que voltou, pela tela
+   ==================================================================
+   O contrato da 010 existia e não tinha botão. Estes casos provam que o botão
+   respeita o contrato, e -- mais importante -- que ele NÃO aparece onde o
+   contrato proíbe. Um botão que aparece e depois é recusado pelo banco é pior
+   que botão nenhum: ele promete e desdiz.
+   ================================================================== */
+console.log("\nestorno pela tela");
+{
+  const { p, erros } = await abreApp(1440);
+  await criaConta(p, "Conta Alfa", 1000, true);
+
+  /* uma saída normal de 100 */
+  await vaiPara(p, "transacoes");
+  await p.waitForTimeout(200);
+  await p.click("#btnNovaTransacao");
+  await p.waitForTimeout(250);
+  await p.fill("#tr_valor", "100");
+  await p.fill("#tr_descricao", "Compra Exemplo");
+  await p.click("#trSalvar");
+  await p.waitForTimeout(500);
+
+  /* o botão aparece num lançamento normal */
+  await p.evaluate(() => document.querySelector(".lanc").click());
+  await p.waitForTimeout(300);
+  eq("lançamento normal oferece Estornar",
+    await p.evaluate(() => !document.getElementById("trEstornar").hidden), true);
+
+  await p.click("#trEstornar");
+  await p.waitForTimeout(350);
+  const aoAbrir = await p.evaluate(() => ({
+    aberto: document.getElementById("dlgEstorno").open,
+    original: document.getElementById("esValor").textContent.replace(/ /g, " "),
+    ja: document.getElementById("esJa").textContent.replace(/ /g, " "),
+    cabe: document.getElementById("esCabe").textContent.replace(/ /g, " "),
+    sugerido: document.getElementById("es_valor").value,
+  }));
+  eq("o diálogo de estorno abre", aoAbrir.aberto, true);
+  eq("mostra o original, o que já voltou e o que cabe",
+    [aoAbrir.original, aoAbrir.ja, aoAbrir.cabe], ["R$ 100,00", "R$ 0,00", "R$ 100,00"]);
+  eq("e propõe o que cabe", aoAbrir.sugerido, "100.00");
+
+  /* ESTORNO PARCIAL: 30 de 100 */
+  await p.fill("#es_valor", "30");
+  await p.fill("#es_obs", "Devolveram parte");
+  await p.click("#esConfirmar");
+  await p.waitForTimeout(600);
+
+  const depoisParcial = await p.evaluate(() => {
+    const T = globalThis.__T;
+    const orig = T.transacoes.find(t => t.descricao === "Compra Exemplo");
+    const est = T.transacoes.filter(t => t.natureza === "estorno");
+    return {
+      quantos: est.length,
+      sinalInvertido: est[0] && est[0].tipo === "entrada" && orig.tipo === "saida",
+      herdaCategoria: est[0] && est[0].categoria_id === orig.categoria_id,
+      vinculo: est[0] && est[0].estorno_de_id === orig.id,
+      valor: est[0] && Number(est[0].valor),
+      /* o ORIGINAL não é tocado: estorno é linha nova, não edição */
+      originalIntacto: Number(orig.valor) === 100,
+    };
+  });
+  eq("nasce um estorno", depoisParcial.quantos, 1);
+  eq("com o sinal invertido", depoisParcial.sinalInvertido, true);
+  eq("herdando a categoria do original", depoisParcial.herdaCategoria, true);
+  eq("amarrado ao original por estorno_de_id", depoisParcial.vinculo, true);
+  eq("no valor parcial pedido", depoisParcial.valor, 30);
+  eq("e o original fica INTACTO: estorno é linha nova, não edição",
+    depoisParcial.originalIntacto, true);
+
+  /* reabrir mostra o saldo atualizado */
+  await p.evaluate(() => [...document.querySelectorAll(".lanc")]
+    .find(b => b.getAttribute("data-natureza") === "normal").click());
+  await p.waitForTimeout(300);
+  await p.click("#trEstornar");
+  await p.waitForTimeout(350);
+  const segunda = await p.evaluate(() => ({
+    ja: document.getElementById("esJa").textContent.replace(/ /g, " "),
+    cabe: document.getElementById("esCabe").textContent.replace(/ /g, " "),
+    sugerido: document.getElementById("es_valor").value,
+    historico: document.querySelectorAll("#esHistorico .row").length,
+  }));
+  eq("na segunda vez, já voltaram 30", segunda.ja, "R$ 30,00");
+  eq("e cabem 70", segunda.cabe, "R$ 70,00");
+  eq("o campo propõe 70, não 100", segunda.sugerido, "70.00");
+  eq("o histórico mostra o estorno anterior", segunda.historico, 1);
+
+  /* o excesso é recusado ANTES de tentar */
+  await p.fill("#es_valor", "500");
+  await p.click("#esConfirmar");
+  await p.waitForTimeout(300);
+  eq("estornar mais do que cabe é recusado, com o número na frente",
+    await p.evaluate(() => { const e = document.getElementById("esErro");
+      return e.hidden ? "" : e.textContent.includes("70"); }), true);
+  eq("e nada foi lançado",
+    await p.evaluate(() => globalThis.__T.transacoes.filter(t => t.natureza === "estorno").length), 1);
+  await p.keyboard.press("Escape");
+  await p.waitForTimeout(200);
+
+  /* O ESTORNO NÃO SE ESTORNA, e o botão nem aparece */
+  await p.evaluate(() => [...document.querySelectorAll(".lanc")]
+    .find(b => b.getAttribute("data-natureza") === "estorno").click());
+  await p.waitForTimeout(300);
+  eq("um estorno NÃO oferece Estornar",
+    await p.evaluate(() => document.getElementById("trEstornar").hidden), true);
+  await p.keyboard.press("Escape");
+  await p.waitForTimeout(200);
+
+  eq("nenhum erro de JavaScript no caminho do estorno", erros, []);
+  await p.close();
+}
+
+/* ==================================================================
    6. NAVEGAÇÃO: o registro é a única verdade
    ==================================================================
    A lateral e o rodapé do celular eram escritos à mão, e discordavam do

@@ -420,6 +420,37 @@ export function createClient(){
         return liquida(a.p_tipo, a.p_item_id, a, false);
       }
       if (nome === "recebe_receita") return liquida("receita", a.p_receita, a, true);
+      /* Estorno, com a MESMA regra da 010: so natureza normal, sinal invertido,
+         categoria e origem herdadas, e a soma nunca passa do original. */
+      if (nome === "estorna_transacao"){
+        const o = T.transacoes.find(x => x.id === a.p_transacao);
+        if (!o) return Promise.resolve({ data:null, error:{ message:"estorno: transação não encontrada" } });
+        if (o.natureza !== "normal")
+          return Promise.resolve({ data:null, error:{ message:"estorno: só lançamento normal se estorna" } });
+        const ja = T.transacoes.filter(x => x.natureza === "estorno" && x.estorno_de_id === o.id)
+                    .reduce((s,x) => s + Number(x.valor), 0);
+        const cabe = Number(o.valor) - ja;
+        const v = a.p_valor == null ? cabe : Number(a.p_valor);
+        if (!(v > 0))
+          return Promise.resolve({ data:null, error:{ message:"estorno: o valor precisa ser maior que zero" } });
+        if (v > cabe)
+          return Promise.resolve({ data:null, error:{ message:
+            "estorno: a soma passaria do original. Cabe " + cabe.toFixed(2) + "." } });
+        const e = { id:uid(), user_id:"u1", conta_id:o.conta_id, fatura_id:o.fatura_id || null,
+          compra_id:null, parcela:null, total_parcelas:null, assinatura_id:null,
+          competencia:null, ocorrencia_em:null,
+          categoria_id:o.categoria_id || null,
+          /* o sinal INVERTE: e o que faz o dinheiro voltar do lado certo */
+          tipo: o.tipo === "saida" ? "entrada" : "saida",
+          natureza:"estorno", estorno_de_id:o.id,
+          descricao:"Estorno · " + o.descricao, valor:v,
+          data:a.p_data || o.data, status:"realizada",
+          origem:o.origem, origem_id:o.origem_id || null, obs:a.p_obs||"",
+          transferencia_id:null };
+        T.transacoes.push(e);
+        return Promise.resolve({ data:e.id, error:null });
+      }
+
       /* Desfaz UM pagamento de fatura. Separado de desfaz_liquidacao porque
          aquela apaga a liquidação da competência inteira -- com três
          pagamentos, apagaria os três. */

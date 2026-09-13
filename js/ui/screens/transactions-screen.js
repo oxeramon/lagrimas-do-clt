@@ -12,6 +12,7 @@ import { V2, dep, recarrega, contaPorId, opcoesDeConta, carregaTransacoesDoMes }
 import { listaDeOpcoes, confirmaEmDoisCliques, mostraErro, pirulitos, hojeISO,
          diaLegivel } from "./pecas.js";
 import { abreTransferencia } from "./transfer-dialog.js";
+import { estornavel } from "./reversal-dialog.js";
 import * as v2 from "../../data/v2-repository.js";
 
 const filtros = { busca: "", contaId: "", categoriaId: "", tipo: "", status: "" };
@@ -113,6 +114,13 @@ function abreTransacao(id){
   atualizaCategoriasDoForm();
   if (t) $("tr_categoria").value = t.categoriaId || "";
   $("trExcluir").hidden = !t;
+
+  /* "Estornar" aparece só onde o contrato permite. O botão carrega o id para o
+     diálogo de estorno não precisar conhecer o estado desta tela, e quem decide
+     se é estornável é o domínio -- não um `if` aqui. */
+  const podeEstorno = Boolean(t) && estornavel(t);
+  $("trEstornar").hidden = !podeEstorno;
+  if (podeEstorno) $("trEstornar").setAttribute("data-tx", t.id);
 
   const estorno = t && t.natureza === "estorno";
   $("trAviso").hidden = !estorno;

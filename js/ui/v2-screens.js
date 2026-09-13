@@ -32,6 +32,7 @@ import { renderContas, ligaContas, ligaInstituicoes } from "./screens/accounts-s
 import { renderTransacoes, ligaTransacoes, atualizaFiltrosDeTela }
   from "./screens/transactions-screen.js";
 import { ligaTransferencia } from "./screens/transfer-dialog.js";
+import { ligaEstorno } from "./screens/reversal-dialog.js";
 import { ligaCategorias } from "./screens/categories-screen.js";
 import { ligaLiquidacao } from "./screens/reconciliation-screen.js";
 import { renderCartoes, ligaCartoes, ligaCompraDeCartao } from "./screens/cards-screen.js";
@@ -64,6 +65,7 @@ export function ligaTelasV2(deps){
   ligaInstituicoes();
   ligaTransacoes();
   ligaTransferencia();
+  ligaEstorno();
   ligaCategorias();
   ligaLiquidacao();
   ligaCartoes();
