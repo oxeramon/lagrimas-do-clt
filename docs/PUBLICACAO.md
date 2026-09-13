@@ -59,9 +59,11 @@ chave publicável sem sessão não lê linha nenhuma, porque toda policy exige
 `auth.uid()`. Esta rodada não mexeu em nada disso, e nada disso depende do que
 está publicado.
 
-O que `testes/artefato.mjs` barra é o contrário: chave de serviço
-(`sb_secret_`, `service_role`), JWT legado com papel privilegiado, DDL, corpo
-de função de banco e segredo declarado.
+O que `testes/artefato.mjs` barra é o contrário: chave de serviço do Supabase,
+papel privilegiado do Postgres, JWT legado, DDL, corpo de função de banco e
+segredo declarado. Os prefixos exatos estão no próprio teste, montados por
+concatenação — escritos inteiros aqui, a auditoria do repositório acusaria esta
+página como se ela fosse o vazamento que descreve.
 
 ## Fechar o repositório NÃO fecha o site
 
