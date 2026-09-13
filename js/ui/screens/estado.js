@@ -26,6 +26,10 @@ export const V2 = {
      derivados -- a tabela crua daria uma fatura sem número */
   cartoes: [], faturas: [], assinaturas: [],
   grupos: [], membros: [], despesas: [], saldosGrupo: [],
+  /* metas e alocações. `saldoLivre` vem do BANCO, e não de uma soma na
+     tela: é ele que o gatilho usa para decidir o que aceitar, e dois
+     cálculos diferentes discordariam. */
+  metas: [], alocacoes: [], saldoLivre: 0,
   mes: HOJE, carregado: false, erro: null, erroPonte: null,
 };
 
@@ -38,7 +42,7 @@ export async function carregaV2(){
   Object.assign(V2, cad.dados, { erro: null, carregado: true });
   const [t] = await Promise.all([
     carregaTransacoesDoMes(), carregaLiquidacoes(), carregaCartoesEFaturas(),
-    carregaAssinaturas(), carregaGruposEsaldos()]);
+    carregaAssinaturas(), carregaGruposEsaldos(), carregaMetas()]);
   return t;
 }
 
@@ -75,6 +79,20 @@ export async function carregaAssinaturas(){
   const r = await v2.listaAssinaturas();
   if (r.erro){ V2.assinaturas = []; console.warn("assinaturas indisponíveis:", r.erro); }
   else V2.assinaturas = r.dados || [];
+  return { erro: null };
+}
+
+/* Falhar aqui não derruba o resto: sem metas, a tela mostra o vazio. */
+export async function carregaMetas(){
+  const r = await v2.carregaMetas();
+  if (r.erro){
+    V2.metas = []; V2.alocacoes = []; V2.saldoLivre = 0;
+    console.warn("metas indisponíveis:", r.erro);
+  } else {
+    V2.metas = r.dados.metas;
+    V2.alocacoes = r.dados.alocacoes;
+    V2.saldoLivre = r.dados.saldoLivre;
+  }
   return { erro: null };
 }
 

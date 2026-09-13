@@ -420,3 +420,35 @@
 /* o campo de cada parte no rateio: grade que cai para uma coluna em tela
    estreita, como o resto dos formulários */
 #dg_partes input[readonly]{background:var(--surface-2); color:var(--ink-2)}
+
+/* ============================================================== metas =====
+   Meta é envelope. Os três números do topo usam `.fatia`, que já existe: eles
+   são leituras do MESMO dinheiro, e dar a eles um componente próprio sugeriria
+   que são grandezas diferentes. */
+.meta-card{ border:1px solid var(--line); border-radius:var(--raio-2);
+  padding:var(--e-4); margin-bottom:var(--e-3) }
+/* arquivada é histórico, não plano: fica legível e deixa de competir */
+.meta-card.apagada{ opacity:.55 }
+
+.meta-topo{ display:flex; align-items:baseline; gap:var(--e-3) }
+.meta-topo .nome{ display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap }
+.meta-sub{ display:block; font-size:12px; color:var(--ink-3); margin-top:2px }
+/* o percentual vai ESCRITO ao lado da barra: barra sozinha não se lê com
+   precisão, e cor sozinha não decide nada neste projeto */
+.meta-pct{ margin-left:auto; font-family:"IBM Plex Mono",ui-monospace,monospace;
+  font-variant-numeric:tabular-nums; color:var(--ink-2); white-space:nowrap }
+
+.meta-card .barra{ height:6px; border-radius:var(--raio-cheio);
+  background:var(--surface-3); margin:var(--e-3) 0; overflow:hidden }
+.meta-card .barra span{ display:block; height:100%; width:var(--frac,0%);
+  background:var(--brand); border-radius:inherit;
+  transition:width var(--t-lento) var(--curva) }
+
+.meta-acoes{ display:flex; gap:var(--e-2); flex-wrap:wrap }
+
+@media (max-width:600px){
+  /* em 320px o percentual e o selo disputam a linha com o nome; deixá-los
+     quebrar é melhor do que espremer os três */
+  .meta-topo{ flex-wrap:wrap }
+  .meta-pct{ margin-left:0 }
+}

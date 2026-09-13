@@ -97,6 +97,7 @@ export const fechaServidor = () => servidor.close();
 
 const DUBLE = `
 const T = { instituicoes:[], contas:[], categorias:[], transacoes:[], liquidacoes:[],
+            metas:[], alocacoes_de_meta:[],
             cartoes:[], faturas:[], compras_de_cartao:[], assinaturas:[],
             dividas:[], fixas:[], credores:[], receitas:[], pagamentos:[], fixas_mes:[], config:[] };
 let seq = 0;
@@ -155,7 +156,34 @@ function assinaturasResolvidas(){
              proxima_cobranca:prox };
   });
 }
+/* a view metas_resolvidas: reservado, falta e percentual DERIVADOS -- se o
+   duble guardasse reservado, ele deixaria de provar que apagar a alocacao
+   devolve a meta ao que era. */
+function metasResolvidas(){
+  const hoje = new Date();
+  return T.metas.map(m => {
+    const alocs = T.alocacoes_de_meta.filter(a => a.meta_id === m.id);
+    const reservado = alocs.reduce((s,a) => s + Number(a.valor), 0);
+    let meses = null;
+    if (m.prazo){
+      const fim = new Date(m.prazo + "T00:00:00Z");
+      meses = Math.max(1, (fim.getUTCFullYear() - hoje.getUTCFullYear()) * 12
+                        + (fim.getUTCMonth() - hoje.getUTCMonth()) + 1);
+    }
+    return { meta_id:m.id, user_id:"u1", nome:m.nome, valor_alvo:Number(m.valor_alvo),
+             prazo:m.prazo || null, prioridade:Number(m.prioridade ?? 2),
+             cor:m.cor||"", icone:m.icone||"", status:m.status||"ativa", obs:m.obs||"",
+             ordem:m.ordem||0, criado_em:m.criado_em||null,
+             reservado,
+             falta: Math.max(Number(m.valor_alvo) - reservado, 0),
+             alocacoes: alocs.length,
+             percentual: Math.min(Math.round(reservado * 100 / Number(m.valor_alvo)), 100),
+             meses_ate_prazo: meses };
+  });
+}
+
 const linhasDe = (t) => t === "saldos_de_conta" ? saldos()
+                      : t === "metas_resolvidas" ? metasResolvidas()
                       : t === "faturas_resolvidas" ? faturasResolvidas()
                       : t === "assinaturas_resolvidas" ? assinaturasResolvidas()
                       : (T[t] || []);
@@ -172,6 +200,21 @@ export function createClient(){
       in:(k,v)=>{filtros.push(r=>v.includes(r[k])); return api;},
       insert:(x)=>{
         const arr = (Array.isArray(x)?x:[x]).map(r=>({ ...r, id:r.id||uid(), user_id:"u1" }));
+        /* O GATILHO DA 014, reproduzido: a soma das alocacoes nunca passa do
+           saldo LIVRE. Sem isto o duble aceitaria reservar dinheiro que nao
+           existe, e o teste concordaria com um produto que nao existe. */
+        if (tabela === "alocacoes_de_meta"){
+          const livre = saldos().filter(s => {
+            const c = T.contas.find(y => y.id === s.conta_id);
+            return !c || (c.liquidez || "livre") === "livre";
+          }).reduce((s,y) => s + Number(y.saldo), 0);
+          const depois = T.alocacoes_de_meta.concat(arr)
+            .reduce((s,a) => s + Number(a.valor), 0);
+          if (depois > livre)
+            return Promise.resolve({ data:null, error:{ message:
+              "meta: não dá para reservar " + depois.toFixed(2) + " com "
+              + livre.toFixed(2) + " livre em conta. Meta é envelope, não dinheiro novo." } });
+        }
         T[tabela] = (T[tabela]||[]).concat(arr);
         const pr = Promise.resolve({ data:arr, error:null });
         return { select:()=>({ then:(a,b)=>pr.then(a,b) }), single:()=>pr, then:(a,b)=>pr.then(a,b) };
@@ -422,6 +465,15 @@ export function createClient(){
       if (nome === "recebe_receita") return liquida("receita", a.p_receita, a, true);
       /* Estorno, com a MESMA regra da 010: so natureza normal, sinal invertido,
          categoria e origem herdadas, e a soma nunca passa do original. */
+      /* So conta LIVRE entra, igual a 014. Se o duble somasse tudo, ele
+         concordaria com uma tela que reserva dinheiro bloqueado. */
+      if (nome === "saldo_livre_do_usuario"){
+        const livre = saldos().filter(s => {
+          const c = T.contas.find(x => x.id === s.conta_id);
+          return !c || (c.liquidez || "livre") === "livre";
+        }).reduce((s,x) => s + Number(x.saldo), 0);
+        return Promise.resolve({ data: livre, error:null });
+      }
       if (nome === "estorna_transacao"){
         const o = T.transacoes.find(x => x.id === a.p_transacao);
         if (!o) return Promise.resolve({ data:null, error:{ message:"estorno: transação não encontrada" } });

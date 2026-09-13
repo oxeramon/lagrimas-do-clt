@@ -585,6 +585,59 @@
       </div>
     </section>
 
+    <!-- ============================================================ metas
+         Meta é ENVELOPE, conta é onde o dinheiro está. Nenhum número desta
+         tela SOMA reservado com saldo: a única relação entre os dois é de
+         subtração. Ver docs/CONTRATO_METAS.md. -->
+    <section class="panel stack" id="p-metas" role="tabpanel" aria-labelledby="nav-metas" hidden>
+      <div class="hero">
+        <div>
+          <h2>Metas</h2>
+          <p class="hint">Sonhos com centro de custo.</p>
+        </div>
+        <span style="flex:1"></span>
+        <button class="btn primary" id="btnNovaMeta">Nova meta</button>
+      </div>
+
+      <div class="vazio" id="metasVazio" hidden>
+        <div class="emoji" aria-hidden="true">🎯</div>
+        <h3>Nenhuma meta ainda</h3>
+        <p>Meta é um destino para dinheiro que você já tem. Ela não cria dinheiro
+           nem mexe no saldo da conta: só separa o que já é seu.</p>
+      </div>
+
+      <div id="metasConteudo" hidden>
+        <!-- Os TRÊS números, e nesta ordem: o que existe, o que já foi
+             prometido, e o que sobra. Somar os dois primeiros contaria o mesmo
+             dinheiro duas vezes, e é por isso que eles nunca aparecem somados. -->
+        <div class="card">
+          <div class="lente">
+            <h2>Disponível</h2>
+            <div class="fatias">
+              <div class="fatia"><b id="mtLivre">—</b><span>em conta, livre</span></div>
+              <div class="fatia"><b id="mtReservado">—</b><span>reservado em metas</span></div>
+              <div class="fatia"><b id="mtDisponivel">—</b><span>livre de promessa</span></div>
+            </div>
+            <p class="hint" id="mtAviso" hidden></p>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="lente">
+            <h2>As metas</h2>
+            <div class="fatias">
+              <div class="fatia"><b id="mtQuantas">—</b><span>ativas</span></div>
+              <div class="fatia"><b id="mtAlvo">—</b><span>somam de alvo</span></div>
+              <div class="fatia"><b id="mtFalta">—</b><span>ainda faltam</span></div>
+              <div class="fatia"><b id="mtPorMes">—</b><span>por mês, com prazo</span></div>
+            </div>
+          </div>
+        </div>
+
+        <div id="listaMetas"></div>
+      </div>
+    </section>
+
     <section class="panel stack" id="p-proj" role="tabpanel" aria-labelledby="nav-proj" hidden>
       <div class="hero">
         <div class="hero-grid">
@@ -924,6 +977,67 @@
       <button type="submit" class="btn primary" id="trSalvar">Salvar</button>
     </div>
   </form>
+</dialog>
+
+<!-- ================================================================== meta -->
+<dialog id="dlgMeta">
+  <form id="formMeta">
+    <div class="dlg-h"><h2 id="mtTitulo">Nova meta</h2><button type="button" class="btn ghost" data-fechar="dlgMeta" aria-label="Fechar"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M18 6L6 18M6 6l12 12"/></svg></button></div>
+    <div class="formgrid">
+      <div class="field full"><label for="mt_nome">O que você quer</label>
+        <input id="mt_nome" required maxlength="80" placeholder="Ex.: viagem, reserva, troca do notebook"></div>
+      <div class="field"><label for="mt_alvo">Quanto precisa (R$)</label>
+        <input type="number" id="mt_alvo" step="0.01" min="0.01" inputmode="decimal" required></div>
+      <div class="field"><label for="mt_prazo">Até quando (opcional)</label>
+        <input type="date" id="mt_prazo"></div>
+      <div class="field"><label for="mt_prioridade">Prioridade</label>
+        <select id="mt_prioridade"></select></div>
+      <div class="field"><label for="mt_status">Situação</label>
+        <select id="mt_status"></select></div>
+      <div class="field full"><label for="mt_obs">Observação</label>
+        <input id="mt_obs" autocomplete="off"></div>
+      <p class="hint full" id="mtEquivalente" hidden></p>
+      <p class="hint full" id="mtErro" role="alert" hidden></p>
+    </div>
+    <div class="dlg-f">
+      <button type="button" class="btn ghost" id="mtExcluir" hidden>Excluir</button>
+      <span style="flex:1"></span>
+      <button type="button" class="btn" data-fechar="dlgMeta">Cancelar</button>
+      <button type="submit" class="btn primary" id="mtSalvar">Salvar</button>
+    </div>
+  </form>
+</dialog>
+
+<!-- =========================================================== alocação
+     Reservar e liberar são a MESMA operação com sinais diferentes. Nenhuma
+     das duas cria transação nem mexe em saldo de conta. -->
+<dialog id="dlgAlocacao">
+  <div class="dlg-h"><h2 id="alTitulo">Reservar</h2><button type="button" class="btn ghost" data-fechar="dlgAlocacao" aria-label="Fechar"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M18 6L6 18M6 6l12 12"/></svg></button></div>
+  <div class="formgrid">
+    <p class="hint full" id="alMeta"></p>
+    <div class="full fatura-saldo">
+      <div><span class="rot">Reservado</span><b id="alReservado">—</b></div>
+      <div><span class="rot">Falta</span><b id="alFalta">—</b></div>
+      <div><span class="rot">Cabe</span><b id="alCabe">—</b></div>
+    </div>
+    <div class="full formgrid" style="padding:0">
+      <div class="field"><label for="al_valor">Quanto (R$)</label>
+        <input type="number" id="al_valor" step="0.01" min="0.01" inputmode="decimal" required></div>
+      <div class="field"><label for="al_data">Quando</label>
+        <input type="date" id="al_data" required></div>
+      <div class="field full"><label for="al_obs">Observação (opcional)</label>
+        <input id="al_obs" autocomplete="off"></div>
+    </div>
+    <p class="hint full" id="alAviso"></p>
+    <div class="full" id="alHistorico"></div>
+    <p class="hint full" id="alErro" role="alert" hidden></p>
+  </div>
+  <div class="dlg-f">
+    <button type="button" class="btn ghost" id="alLiberar">Liberar</button>
+    <span style="flex:1"></span>
+    <button type="button" class="btn" data-fechar="dlgAlocacao">Fechar</button>
+    <button type="button" class="btn primary" id="alReservar">Reservar</button>
+  </div>
 </dialog>
 
 <!-- ================================================================ estorno

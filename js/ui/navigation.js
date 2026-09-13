@@ -15,10 +15,10 @@
  * "Mais", e o resto vive atrás dele -- a divisão é declarada aqui, não
  * espalhada no CSS.
  *
- * O QUE NÃO ESTÁ AQUI, e é de propósito: "Calendário" e "Metas". As duas
- * apareceriam na lateral como destino e abririam o nada. Entrada de menu que
- * não leva a lugar nenhum é pior do que menu curto -- a tela de Mês já
- * responde pela primeira, e a segunda ainda não existe.
+ * "Metas" entrou quando a tela passou a existir, e não antes. Entrada de menu
+ * que abre o nada é pior do que menu curto: ela ensina a desconfiar do menu.
+ * "Calendário" continua de fora pela mesma régua -- a tela de Mês responde por
+ * ele hoje.
  *
  * Contrato do DOM, e é só isto:
  *   painel      <section id="p-<id>">
@@ -51,6 +51,8 @@ export const ABAS = [
     icone: '<path d="M3 7l6 6 4-4 8 8"/><path d="M21 13v4h-4"/>' },
   { id: "dividas",     rotulo: "Dívidas",     grupo: "PLANEJAMENTO",   rodape: false,
     icone: '<path d="M3 17l6-6 4 4 8-8"/><path d="M21 11V7h-4"/>' },
+  { id: "metas",       rotulo: "Metas",       grupo: "PLANEJAMENTO",   rodape: false,
+    icone: '<circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="4"/><circle cx="12" cy="12" r="1"/>' },
   { id: "proj",        rotulo: "Projeção",    grupo: "PLANEJAMENTO",   rodape: false,
     icone: '<path d="M3 3v18h18"/><path d="M7 14l4-4 3 3 5-6"/>' },
   { id: "assinaturas", rotulo: "Assinaturas", grupo: "ROTINAS",        rodape: false,

@@ -1,0 +1,252 @@
+/* TELA DE METAS · envelope, nunca dinheiro novo.
+ *
+ * A regra que esta tela existe para tornar visível está em
+ * `docs/CONTRATO_METAS.md`, e é uma frase:
+ *
+ *   META É ENVELOPE. CONTA É ONDE O DINHEIRO ESTÁ.
+ *
+ * Por isso os três números do topo aparecem nesta ordem -- o que existe, o que
+ * já foi prometido, e o que sobra -- e NUNCA somados. Somar os dois primeiros
+ * conta o mesmo real duas vezes, que é exatamente o defeito que o contrato
+ * proíbe.
+ *
+ * Reservar não gera transação e não mexe em saldo de conta. Isso não é um
+ * detalhe de implementação: é a definição do que uma meta é.
+ */
+import { $ } from "../../core/dom.js";
+import { esc } from "../../core/escape.js";
+import { money } from "../../core/money.js";
+import { PRIORIDADES, STATUS, rotuloDaPrioridade, indicadoresDeMetas,
+         ordenaMetas, necessidadeMensal, emRisco, cabeReservar }
+  from "../../domain/goals.js";
+import { V2, dep, recarrega } from "./estado.js";
+import { listaDeOpcoes, confirmaEmDoisCliques, mostraErro, hojeISO, diaLegivel }
+  from "./pecas.js";
+import * as v2 from "../../data/v2-repository.js";
+
+let metaEditando = null;
+let metaAlocando = null;
+
+/* Quanto costuma sobrar por mês. Sem essa referência não há como afirmar que
+   uma meta está em risco -- e afirmar sem base é alarme falso, que ensina a
+   ignorar o alarme. Hoje a referência não existe, então vem `null` e nenhuma
+   meta é marcada em risco por ritmo. O estouro do reservado continua sendo
+   avisado, porque esse não depende de estimativa. */
+const sobraMensal = () => null;
+
+export function renderMetas(){
+  const tem = (V2.metas || []).length > 0;
+  if ($("metasVazio")) $("metasVazio").hidden = tem;
+  if ($("metasConteudo")) $("metasConteudo").hidden = !tem;
+  if (!tem) return;
+
+  const ind = indicadoresDeMetas(V2.metas, V2.saldoLivre, sobraMensal());
+
+  $("mtLivre").textContent      = money(ind.saldoLivre);
+  $("mtReservado").textContent  = money(ind.reservado);
+  $("mtDisponivel").textContent = money(ind.disponivel);
+  $("mtQuantas").textContent    = String(ind.quantas);
+  $("mtAlvo").textContent       = money(ind.alvo);
+  $("mtFalta").textContent      = money(ind.falta);
+  $("mtPorMes").textContent     = ind.precisaPorMes > 0 ? money(ind.precisaPorMes) : "—";
+
+  /* O aviso do estouro é UM, não um por meta: a causa é a mesma para todas.
+     E ele não tem piada -- o dinheiro prometido não está mais lá. */
+  const aviso = $("mtAviso");
+  aviso.hidden = !ind.estourado;
+  if (ind.estourado) aviso.textContent =
+    "Você reservou " + money(ind.reservado) + " e tem " + money(ind.saldoLivre)
+    + " livre em conta. O dinheiro prometido saiu depois da promessa: reveja as metas.";
+  aviso.classList.toggle("alerta", ind.estourado);
+
+  $("listaMetas").innerHTML = ordenaMetas(V2.metas, sobraMensal())
+    .map(linhaDeMeta).join("");
+}
+
+function linhaDeMeta(m){
+  const precisa = necessidadeMensal(m);
+  const risco = emRisco(m, sobraMensal());
+  const concluida = m.status === "concluida";
+  const arquivada = m.status === "arquivada";
+
+  /* A barra é enfeite do número, não substituta dele: o percentual vai escrito
+     ao lado, porque barra sozinha não se lê com precisão. */
+  const sub = [
+    money(m.reservado) + " de " + money(m.valorAlvo),
+    m.prazo ? "até " + diaLegivel(m.prazo) : "sem prazo",
+    precisa ? money(precisa) + " por mês" : "",
+    rotuloDaPrioridade(m.prioridade),
+    arquivada ? "arquivada" : (concluida ? "concluída" : ""),
+  ].filter(Boolean).join(" · ");
+
+  return '<div class="meta-card' + (arquivada ? " apagada" : "") + '">'
+    + '<div class="meta-topo">'
+    + '<div style="min-width:0"><b class="nome">' + esc(m.nome) + '</b>'
+    + '<span class="meta-sub">' + esc(sub) + '</span></div>'
+    + (risco ? '<span class="pill sit-parcial">em risco</span>' : "")
+    + '<span class="meta-pct num">' + m.percentual + '%</span>'
+    + '</div>'
+    + '<div class="barra"><span style="--frac:' + m.percentual + '%"></span></div>'
+    + '<div class="meta-acoes">'
+    + '<button type="button" class="btn ghost sm" data-alocameta="' + esc(m.metaId) + '">Reservar</button>'
+    + '<button type="button" class="btn ghost sm" data-editameta="' + esc(m.metaId) + '">Editar</button>'
+    + '</div></div>';
+}
+
+/* ---------------------------------------------------------- cadastro --*/
+function abreMeta(id){
+  metaEditando = id || null;
+  const m = id ? (V2.metas || []).find((x) => x.metaId === id) : null;
+
+  $("mtTitulo").textContent = m ? "Editar meta" : "Nova meta";
+  $("mt_nome").value  = m ? m.nome : "";
+  $("mt_alvo").value  = m ? m.valorAlvo : "";
+  $("mt_prazo").value = m && m.prazo ? m.prazo : "";
+  $("mt_prioridade").innerHTML = listaDeOpcoes(
+    PRIORIDADES.map((p) => ({ id: String(p.id), rotulo: p.rotulo })),
+    String(m ? m.prioridade : 2), "");
+  $("mt_status").innerHTML = listaDeOpcoes(STATUS, m ? m.status : "ativa", "");
+  $("mt_obs").value = m ? (m.obs || "") : "";
+  $("mtExcluir").hidden = !m;
+  mostraErro($("mtErro"), "");
+  mostraEquivalenteDaMeta();
+  $("dlgMeta").showModal();
+}
+
+/* A conta que a pessoa faria de cabeça, feita para ela: quanto por mês até o
+   prazo. Ela aparece ANTES de salvar, porque é ela que diz se a meta é
+   possível -- e descobrir depois é descobrir tarde. */
+function mostraEquivalenteDaMeta(){
+  const alvo = Number($("mt_alvo").value);
+  const prazo = $("mt_prazo").value;
+  const campo = $("mtEquivalente");
+  if (!(alvo > 0) || !prazo){ campo.hidden = true; return; }
+
+  const hoje = new Date(hojeISO() + "T00:00:00");
+  const fim = new Date(prazo + "T00:00:00");
+  const meses = Math.max(1,
+    (fim.getFullYear() - hoje.getFullYear()) * 12 + (fim.getMonth() - hoje.getMonth()) + 1);
+  campo.hidden = false;
+  campo.textContent = "São " + money(alvo / meses) + " por mês até lá"
+    + (meses === 1 ? " — e o prazo é este mês." : " (" + meses + " meses).");
+}
+
+/* ---------------------------------------------------------- alocação --*/
+function abreAlocacao(metaId){
+  const m = (V2.metas || []).find((x) => x.metaId === metaId);
+  if (!m) return;
+  metaAlocando = m;
+
+  const ind = indicadoresDeMetas(V2.metas, V2.saldoLivre, sobraMensal());
+  const cabe = cabeReservar(V2.saldoLivre, ind.reservado);
+
+  $("alTitulo").textContent = "Reservar para " + m.nome;
+  $("alMeta").textContent = m.nome + " · alvo " + money(m.valorAlvo);
+  $("alReservado").textContent = money(m.reservado);
+  $("alFalta").textContent = money(m.falta);
+  $("alCabe").textContent = money(cabe);
+
+  /* O padrão é o MENOR entre o que falta e o que cabe: propor o que falta
+     quando não há saldo é propor um valor que o banco recusa. */
+  const sugerido = Math.min(Number(m.falta || 0), cabe);
+  $("al_valor").value = sugerido > 0 ? sugerido.toFixed(2) : "";
+  $("al_data").value = hojeISO();
+  $("al_obs").value = "";
+  mostraErro($("alErro"), "");
+
+  $("alAviso").textContent = cabe > 0
+    ? "Reservar não tira dinheiro da conta. Ele continua lá, só deixa de estar livre."
+    : "Não há saldo livre para reservar agora. Você ainda pode liberar o que já reservou.";
+  $("alReservar").hidden = cabe <= 0;
+  $("alLiberar").hidden = Number(m.reservado || 0) <= 0;
+
+  const historico = (V2.alocacoes || []).filter((a) => a.metaId === metaId);
+  $("alHistorico").innerHTML = historico.length
+    ? '<h3 class="sub-titulo">Histórico</h3><div class="fatura-itens">'
+      + historico.map((a) =>
+          '<div class="row"><div class="desc"><b>'
+          + (Number(a.valor) > 0 ? "+ " : "− ") + money(Math.abs(Number(a.valor))) + '</b>'
+          + '<span class="meta">' + esc(diaLegivel(a.data))
+          + (a.obs ? " · " + esc(a.obs) : "") + '</span></div>'
+          + '<div class="amt"><button type="button" class="btn ghost sm" '
+          + 'data-apagaaloc="' + esc(a.id) + '">Apagar</button></div></div>').join("")
+      + '</div>'
+    : "";
+
+  for (const botao of $("alHistorico").querySelectorAll("[data-apagaaloc]"))
+    confirmaEmDoisCliques(botao, "Apagar", async () => {
+      const r = await v2.removeAlocacao(botao.getAttribute("data-apagaaloc"));
+      if (r.erro) return mostraErro($("alErro"), r.erro);
+      $("dlgAlocacao").close();
+      dep.toast("Movimento apagado.");
+      await recarrega();
+    });
+
+  $("dlgAlocacao").showModal();
+}
+
+async function registraAlocacao(sinal){
+  if (!metaAlocando) return;
+  const bruto = Number($("al_valor").value);
+  const data = $("al_data").value;
+  if (!(bruto > 0)) return mostraErro($("alErro"), "O valor precisa ser maior que zero.");
+  if (!data) return mostraErro($("alErro"), "Escolha a data.");
+
+  if (sinal < 0 && bruto > Number(metaAlocando.reservado || 0))
+    return mostraErro($("alErro"),
+      "Você reservou " + money(metaAlocando.reservado) + " nesta meta e quer liberar "
+      + money(bruto) + ".");
+
+  const r = await v2.alocaNaMeta({
+    metaId: metaAlocando.metaId,
+    valor: sinal * bruto,
+    data,
+    obs: $("al_obs").value.trim(),
+  });
+  if (r.erro) return mostraErro($("alErro"), r.erro);
+  $("dlgAlocacao").close();
+  dep.toast(sinal > 0 ? "Reservado." : "Liberado.");
+  await recarrega();
+}
+
+export function ligaMetas(){
+  $("btnNovaMeta")?.addEventListener("click", () => abreMeta(null));
+  $("mt_alvo")?.addEventListener("input", mostraEquivalenteDaMeta);
+  $("mt_prazo")?.addEventListener("input", mostraEquivalenteDaMeta);
+
+  $("listaMetas")?.addEventListener("click", (e) => {
+    const editar = e.target.closest("[data-editameta]");
+    if (editar) return abreMeta(editar.getAttribute("data-editameta"));
+    const alocar = e.target.closest("[data-alocameta]");
+    if (alocar) return abreAlocacao(alocar.getAttribute("data-alocameta"));
+  });
+
+  $("formMeta")?.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const btn = $("mtSalvar"); btn.disabled = true;
+    const r = await v2.salvaMeta({
+      nome: $("mt_nome").value.trim(),
+      valorAlvo: Number($("mt_alvo").value),
+      prazo: $("mt_prazo").value || null,
+      prioridade: Number($("mt_prioridade").value),
+      status: $("mt_status").value,
+      obs: $("mt_obs").value.trim(),
+    }, metaEditando);
+    btn.disabled = false;
+    if (r.erro) return mostraErro($("mtErro"), r.erro);
+    $("dlgMeta").close();
+    await recarrega();
+    dep.toast(metaEditando ? "Meta atualizada." : "Meta criada.");
+  });
+
+  confirmaEmDoisCliques($("mtExcluir"), "Excluir", async () => {
+    const r = await v2.removeMeta(metaEditando);
+    if (r.erro) return mostraErro($("mtErro"), r.erro);
+    $("dlgMeta").close();
+    await recarrega();
+    dep.toast("Meta excluída.");
+  });
+
+  $("alReservar")?.addEventListener("click", () => registraAlocacao(+1));
+  $("alLiberar")?.addEventListener("click", () => registraAlocacao(-1));
+}

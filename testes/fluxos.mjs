@@ -20,6 +20,7 @@
 import { exigeNavegador } from "./navegador.mjs";
 exigeNavegador("fluxos");
 const { abreApp, vaiPara, fechaNavegador } = await import("./navegador.mjs");
+const { ABAS } = await import("../js/ui/navigation.js");
 
 
 /* ------------------------------------------------------------- placar --*/
@@ -824,6 +825,106 @@ console.log("\nassinaturas");
 }
 
 /* ==================================================================
+   METAS: envelope, nunca dinheiro novo
+   ==================================================================
+   O caso que dá sentido a todos os outros é o 4: reservar NÃO mexe no saldo da
+   conta. Se ele quebrar, o produto passou a somar o mesmo real duas vezes, e
+   nenhum outro número da tela vale mais nada.
+   ================================================================== */
+console.log("\nmetas");
+{
+  const { p, erros } = await abreApp(1440);
+  await criaConta(p, "Conta Alfa", 1000, true);
+
+  await vaiPara(p, "metas");
+  await p.waitForTimeout(250);
+  eq("sem meta, a tela mostra o vazio",
+    await p.evaluate(() => !document.getElementById("metasVazio").hidden), true);
+
+  await p.click("#btnNovaMeta");
+  await p.waitForTimeout(250);
+  await p.fill("#mt_nome", "Meta Exemplo");
+  await p.fill("#mt_alvo", "500");
+  await p.waitForTimeout(120);
+  await p.click("#mtSalvar");
+  await p.waitForTimeout(600);
+
+  eq("a meta aparece na lista",
+    await p.locator(".meta-card").count(), 1);
+  const zerada = await p.evaluate(() => ({
+    livre: document.getElementById("mtLivre").textContent.replace(/ /g, " "),
+    reservado: document.getElementById("mtReservado").textContent.replace(/ /g, " "),
+    disponivel: document.getElementById("mtDisponivel").textContent.replace(/ /g, " "),
+  }));
+  eq("nasce com 1.000 livre, 0 reservado e 1.000 disponível",
+    [zerada.livre, zerada.reservado, zerada.disponivel],
+    ["R$ 1.000,00", "R$ 0,00", "R$ 1.000,00"]);
+
+  /* RESERVAR 300 */
+  const saldoAntes = await p.evaluate(() =>
+    globalThis.__T.contas.reduce((s, c) => s + Number(c.saldo_inicial), 0));
+  await p.click("[data-alocameta]");
+  await p.waitForTimeout(350);
+  await p.fill("#al_valor", "300");
+  await p.click("#alReservar");
+  await p.waitForTimeout(600);
+
+  const apos = await p.evaluate(() => ({
+    reservado: document.getElementById("mtReservado").textContent.replace(/ /g, " "),
+    disponivel: document.getElementById("mtDisponivel").textContent.replace(/ /g, " "),
+    livre: document.getElementById("mtLivre").textContent.replace(/ /g, " "),
+    pct: document.querySelector(".meta-pct").textContent,
+    /* O INVARIANTE. Se isto mudar, meta virou dinheiro. */
+    transacoes: globalThis.__T.transacoes.length,
+    saldos: globalThis.__T.contas.reduce((s, c) => s + Number(c.saldo_inicial), 0),
+  }));
+  eq("reservou 300", apos.reservado, "R$ 300,00");
+  eq("e o disponível cai para 700", apos.disponivel, "R$ 700,00");
+  eq("60% da meta", apos.pct, "60%");
+
+  /* OS DOIS CASOS QUE DEFINEM O QUE UMA META É */
+  eq("RESERVAR NÃO CRIA TRANSAÇÃO", apos.transacoes, 0);
+  eq("E NÃO MEXE NO SALDO DA CONTA", apos.saldos, saldoAntes);
+  eq("o saldo livre na tela também não se mexeu", apos.livre, "R$ 1.000,00");
+
+  await vaiPara(p, "contas");
+  await p.waitForTimeout(300);
+  eq("a tela de Contas continua mostrando os 1.000 inteiros",
+    (await p.textContent("#ctSaldoTotal")).replace(/ /g, " "), "R$ 1.000,00");
+
+  /* RESERVAR ALÉM DO QUE EXISTE é recusado */
+  await vaiPara(p, "metas");
+  await p.waitForTimeout(300);
+  await p.click("[data-alocameta]");
+  await p.waitForTimeout(350);
+  await p.fill("#al_valor", "5000");
+  await p.click("#alReservar");
+  await p.waitForTimeout(500);
+  eq("reservar mais do que há livre é recusado",
+    await p.evaluate(() => { const e = document.getElementById("alErro");
+      return e.hidden ? "" : e.textContent.length > 0; }), true);
+  eq("e nada foi reservado a mais",
+    await p.evaluate(() => globalThis.__T.alocacoes_de_meta
+      .reduce((s, a) => s + Number(a.valor), 0)), 300);
+
+  /* LIBERAR é linha NEGATIVA, não exclusão */
+  await p.fill("#al_valor", "100");
+  await p.click("#alLiberar");
+  await p.waitForTimeout(600);
+  const aposLiberar = await p.evaluate(() => ({
+    reservado: document.getElementById("mtReservado").textContent.replace(/ /g, " "),
+    linhas: globalThis.__T.alocacoes_de_meta.length,
+    soma: globalThis.__T.alocacoes_de_meta.reduce((s, a) => s + Number(a.valor), 0),
+  }));
+  eq("liberar 100 deixa 200 reservados", aposLiberar.reservado, "R$ 200,00");
+  eq("e o histórico guarda as DUAS linhas, não uma", aposLiberar.linhas, 2);
+  eq("a soma com sinal dá 200", aposLiberar.soma, 200);
+
+  eq("nenhum erro de JavaScript no caminho das metas", erros, []);
+  await p.close();
+}
+
+/* ==================================================================
    ESTORNO: dinheiro que voltou, pela tela
    ==================================================================
    O contrato da 010 existia e não tinha botão. Estes casos provam que o botão
@@ -953,7 +1054,7 @@ console.log("\nnavegação");
   eq("a lateral tem os grupos na ordem do registro",
     await p.evaluate(() => [...document.querySelectorAll(".lateral .grupo-nav")]
       .map(e => e.textContent)),
-    ["VISÃO", "MEU DINHEIRO", "PLANEJAMENTO", "ROTINAS"]);
+    [...new Set(ABAS.filter((a) => a.grupo !== "CONFIGURAÇÕES").map((a) => a.grupo))]);
 
   eq("e cada aba está no grupo certo",
     await p.evaluate(() => {
@@ -965,11 +1066,12 @@ console.log("\nnavegação");
       }
       return fora;
     }),
-    ["VISÃO/Início", "VISÃO/Mês",
-     "MEU DINHEIRO/Contas", "MEU DINHEIRO/Cartões", "MEU DINHEIRO/Transações",
-     "MEU DINHEIRO/Receitas",
-     "PLANEJAMENTO/Dívidas", "PLANEJAMENTO/Projeção",
-     "ROTINAS/Assinaturas", "ROTINAS/Grupos"]);
+    /* DERIVADO DO REGISTRO, e não escrito à mão. A lista literal que estava
+       aqui quebrou no commit que acrescentou Metas -- e quebrou dizendo que a
+       tela estava errada, quando ela estava certa. Teste que envelhece assim
+       ensina a ignorar teste, que é o oposto do que ele existe para fazer. */
+    ABAS.filter((a) => a.grupo !== "CONFIGURAÇÕES")
+        .map((a) => a.grupo + "/" + a.rotulo));
 
   /* Ajustes não fica na lista: ele mora no rodapé da lateral, junto de
      Atualizar e do tema, e é lá que se procura por ele. */

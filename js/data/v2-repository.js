@@ -375,3 +375,43 @@ export const registraAcerto = (p) => consulta(
     p_grupo: p.grupoId, p_de: p.deId, p_para: p.paraId, p_valor: p.valor,
     p_data: p.data, p_conta: p.contaId || null, p_obs: p.obs || "",
   }), "acerto");
+
+/* ------------------------------------------------------------- metas --
+   Meta é ENVELOPE: nada aqui cria transação, e nenhuma função toca conta.
+   Ver `docs/CONTRATO_METAS.md` e a migração 014. */
+export function carregaMetas(){
+  const c = bancoV2();
+  return Promise.all([
+    c.from("metas_resolvidas").select("*").order("ordem", { ascending: true }),
+    c.from("alocacoes_de_meta").select("*").order("data", { ascending: false }),
+    c.rpc("saldo_livre_do_usuario"),
+  ]).then(([me, al, sl]) => {
+    const falha = [me, al, sl].find((r) => r.error);
+    if (falha) return { dados: null, erro: falha.error.message };
+    return { erro: null, dados: {
+      metas: doBanco(me.data || []),
+      alocacoes: doBanco(al.data || []),
+      /* o saldo LIVRE vem do banco, e não de uma soma na tela: ele decide o que
+         o gatilho vai aceitar, e dois cálculos diferentes discordariam */
+      saldoLivre: Number(sl.data || 0),
+    } };
+  });
+}
+
+export const salvaMeta = (modelo, id) => consulta(
+  id ? bancoV2().from("metas").update(paraBanco(modelo)).eq("id", id)
+     : bancoV2().from("metas").insert(paraBanco(modelo)), "meta");
+
+export const removeMeta = (id) =>
+  consulta(bancoV2().from("metas").delete().eq("id", id), "meta");
+
+/* Reservar e liberar são a MESMA operação com sinais diferentes: positivo
+   reserva, negativo libera. Liberar não apaga a reserva anterior -- assim a
+   pessoa lê o que aconteceu em vez de ver o histórico encolher. */
+export const alocaNaMeta = (p) => consulta(
+  bancoV2().from("alocacoes_de_meta").insert(paraBanco({
+    metaId: p.metaId, valor: p.valor, data: p.data, obs: p.obs || "",
+  })), "alocação");
+
+export const removeAlocacao = (id) =>
+  consulta(bancoV2().from("alocacoes_de_meta").delete().eq("id", id), "alocação");
