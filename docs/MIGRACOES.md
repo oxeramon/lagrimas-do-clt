@@ -533,6 +533,70 @@ derrubadas.
 A mudança do cálculo precisava provar-se em número antes de virar interface.
 Expor a ação é o passo seguinte e não depende de mais nenhuma decisão.
 
+## 011 · assinatura semanal
+
+### O defeito, e por que ele era de modelo e não de código
+
+A 008 identificava uma ocorrência por `(user_id, assinatura_id, competencia)`,
+e `competencia` é `YYYY-MM`. Quatro ou cinco cobranças semanais no mesmo mês
+não cabem nessa chave: a segunda colide com a primeira.
+
+A 008 percebeu e **desviou em vez de modelar errado**, o que foi a decisão
+certa na hora: `materializa_assinaturas` filtrava `frequencia <> 'semanal'` e
+`competencia_da_ocorrencia` devolvia `null` para semanal — que o CHECK
+`ocorrencia_tem_competencia` recusava. O efeito visível era estranho: dava para
+**cadastrar** uma assinatura semanal, e ela nunca virava cobrança nenhuma.
+
+### A correção
+
+A identidade da ocorrência passa a ser a **data** em que ela acontece:
+`unique (user_id, assinatura_id, ocorrencia_em)`. Mês é recorte de relatório; a
+cobrança é um evento com data. Para mensal nada muda na prática, porque duas
+ocorrências mensais nunca caem no mesmo dia.
+
+`competencia` continua preenchida, inclusive para semanal, porque é por ela que
+o resto do produto agrupa. Ela só deixa de **identificar**.
+
+### A ordem da migração não é estilo, é obrigação
+
+O ensaio em transação revertida encontrou um defeito que teria abortado a
+migração no meio, em produção:
+
+```
+55006: cannot ALTER TABLE "transacoes" because it has pending trigger events
+```
+
+A 002 criou um gatilho de constraint **diferido** para o par da transferência.
+O `update` do backfill enfileira eventos desse gatilho, e o Postgres recusa
+qualquer `alter table` enquanto houver evento pendente. A migração teria parado
+com a coluna criada e as constraints antigas já removidas — o pior estado
+possível.
+
+O conserto é uma linha, `set constraints all immediate`, entre o backfill e as
+constraints novas. Nenhum teste de JavaScript encontraria isso; quem encontrou
+foi o ensaio contra o banco de verdade.
+
+### A janela continua curta
+
+Dois meses, como na 008. Semanal dá cerca de nove ocorrências nesse intervalo —
+"o que vem por aí" sem encher o banco de linha que ninguém vai olhar. O teto de
+voltas do laço subiu de 2.000 para 5.000 porque semanal gasta 52 voltas por ano
+de atraso, e uma assinatura antiga esgotaria o teto anterior.
+
+### Como foi provada
+
+`supabase/testes/011_semanal.sql`, 27 casos, `authenticated` e `anon` reais.
+Cinco ocorrências em 28 dias; quatro num mês e cinco em outro; competência que
+**repete de propósito**; a mesma data duas vezes recusada pelo banco;
+idempotência (segunda chamada cria zero) e janela ampliada criando **só** o que
+faltava; virada de ano, fevereiro comum e 29/02 de ano bissexto. Datas são
+`date`, sem hora e sem fuso, então horário de verão não tem por onde entrar.
+
+Duas falhas do primeiro ensaio eram do **teste**, não da migração: eu cadastrava
+assinaturas novas entre a primeira e a segunda materialização, então a segunda
+tinha trabalho legítimo a fazer. A prova de idempotência foi reordenada para
+medir o que afirma.
+
 ## O que os advisors dizem agora
 
 Segurança: **uma única ocorrência**, e é configuração de Auth, não de schema —
