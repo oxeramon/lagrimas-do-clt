@@ -20,9 +20,18 @@ const arquivo = entrada.tool_response?.filePath ?? entrada.tool_input?.file_path
    as migrações que ainda não rodaram, e uma tabela nova sem policy lá é tão
    perigosa quanto uma lá. Toda tabela nova precisa dos quatro blocos, esteja
    onde estiver. */
+const caminho = arquivo.replaceAll("\\", "/");
 const ehSqlDoProjeto = basename(arquivo) === "supabase-setup.sql"
-  || /\/supabase\/(migrations\/)?[\w.-]+\.sql$/.test(arquivo.replaceAll("\\", "/"));
+  || /\/supabase\/(migrations\/|bootstrap\/)?[\w.-]+\.sql$/.test(caminho);
 if (!ehSqlDoProjeto) process.exit(0);
+
+/* `supabase/bootstrap/schema.sql` obedece às MESMAS invariantes de segurança
+   -- RLS, policy, gatilho de dono, ordem das chaves -- e às duas regras
+   OPOSTAS de forma: ele cria sem `if not exists` e aborta com `raise
+   exception` de propósito, porque roda uma vez só, em banco vazio. Sem esta
+   distinção só haveria dois caminhos, e os dois ruins: o hook reclamando do
+   arquivo inteiro, ou ninguém conferindo a policy dele. */
+const ehBootstrap = /\/supabase\/bootstrap\//.test(caminho);
 
 let sql;
 try {
@@ -39,14 +48,14 @@ const problemas = [];
 const codigo = sql.replace(/--[^\n]*/g, "");
 
 /* ---- 1 e 2: segurança por tabela ------------------------------------- */
-const tabelas = [...codigo.matchAll(/create table if not exists public\.(\w+)\s*\(([\s\S]*?)\n\);/g)]
+const tabelas = [...codigo.matchAll(/create table (?:if not exists )?public\.(\w+)\s*\(([\s\S]*?)\n\);/g)]
   .map(([, nome, corpo]) => ({ nome, temUserId: /\buser_id\s+uuid/.test(corpo) }));
 
 /* Uma migração que só ajusta tabela existente não cria nenhuma, e isso é
    legítimo -- a 002 é assim inteira. O que não pode é criar FORA da forma
    `if not exists`, que é o que quebra a reexecução. Então a cobrança é sobre
    a forma de quem cria, não sobre a existência de alguém criando. */
-for (const m of codigo.matchAll(/create\s+table\s+(?!if\s+not\s+exists\b)/gi)) {
+for (const m of ehBootstrap ? [] : codigo.matchAll(/create\s+table\s+(?!if\s+not\s+exists\b)/gi)) {
   const linha = codigo.slice(0, m.index).split("\n").length;
   problemas.push(`Perto da linha ${linha}: 'create table' sem 'if not exists'. `
     + "Use 'create table if not exists public.X (...);', senão o arquivo deixa "
@@ -56,7 +65,12 @@ for (const m of codigo.matchAll(/create\s+table\s+(?!if\s+not\s+exists\b)/gi)) {
 for (const { nome, temUserId } of tabelas) {
   const temRls = new RegExp(`alter table public\\.${nome}\\s+enable row level security`).test(codigo);
   const temPolicy = new RegExp(`create policy \\w+ on public\\.${nome}\\b`).test(codigo);
-  const temTrigger = new RegExp(`on public\\.${nome}\\s+for each row execute function public\\.set_user_id`).test(codigo);
+  /* `set_user_id` não é o único nome. A 014 trouxe `metas_set_user_id` e
+     `alocacoes_set_user_id`, que fazem a mesma coisa em tabela que não usa a
+     versão SECURITY DEFINER. O que importa é que ALGUM gatilho preencha o
+     dono, não que ele se chame exatamente assim -- e era por não saber disso
+     que o hook acusava a 014 de não ter o gatilho que ela tem. */
+  const temTrigger = new RegExp(`on public\\.${nome}\\s+for each row execute function public\\.\\w*set_user_id`).test(codigo);
 
   if (!temRls) {
     problemas.push(`public.${nome}: falta 'alter table public.${nome} enable row level security;'. `
@@ -84,7 +98,7 @@ for (const { nome, temUserId } of tabelas) {
    Foi o que aconteceu com fixas.credor_id, que referenciava credores cinco
    linhas antes de a tabela ser criada. */
 const criadaEm = new Map();
-for (const m of codigo.matchAll(/create table if not exists public\.(\w+)/g)) {
+for (const m of codigo.matchAll(/create table (?:if not exists )?public\.(\w+)/g)) {
   if (!criadaEm.has(m[1])) criadaEm.set(m[1], m.index);
 }
 /* Tabela que já existe antes deste arquivo rodar: a instalação da V1 cria as
@@ -92,8 +106,13 @@ for (const m of codigo.matchAll(/create table if not exists public\.(\w+)/g)) {
    escrita à mão -- uma constante aqui dentro envelheceria a cada migração
    nova, e o hook passaria a acusar referência legítima. A ordem é a do nome
    do arquivo, que é a ordem em que eles rodam. */
+/* No bootstrap esse conjunto é vazio, e não por acidente: nada roda antes
+   dele. Toda tabela que ele referencia precisa nascer nele mesmo, acima da
+   referência -- é essa a diferença entre um bootstrap que funciona em banco
+   vazio e um que só funciona em banco que já tinha as tabelas. */
 const jaExistem = new Set();
 try {
+  if (ehBootstrap) throw new Error("bootstrap: nada roda antes");
   const dirSql = resolve(dirname(arquivo));
   const raiz = basename(dirSql) === "migrations" ? resolve(dirSql, "..", "..") : resolve(dirSql, "..");
   const antes = [join(raiz, "supabase-setup.sql")];
@@ -134,10 +153,14 @@ for (const m of codigo.matchAll(/references\s+public\.(\w+)\s*\(/g)) {
    a linha errada é exatamente o trabalho de um gatilho de constraint. Então o
    corpo de `create function` sai daqui antes da checagem; o resto do arquivo
    continua valendo. */
+/* A captura do delimitador, com retrovisor `\1`, fecha no MESMO par que abriu.
+   A versão que só conhecia `$$` errava o par em arquivo escrito com `$fn$` ou
+   `$function$` -- e desde a 014, que usa `$fn$`, o hook vinha acusando um
+   `raise exception` legítimo, de dentro de corpo de função. */
 const foraDeFuncao = codigo.replace(
-  /create\s+(?:or\s+replace\s+)?function[\s\S]*?\$\$[\s\S]*?\$\$/gi, " ");
+  /create\s+(?:or\s+replace\s+)?function[\s\S]*?(\$\w*\$)[\s\S]*?\1/gi, " ");
 
-if (/\braise exception\b/i.test(foraDeFuncao)) {
+if (!ehBootstrap && /\braise exception\b/i.test(foraDeFuncao)) {
   problemas.push("O arquivo tem 'raise exception' fora de corpo de função. Um do $$ que aborta "
     + "derruba a execução inteira, e as seções seguintes — migrações incluídas — nunca rodam. "
     + "Use 'raise notice' com 'return' para sair do bloco sem erro.");
