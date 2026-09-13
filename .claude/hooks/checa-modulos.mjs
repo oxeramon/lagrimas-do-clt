@@ -36,6 +36,12 @@ const bloqueia = (motivo) => {
 const problemas = [];
 const RE_IMPORT = /^import\s*\{([^}]*)\}\s*from\s*["'](\.[^"']+)["'];?\s*$/gm;
 const RE_EXPORT = /^export\s+(?:async\s+)?(?:const|let|var|function|class)\s+([A-Za-z_$][\w$]*)/gm;
+/* A LISTA DE RE-EXPORT: `export { a, b } from "./x.js"` e `export { a, b };`.
+   Sem esta regra o hook acusava dez nomes que existem -- a fachada de
+   `v2-screens.js` é feita exatamente disto, e verificador que reprova o padrão
+   certo é pior do que verificador nenhum, porque ensina a ignorá-lo.
+   `[\s\S]` porque a lista quebra em várias linhas. */
+const RE_REEXPORT = /^export\s*\{([\s\S]*?)\}/gm;
 
 /* ---- 1. os módulos compilam ------------------------------------------- */
 function todosOsModulos(dir = join(RAIZ, "js"), fora = []) {
@@ -76,7 +82,17 @@ const existeExato = (relArq) => {
 const exportadosPor = (relArq) => {
   const txt = leitura(relArq);
   if (txt == null) return null;
-  return new Set([...txt.matchAll(RE_EXPORT)].map((m) => m[1]));
+  const nomes = [...txt.matchAll(RE_EXPORT)].map((m) => m[1]);
+  /* Em `export { a as b }` quem sai é `b` -- o contrário do import, onde o
+     nome local é o que vem ANTES do `as`. Trocar os dois lados aqui faria o
+     hook procurar um nome que nunca existiu. */
+  for (const m of txt.matchAll(RE_REEXPORT))
+    for (const bruto of m[1].split(",")){
+      const partes = bruto.trim().split(/\s+as\s+/);
+      const nome = partes[partes.length - 1].trim();
+      if (nome) nomes.push(nome);
+    }
+  return new Set(nomes);
 };
 
 const arestas = new Map();
