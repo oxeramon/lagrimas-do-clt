@@ -235,7 +235,7 @@ vira botão: com etiqueta "média" enquanto é palpite, sem ela depois de inform
 
 24 tabelas e 6 views. As 8 da V1 nasceram em `supabase-setup.sql` (5 seções:
 TABELAS, SEGURANÇA, CARGA INICIAL, MIGRAÇÃO, CONFERÊNCIA) e as outras 16
-vieram pelas migrações 001 a 014; o registro está em `MIGRACOES.md`.
+vieram pelas migrações 001 a 015; o registro está em `MIGRACOES.md`.
 
 **Para instalar do zero, nada disso é o caminho.** `supabase/bootstrap/schema.sql`
 tem o schema inteiro num arquivo, gerado do catálogo e conferido contra ele por

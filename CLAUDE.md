@@ -81,7 +81,7 @@ completo, está em `.claude/skills/public-repo-hygiene/SKILL.md`. A auditoria é
 
 Estrutura do banco: **24 tabelas e 6 views**, todas com RLS ligada e 24
 policies — `ping` sem trigger, como sempre. As views rodam com
-`security_invoker`. **Catorze migrações** já rodaram, e o registro do que cada
+`security_invoker`. **Quinze migrações** já rodaram, e o registro do que cada
 uma fez está em `docs/MIGRACOES.md`.
 
 Todas as tabelas da V2 estão ligadas a alguma tela. `ferramentas/confere-migracoes.mjs`
@@ -368,7 +368,7 @@ ferramentas/reconstroi.sh --i-know-this-is-disposable
 ```
 Levanta um banco descartável, aplica `supabase/bootstrap/schema.sql` do zero,
 confere o inventário estrutural contra `inventario-esperado.txt` e roda as
-onze suítes de `supabase/testes/` -- 357 casos. É a prova de que o bootstrap
+doze suítes de `supabase/testes/` -- 384 casos. É a prova de que o bootstrap
 reconstrói o banco, e não só de que o arquivo parece certo. **Rode depois de
 qualquer migração nova**, junto com o passo 4 da seção "Reconstruir o banco do
 zero".

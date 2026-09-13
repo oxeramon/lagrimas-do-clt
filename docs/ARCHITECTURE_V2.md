@@ -58,7 +58,7 @@ js/
 
 supabase/
   bootstrap/           o schema inteiro, para instalar do zero
-  migrations/          catorze, todas aplicadas; ver docs/MIGRACOES.md
+  migrations/          quinze, todas aplicadas; ver docs/MIGRACOES.md
   testes/              casos que rodam no banco real e terminam em rollback
 supabase-setup.sql     a V1, histórico: NÃO serve para instalar
 

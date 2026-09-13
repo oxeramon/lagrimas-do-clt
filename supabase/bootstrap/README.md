@@ -5,7 +5,7 @@ trocado por outro —, é aqui que a reconstrução começa. São três arquivos
 cerca de cinco minutos.
 
 O que **não** é preciso fazer: lembrar a ordem de `supabase-setup.sql` e das
-catorze migrações. Essa ordem não estava escrita em lugar nenhum, e as
+quinze migrações. Essa ordem não estava escrita em lugar nenhum, e as
 migrações se corrigem umas às outras — a 002 conserta seis defeitos da 001, a
 013 conserta o grant da 012. Um banco novo não precisa repetir a arqueologia.
 
@@ -83,7 +83,7 @@ node ferramentas/confere-schema.mjs /caminho/do/inventario.txt
 Esperado:
 
 ```
-referência: 1390 linhas · banco: 1390 linhas
+referência: 1396 linhas · banco: 1396 linhas
 extensões de plataforma (diferença esperada, não é defeito): pg_stat_statements, pgcrypto, supabase_vault, uuid-ossp
 o contrato bate: nenhuma diferença estrutural.
 ```
@@ -103,7 +103,7 @@ toda função — e é o que prova que ninguém enxerga o dado de ninguém.
 
 ---
 
-## A prova, medida em 13/09/2026
+## A prova, medida em 13/09/2026 (com a 015 aplicada)
 
 O `schema.sql` não foi escrito de memória: foi lido do catálogo do banco em uso
 e reescrito em ordem de dependência. O que fecha o argumento é ter rodado o
@@ -111,11 +111,11 @@ arquivo num Postgres vazio e comparado os dois lados com a mesma régua.
 
 | | banco em uso | reconstruído do zero |
 |---|---|---|
-| linhas do inventário | 1394 | 1390 |
-| md5 de tudo | `ad7386383b8679afbaa420d72cd5355b` | — |
-| md5 **sem a seção de extensões** | `1ab161f7898c7c312ac942f8b64320a2` | `1ab161f7898c7c312ac942f8b64320a2` |
+| linhas do inventário | 1400 | 1396 |
+| md5 de tudo | `084c231007b50770de9e12240dc186e0` | — |
+| md5 **sem a seção de extensões** | `ef507cc98774e20f38013a227653f55d` | `ef507cc98774e20f38013a227653f55d` |
 
-Um hash só, sobre as 1390 linhas inteiras, igual dos dois lados: colunas,
+Um hash só, sobre as 1396 linhas inteiras, igual dos dois lados: colunas,
 chaves, índices, definição de view, corpo de função, gatilho, policy e
 permissão por papel. As quatro linhas de diferença são as extensões de
 plataforma, que vêm de fábrica com o projeto Supabase.
@@ -128,8 +128,8 @@ coluna são todos da 15 em diante), e o inventário é lido por
 comparação assim não alcança é privilégio que só a 17 conhece — `maintain`, por
 exemplo, que não aparece em `information_schema` de nenhuma das duas.
 
-Além do estrutural, as onze suítes de `supabase/testes/` rodaram contra o banco
-reconstruído: **357 casos, nenhuma falha**.
+Além do estrutural, as doze suítes de `supabase/testes/` rodaram contra o banco
+reconstruído: **384 casos, nenhuma falha**.
 
 ---
 

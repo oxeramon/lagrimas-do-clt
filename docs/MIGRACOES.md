@@ -16,6 +16,11 @@ em ordem. Este arquivo é o registro; o SQL é a fonte.
 | `20260912233655` | `../supabase/migrations/008_v2_assinaturas.sql` | 12/09/2026 | **aplicada** |
 | `20260912235737` | `../supabase/migrations/009_v2_grupos_e_rateios.sql` | 12/09/2026 | **aplicada** |
 | `20260913000402` | `../supabase/migrations/010_v2_estorno.sql` | 13/09/2026 | **aplicada** |
+| `20260913163027` | `../supabase/migrations/011_v2_assinatura_semanal.sql` | 13/09/2026 | **aplicada** |
+| `20260913163609` | `../supabase/migrations/012_v2_fatura_parcial.sql` | 13/09/2026 | **aplicada** |
+| `20260913163724` | `../supabase/migrations/013_v2_grants_da_012.sql` | 13/09/2026 | **aplicada** · conserta o grant da 012 |
+| `20260913172346` | `../supabase/migrations/014_v2_metas.sql` | 13/09/2026 | **aplicada** |
+| `20260913222813` | `../supabase/migrations/015_v2_ownership_hardening.sql` | 13/09/2026 | **aplicada** |
 
 **Migração aplicada não se edita.** Quando o arquivo e o banco discordam, some
 a única fonte confiável sobre o que rodou. Conserto vira migração nova, e é por
@@ -598,6 +603,64 @@ assinaturas novas entre a primeira e a segunda materialização, então a segund
 tinha trabalho legítimo a fazer. A prova de idempotência foi reordenada para
 medir o que afirma.
 
+## 012 a 014
+
+Pagamento parcial de fatura (012), o grant que a 012 esqueceu (013) e metas
+(014). O que cada uma fez está no cabeçalho do próprio arquivo, e as suítes
+correspondentes estão em `../supabase/testes/`.
+
+## 015 · ownership na V1, e metas ligadas a auth.users
+
+Duas correções de integridade, as duas achadas pela rodada de reconstrução do
+banco, nenhuma delas visível pela tela.
+
+**`metas` e `alocacoes_de_meta` não tinham FK para `auth.users`.** As outras
+vinte e duas tabelas com dono tinham, com cascade. Apagar a conta no Auth
+levava junto tudo menos essas duas, que ficavam com um `user_id` que não
+existe mais: invisíveis para o RLS, porque nenhum `auth.uid()` bate, e sem
+caminho de volta.
+
+**Cinco FKs da V1 apontavam só por `id`:** `dividas.credor_id`,
+`dividas.pessoa_id`, `fixas.credor_id`, `credores.credor_pai_id` e
+`fixas_mes.fixa_id`. É o mesmo defeito que a 002 consertou na V2, e a mesma
+razão: a checagem de FK roda POR FORA do RLS. O RLS esconde a linha de outra
+pessoa da leitura; ele não impede que uma linha minha aponte para ela.
+
+**Pré-flight antes de qualquer DDL**, só leitura: as seis consultas de
+inconsistência vieram todas zeradas. A migração não conserta dado nenhum, ela
+passa a recusar dado errado -- e se houvesse uma linha fora do lugar, a
+constraint simplesmente não entraria.
+
+**O comportamento de exclusão foi preservado exatamente**: as quatro relações
+opcionais seguem `set null`, agora com a lista de colunas. Sem a lista, apagar
+um credor tentaria anular também o `user_id`, que é `not null`, e o delete
+morreria -- a exclusão de credor pararia de funcionar sem ninguém ter pedido.
+`fixas_mes` segue cascade.
+
+Ela é **reversível**, ao contrário da 002: não apaga coluna, não estreita
+`check` e não toca em dado. O bloco de rollback está no fim do arquivo.
+
+A suíte `015_ownership.sql` tem 26 casos e foi conferida nos dois sentidos:
+26 de 26 com a migração aplicada, e 17 de 26 contra o estado 014, onde os
+casos 3 a 7 aceitam o que deveriam recusar e os 19 a 22 mostram a meta órfã.
+
+## O arquivo da 007 discorda do banco, em comentário
+
+`ferramentas/confere-migracoes.mjs` acusa, e está certo: o arquivo da 007 tem
+três linhas de comentário que **não** estão no texto gravado em
+`schema_migrations`. Uma delas é a linha 371, `-- o RLS responde "é meu?"
+sozinho`. Foram acrescentadas ao arquivo depois de a migração ter rodado.
+
+**O DDL é idêntico**: filtrando linha de comentário e linha vazia, os dois
+lados dão 377 linhas e o mesmo md5, `89a43a20df020239b5c6a5de0aeb98e1`. Nada
+de estrutural está em risco, e a comparação de inventário confirma isso por
+outro caminho.
+
+Fica registrado e não corrigido: migração aplicada é imutável, e editar o
+arquivo agora seria mexer no registro do que rodou. Se um dia for alinhado, o
+alinhamento é do ARQUIVO ao banco, nunca o contrário, e vira uma decisão
+consciente em vez de um remendo de passagem.
+
 ## O que os advisors dizem agora
 
 Segurança: **uma única ocorrência**, e é configuração de Auth, não de schema —
@@ -612,7 +675,7 @@ Desempenho, tudo informativo e nada novo:
 | O que aponta | Por que fica |
 |---|---|
 | `auth_rls_initplan` nas 12 policies: `auth.uid()` reavaliada por linha | o conserto é trocar por `(select auth.uid())` em **todas**, inclusive as oito da V1 — e mexer na V1 está fora do escopo. É questão de escala, e a escala aqui é um usuário |
-| três FKs da V1 sem índice de cobertura | V1, mesma razão |
+| FKs da V1 sem índice de cobertura | a 015 cobriu as duas que passaram a ser compostas sem índice próprio (`dividas_credor_dono_idx`, `fixas_credor_dono_idx`); o resto é escala, e a escala aqui é um usuário |
 | índices da V2 "não usados" | as tabelas estão vazias e nenhuma tela consulta ainda; some sozinho quando o uso começar |
 
 ## Em aberto
@@ -631,9 +694,9 @@ errado com cara de certo; até haver contrato, pagamento de fatura é integral.
 fechou o contrato e implementou tudo; falta só a tela, e ela não depende de
 mais nenhuma decisão.
 
-**A instalação do zero virou `supabase/bootstrap/`.** Com catorze migrações
+**A instalação do zero virou `supabase/bootstrap/`.** Com quinze migrações
 aplicadas, `supabase-setup.sql` sozinho não reconstrói nada perto do banco
-inteiro, e a ordem "V1 mais catorze migrações" não estava escrita em lugar
+inteiro, e a ordem "V1 mais quinze migrações" não estava escrita em lugar
 nenhum. `bootstrap/schema.sql` é o resultado daquela história, gerado do
 catálogo, e a conferência de que ele bate com o banco é
 `ferramentas/confere-schema.mjs`.
