@@ -32,7 +32,7 @@ import { diaNoMes, competenciaDaCompra, cicloDaFatura, situacaoDaFatura,
          indicadoresDeCartoes, proximaAVencer, vencidas }
   from "../js/domain/cards.js";
 import { custoMensal, custoAnual, indicadoresDeAssinaturas, proximasCobrancas,
-         meioDaAssinatura, venceu, materializa, rotuloDaFrequencia }
+         meioDaAssinatura, venceu, materializa, rotuloDaFrequencia, FREQUENCIAS }
   from "../js/domain/subscriptions.js";
 import { divisaoIgual, faltaFechar, fecha, contaFecha, meuSaldo,
          acertosSugeridos, indicadoresDoGrupo } from "../js/domain/groups.js";
@@ -925,9 +925,12 @@ eq("sem conta e sem cartão tem nome próprio",
   meioDaAssinatura(assinaturas[2], [], []).rotulo, "Ainda não escolhido");
 
 eq("mensal vira lançamento", materializa("mensal"), true);
-/* quatro cobranças semanais caem no mesmo mês e a chave por competência não as
-   distingue -- a 008 deixa a semanal de fora, e a tela precisa avisar */
-eq("semanal ainda não vira lançamento, e isso é declarado", materializa("semanal"), false);
+/* ISTO JÁ FOI `false`. A 008 deixava a semanal de fora porque identificava a
+   ocorrência por (assinatura, competência), e quatro cobranças semanais no mesmo
+   mês não cabem numa chave por mês. A 011 trocou a identidade para a DATA, e a
+   semanal passou a materializar como qualquer outra. */
+eq("semanal TAMBÉM vira lançamento desde a 011", materializa("semanal"), true);
+eq("e nenhuma frequência ficou de fora", FREQUENCIAS.filter((f) => !materializa(f.id)), []);
 eq("o rótulo da frequência é frase, não jargão",
   rotuloDaFrequencia("bimestral"), "A cada 2 meses");
 

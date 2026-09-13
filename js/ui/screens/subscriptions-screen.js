@@ -120,7 +120,9 @@ function mostraEquivalente(){
   aviso.hidden = false;
   aviso.textContent = "Equivale a " + money(custoMensal(valor, freq)) + " por mês, "
     + money(custoAnual(valor, freq)) + " por ano."
-    + (materializa(freq) ? "" : " Cobrança semanal ainda não vira lançamento automático.");
+    /* A ressalva ficou vazia com a 011: toda frequência materializa agora,
+       semanal inclusive. O gancho fica porque a pergunta continua legítima. */
+    + (materializa(freq) ? "" : " Esta frequência ainda não vira lançamento automático.");
 }
 
 export function ligaAssinaturas(){

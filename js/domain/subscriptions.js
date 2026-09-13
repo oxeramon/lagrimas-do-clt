@@ -25,10 +25,18 @@ export const FREQUENCIAS = [
   { id: "anual",      rotulo: "Uma vez por ano", porAno: 1 },
 ];
 
-/* A semanal é a única que ainda não vira ocorrência: quatro cobranças caem no
-   mesmo mês e a chave por competência não as distingue. Ver a 008. A tela
-   precisa dizer isso, então a informação mora aqui e não num `if` perdido. */
-export const SEM_MATERIALIZACAO = ["semanal"];
+/* TODA frequência vira ocorrência desde a 011, semanal inclusive.
+
+   Esta lista já teve `"semanal"` dentro, e a razão era do MODELO, não da tela:
+   a 008 identificava a ocorrência por `(assinatura, competência)`, e quatro
+   cobranças semanais no mesmo mês não cabem numa chave por mês. A 011 trocou a
+   identidade para a DATA da ocorrência, e a exceção deixou de existir.
+
+   A lista fica, vazia e exportada, por dois motivos. A pergunta continua
+   legítima -- se um dia entrar uma frequência que o banco não saiba
+   materializar, ela tem lugar. E a tela ainda pergunta: uma lista vazia
+   responde "todas materializam" sem espalhar um `if` por dois arquivos. */
+export const SEM_MATERIALIZACAO = [];
 export const materializa = (frequencia) => !SEM_MATERIALIZACAO.includes(frequencia);
 
 const porAnoDe = (frequencia) =>

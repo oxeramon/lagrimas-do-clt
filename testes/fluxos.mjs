@@ -751,26 +751,54 @@ console.log("\nassinaturas");
   /* 120 por ano é MENOR que 30 por mês, e a tela precisa concordar com isso */
   eq("a maior é pela régua mensal", await p.textContent("#asMaior"), "Assinatura Mensal");
 
-  /* SEMANAL: cadastra, avisa, e não gera */
+  /* SEMANAL: cadastra e GERA. Isto era o contrário até a 011 -- a semanal era
+     cadastrada e nunca virava cobrança, porque a identidade da ocorrência era
+     (assinatura, competência) e quatro cobranças não cabem num mês. */
   await p.click("#btnNovaAssinatura");
   await p.waitForTimeout(250);
   await p.fill("#as_nome", "Assinatura Semanal");
   await p.fill("#as_valor", "9");
   await p.selectOption("#as_frequencia", "semanal");
-  await p.fill("#as_inicio", "2026-09-15");
+  /* Começa HOJE, não numa data fixa: materializar só olha para a frente, e uma
+     data fixa faria este teste gerar menos ocorrências a cada mês que passa --
+     até parar de gerar e falhar sem ninguém ter mexido em nada. */
+  await p.fill("#as_inicio", new Date().toISOString().slice(0, 10));
   await p.waitForTimeout(150);
-  eq("o diálogo avisa que a semanal ainda não vira lançamento",
-    (await p.textContent("#asEquivalente")).includes("ainda não vira lançamento"), true);
+  eq("o diálogo NÃO avisa mais que a semanal fica de fora",
+    (await p.textContent("#asEquivalente")).includes("ainda não vira lançamento"), false);
   await p.click("#asSalvar");
-  await p.waitForTimeout(500);
+  await p.waitForTimeout(600);
   eq("ela é cadastrada",
     await p.evaluate(() => globalThis.__T.assinaturas.length), 3);
-  eq("mas não gera ocorrência nenhuma",
-    await p.evaluate(() => globalThis.__T.transacoes.filter(t =>
-      t.assinatura_id === globalThis.__T.assinaturas.find(a => a.frequencia === "semanal").id).length),
-    0);
-  eq("e a lista diz isso, em vez de deixar esperando",
-    (await p.textContent("#listaAssinaturas")).includes("ainda não vira lançamento"), true);
+
+  const daSemanal = await p.evaluate(() => {
+    const id = globalThis.__T.assinaturas.find(a => a.frequencia === "semanal").id;
+    const oc = globalThis.__T.transacoes.filter(t => t.assinatura_id === id);
+    return { quantas: oc.length,
+             datasDistintas: new Set(oc.map(t => t.ocorrencia_em)).size,
+             mesesDistintos: new Set(oc.map(t => t.competencia)).size,
+             semData: oc.filter(t => !t.ocorrencia_em).length };
+  });
+  /* dois meses de janela, de sete em sete dias: oito ou nove ocorrências */
+  eq("a semanal GERA ocorrências agora", daSemanal.quantas >= 8, true);
+  eq("uma por data, sem repetir", daSemanal.datasDistintas, daSemanal.quantas);
+  /* a prova do enunciado: mais de uma cobrança no MESMO mês */
+  eq("e mais de uma cai no mesmo mês, que é o que a 008 não conseguia",
+    daSemanal.quantas > daSemanal.mesesDistintos, true);
+  eq("toda ocorrência tem data de ocorrência", daSemanal.semData, 0);
+
+  /* IDEMPOTÊNCIA na tela: recarregar chama materializa de novo, e não duplica */
+  await vaiPara(p, "painel");
+  await p.waitForTimeout(200);
+  await vaiPara(p, "assinaturas");
+  await p.waitForTimeout(600);
+  eq("recarregar não duplica ocorrência semanal",
+    await p.evaluate(() => {
+      const id = globalThis.__T.assinaturas.find(a => a.frequencia === "semanal").id;
+      return globalThis.__T.transacoes.filter(t => t.assinatura_id === id).length;
+    }), daSemanal.quantas);
+  eq("e a lista não fala mais em cobrança que não vira lançamento",
+    (await p.textContent("#listaAssinaturas")).includes("ainda não vira lançamento"), false);
 
   /* Antes de pausar, as três somam 79 por mês equivalente: 30 da mensal, 10 da
      anual e 39 da semanal. A semanal ENTRA no custo mesmo sem virar

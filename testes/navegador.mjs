@@ -240,30 +240,39 @@ export function createClient(){
         const limite = a.p_ate || iso(new Date(Date.UTC(
           hoje.getUTCFullYear(), hoje.getUTCMonth() + 2, hoje.getUTCDate())));
         let criadas = 0;
+        /* Avanca uma ocorrencia. Semanal anda em DIAS; o resto anda em MESES.
+           Somar 7 dias com setMonth daria mes errado, e somar meses com
+           setDate daria semana errada -- os dois eixos sao mesmo diferentes. */
+        const proxima = (d, freq) => freq === "semanal"
+          ? new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate() + 7))
+          : new Date(Date.UTC(d.getUTCFullYear(),
+              d.getUTCMonth() + { mensal:1, bimestral:2, trimestral:3, semestral:6, anual:12 }[freq],
+              d.getUTCDate()));
         for (const s of T.assinaturas){
-          /* semanal fica de fora: a competência por mês não distingue quatro
-             cobranças do mesmo mês. Mesma exclusão declarada da 008. */
-          if (!s.ativo || s.frequencia === "semanal") continue;
+          /* SEM excecao para semanal: a 011 trocou a identidade da ocorrencia
+             de (assinatura, competencia) para (assinatura, DATA), e quatro
+             cobrancas no mesmo mes passaram a caber. */
+          if (!s.ativo) continue;
           if (s.fim && s.fim < iso(hoje)) continue;
-          const passo = { mensal:1, bimestral:2, trimestral:3, semestral:6, anual:12 }[s.frequencia];
           let d = new Date(s.inicio + "T00:00:00Z");
           let voltas = 0;
-          while (iso(d) < iso(hoje) && voltas++ < 2000)
-            d = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + passo, d.getUTCDate()));
+          /* semanal gasta 52 voltas por ano de atraso: o teto sobe junto */
+          while (iso(d) < iso(hoje) && voltas++ < 5000) d = proxima(d, s.frequencia);
           while (iso(d) <= limite && (!s.fim || iso(d) <= s.fim)){
-            const comp = iso(d).slice(0,7);
-            /* a idempotência é do BANCO: a mesma competência não entra duas
-               vezes, e é isso que torna seguro chamar isto a cada carga */
-            if (!T.transacoes.some(t => t.assinatura_id === s.id && t.competencia === comp)){
+            const quando = iso(d);
+            /* a idempotencia e do BANCO, e agora sobre a DATA: a mesma data nao
+               entra duas vezes, e e isso que torna seguro chamar a cada carga */
+            if (!T.transacoes.some(t => t.assinatura_id === s.id && t.ocorrencia_em === quando)){
               T.transacoes.push({ id:uid(), user_id:"u1", conta_id:s.conta_id || null,
                 fatura_id:null, compra_id:null, parcela:null, total_parcelas:null,
-                assinatura_id:s.id, competencia:comp, categoria_id:s.categoria_id || null,
+                assinatura_id:s.id, competencia:quando.slice(0,7), ocorrencia_em:quando,
+                categoria_id:s.categoria_id || null,
                 tipo:"saida", natureza:"normal", descricao:s.nome, valor:s.valor,
-                data:iso(d), status:"prevista", origem:"recorrencia", origem_id:s.id,
+                data:quando, status:"prevista", origem:"recorrencia", origem_id:s.id,
                 obs:"", transferencia_id:null });
               criadas++;
             }
-            d = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + passo, d.getUTCDate()));
+            d = proxima(d, s.frequencia);
           }
         }
         return Promise.resolve({ data:criadas, error:null });
