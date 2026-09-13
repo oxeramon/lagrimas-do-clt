@@ -34,3 +34,6 @@ baseline-privado*.json
 dados-proibidos*
 *.dump
 *.bak
+
+# artefato público gerado por ferramentas/artefato.mjs; o Pages constrói o dele
+_site/
