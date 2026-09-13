@@ -29,9 +29,10 @@ A consequência prática: **o histórico registrado começa na 001**, e não con
 a linha de base da V1.
 
 Isso não é um defeito a corrigir agora, mas é preciso saber ao ler o histórico:
-um banco novo não se reconstrói só aplicando as migrações registradas. A ordem
-continua sendo `supabase-setup.sql` primeiro, `migrations/` depois, como o
-`supabase/README.md` descreve.
+**um banco novo não se reconstrói aplicando as migrações registradas**, porque
+falta a linha de base. Por isso a instalação do zero deixou de ser "cole o
+arquivo da V1 e depois as migrações": ela é `supabase/bootstrap/schema.sql`, que
+já nasce com tudo, e o `supabase/bootstrap/README.md` descreve.
 
 ## 001 · fundação da V2
 
@@ -630,7 +631,9 @@ errado com cara de certo; até haver contrato, pagamento de fatura é integral.
 fechou o contrato e implementou tudo; falta só a tela, e ela não depende de
 mais nenhuma decisão.
 
-**A instalação do zero ainda é um arquivo só.** Com dez migrações aplicadas,
-`supabase-setup.sql` sozinho não reconstrói mais o banco inteiro. O
-`supabase/README.md` explica a ordem; separar em `schema.sql` + `seed.sql` +
-`migrations/` passou a fazer sentido e ainda não foi feito.
+**A instalação do zero virou `supabase/bootstrap/`.** Com catorze migrações
+aplicadas, `supabase-setup.sql` sozinho não reconstrói nada perto do banco
+inteiro, e a ordem "V1 mais catorze migrações" não estava escrita em lugar
+nenhum. `bootstrap/schema.sql` é o resultado daquela história, gerado do
+catálogo, e a conferência de que ele bate com o banco é
+`ferramentas/confere-schema.mjs`.

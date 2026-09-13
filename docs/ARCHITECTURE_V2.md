@@ -57,13 +57,14 @@ js/
     category-catalog.js    62   a árvore padrão de categorias
 
 supabase/
-  migrations/          dez, todas aplicadas; ver docs/MIGRACOES.md
+  bootstrap/           o schema inteiro, para instalar do zero
+  migrations/          catorze, todas aplicadas; ver docs/MIGRACOES.md
   testes/              casos que rodam no banco real e terminam em rollback
-supabase-setup.sql     instalação limpa da V1
+supabase-setup.sql     a V1, histórico: NÃO serve para instalar
 
 testes/
-  regras.mjs      297 casos de cálculo, importando os módulos de produção
-  fluxos.mjs      204 casos que dirigem a interface num navegador de verdade
+  regras.mjs      332 casos de cálculo, importando os módulos de produção
+  fluxos.mjs      273 casos que dirigem a interface num navegador de verdade
   preview.mjs     gera preview.html com o Supabase dublado
   audita.mjs      auditoria de repositório público
 ```
@@ -315,7 +316,7 @@ proibidos seria publicar os dados.
 | Pagamento parcial de fatura não existe | 007, por causa de juros rotativo |
 | Estorno tem contrato, banco e regra, e não tem botão | 010 |
 | `auth.uid()` reavaliada por linha nas policies | aceito; a escala aqui é um usuário |
-| Instalação do zero já não cabe num arquivo só | `supabase-setup.sql` + dez migrações |
+| Instalação do zero cabe num arquivo de novo | `supabase/bootstrap/schema.sql`, gerado do catálogo e conferido contra ele |
 | Nenhum hook confere ESCOPO de identificador entre módulos | dois erros assim só apareceram no navegador |
 
 ## Roadmap

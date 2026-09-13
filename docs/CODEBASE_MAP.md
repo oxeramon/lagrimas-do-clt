@@ -54,7 +54,8 @@ suspensas são escritos à mão.
 |---|---|---|
 | `index.html` | HTML e o JS de tela da V1 | ~4700 |
 | `js/` | núcleo, domínio, telas e dados, como ES Modules | ~4600 |
-| `supabase-setup.sql` | Fonte única do schema, em 5 seções, re-executável | 429 |
+| `supabase/bootstrap/schema.sql` | O schema inteiro, para instalar do zero | 2217 |
+| `supabase-setup.sql` | A V1, histórico; re-executável, não instala o banco atual | 447 |
 | `testes/preview.mjs` | Gera `preview.html` com Supabase dublado | 190 |
 | `README.md` | Instalação e uso | 190 |
 | `testes/regras.mjs` | 332 casos, importando os mesmos módulos do navegador | ~1000 |
@@ -232,9 +233,13 @@ vira botão: com etiqueta "média" enquanto é palpite, sem ela depois de inform
 
 ## Schema
 
-8 tabelas da V1, em `supabase-setup.sql`, com 5 seções: TABELAS, SEGURANÇA,
-CARGA INICIAL, MIGRAÇÃO, CONFERÊNCIA. As 13 tabelas e 5 views da V2 vieram
-pelas migrações 001 a 010; o registro está em `MIGRACOES.md`.
+24 tabelas e 6 views. As 8 da V1 nasceram em `supabase-setup.sql` (5 seções:
+TABELAS, SEGURANÇA, CARGA INICIAL, MIGRAÇÃO, CONFERÊNCIA) e as outras 16
+vieram pelas migrações 001 a 014; o registro está em `MIGRACOES.md`.
+
+**Para instalar do zero, nada disso é o caminho.** `supabase/bootstrap/schema.sql`
+tem o schema inteiro num arquivo, gerado do catálogo e conferido contra ele por
+`ferramentas/confere-schema.mjs`. `supabase-setup.sql` ficou como história.
 
 **A fronteira entre as duas metades, e a ponte.** A V1 responde por
 compromisso: dívida, parcela, conta fixa, receita prevista, projeção. A V2
@@ -438,7 +443,7 @@ O que segue é dívida técnica conhecida, levantada por leitura do próprio
 
 | Tarefa | Arquivos e pontos |
 |---|---|
-| Nova tabela | `supabase-setup.sql` seções 1 e 2 (os quatro blocos juntos); use `/nova-migration`; **rode o SQL antes de publicar** |
+| Nova tabela | uma migração em `supabase/migrations/` com os quatro blocos juntos; use `/nova-migration`; **rode o SQL antes de publicar**; depois atualize `supabase/bootstrap/schema.sql` e regrave o inventário pelo `ferramentas/reconstroi.sh` |
 | Nova regra de cálculo | um módulo em `js/domain/`, e um caso em `testes/regras.mjs` |
 | Nova tela da V2 | painel no `index.html`, uma LINHA no registro de `js/ui/navigation.js` (a lateral e o rodapé se montam sozinhos), render e ligação em `js/ui/v2-screens.js` |
 | Nova regra que o banco precisa garantir | migração nova, teste em `supabase/testes/` rodando como `authenticated` E como `anon`, e o ensaio junto com o DDL numa transação revertida ANTES de aplicar |

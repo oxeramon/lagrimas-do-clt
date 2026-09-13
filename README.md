@@ -125,18 +125,30 @@ Tempo estimado: 40 a 60 minutos. Faça na ordem.
 2. Preencha e-mail e senha. **Marque "Auto Confirm User"**, senão você não consegue entrar.
 3. Ainda em Authentication, abra **Sign In / Providers → Email** e **desative "Allow new users to sign up"**. Como o site é público, isso impede que qualquer pessoa crie conta no seu banco.
 
-### 3. Criar as tabelas e carregar os dados
+### 3. Criar as tabelas
 
-1. Abra o arquivo `supabase-setup.sql`.
-2. Troque `troque@pelo-seu-email.com` pelo e-mail que você acabou de cadastrar.
-3. No Supabase, vá em **SQL Editor → New query**, cole o arquivo inteiro e clique em **Run**.
-4. No fim deve aparecer `saldo_devedor_total = 29344.00`. Esse é o total da carga
-   de exemplo que o arquivo cria, com seis lançamentos e dois credores fictícios.
-   Se numa instalação do zero aparecer outro número, algo não entrou.
+1. Abra o arquivo `supabase/bootstrap/schema.sql`.
+2. No Supabase, vá em **SQL Editor → New query**, cole o arquivo inteiro e clique em **Run**.
+3. No fim deve aparecer:
+   `Banco pronto: 24 tabelas, 6 views, 37 funções, 31 gatilhos, 24 policies, RLS em todas.`
 
-Os registros de exemplo servem só para a primeira tela não vir vazia. Apague-os
-pelo próprio app quando for começar a usar de verdade, ou remova a seção 3 do
-arquivo antes de executar.
+Se der erro no meio, o banco ficou pela metade. Não tente emendar: apague o
+projeto, crie outro e comece de novo. Em projeto vazio isso não custa nada, e o
+arquivo se recusa a rodar por cima de um banco que já tem alguma coisa
+justamente para você não ficar com dois schemas misturados.
+
+**Não use `supabase-setup.sql` para isso.** Ele instala a V1 — oito das vinte e
+quatro tabelas — e ficou no repositório como história. O passo a passo completo,
+com o que conferir depois, está em `supabase/bootstrap/README.md`.
+
+### 3b. Carregar dados de exemplo (opcional)
+
+Depois de criar sua conta no site (passo 7), cole `supabase/bootstrap/seed.sql`
+no SQL Editor. Ele põe duas contas, uma árvore de categorias, um cartão com
+fatura, alguns compromissos e uma meta, tudo inventado, só para a primeira tela
+não vir vazia. Apague pelo próprio app quando for começar a usar de verdade.
+
+Para começar do zero de verdade, pule este passo.
 
 ### 4. Pegar as chaves
 
@@ -166,10 +178,12 @@ lagrimas-do-clt/
 │   ├── core/             datas, dinheiro, escape, estado
 │   ├── domain/           dívidas, receitas, credores, contas fixas, fatura
 │   └── ui/               navegação
-├── supabase-setup.sql    instalação limpa: tabelas, segurança e migrações
+├── supabase-setup.sql    a V1, histórico: NÃO serve para instalar
 ├── supabase/
 │   ├── README.md         qual arquivo é o quê
-│   └── migrations/       o que ainda não foi executado no banco
+│   ├── bootstrap/        o schema inteiro, para instalar do zero
+│   ├── migrations/       o registro do que já rodou no banco
+│   └── testes/           suítes que rodam no banco, em transação revertida
 ├── README.md
 ├── CLAUDE.md             restrições do projeto, para quem for mexer
 ├── docs/
