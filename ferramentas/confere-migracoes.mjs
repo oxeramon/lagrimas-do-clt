@@ -44,7 +44,7 @@ const PASTA = join(RAIZ, "supabase", "migrations");
    - espaço no fim de cada linha e no fim do arquivo;
    - linhas em branco repetidas.
    NÃO tira comentário: é justamente o comentário que se quer conferir. */
-function normaliza(texto){
+export function normaliza(texto){
   return String(texto)
     .split("\n")
     .map((l) => l.replace(/\s+$/, ""))
@@ -54,13 +54,22 @@ function normaliza(texto){
     .trim();
 }
 
-const caminho = process.argv[2];
-if (!caminho || !existsSync(caminho)){
+/* A conferência só roda quando ESTE arquivo é o programa. Importado, ele
+   entrega `normaliza` e mais nada -- é o que permite conferir a normalização
+   de fora sem que o import saia do processo no meio. */
+const ehOprograma = process.argv[1] && process.argv[1].endsWith("confere-migracoes.mjs");
+
+const caminho = ehOprograma ? process.argv[2] : null;
+if (ehOprograma && (!caminho || !existsSync(caminho))){
   console.error("uso: node ferramentas/confere-migracoes.mjs <resultado.json>");
   console.error("     (o JSON com name e sql de supabase_migrations.schema_migrations)");
   process.exit(2);
 }
 
+if (!ehOprograma) { /* importado: para por aqui */ }
+else confere(caminho);
+
+function confere(caminho){
 const doBanco = JSON.parse(readFileSync(caminho, "utf8"));
 const noBanco = new Map(doBanco.map((m) => [m.name, normaliza(m.sql)]));
 
@@ -98,3 +107,4 @@ console.log(problemas
   ? `\n${problemas} divergência(s). O arquivo é o registro do que rodou -- alinhe o arquivo, nunca o banco.`
   : `\n${noBanco.size} migração(ões) conferidas, todas batendo com o banco.`);
 process.exit(problemas ? 1 : 0);
+}

@@ -30,7 +30,7 @@ graph TB
         Cron["keepalive.yml — cron diário"]
     end
     subgraph "Verificação local"
-        Regras["testes/regras.mjs<br/>332 casos"]
+        Regras["testes/regras.mjs<br/>393 casos"]
         Preview["testes/preview.mjs<br/>Supabase dublado"]
         Hooks[".claude/hooks<br/>publico · sintaxe · modulos · html · rls"]
     end
@@ -58,8 +58,8 @@ suspensas são escritos à mão.
 | `supabase-setup.sql` | A V1, histórico; re-executável, não instala o banco atual | 447 |
 | `testes/preview.mjs` | Gera `preview.html` com Supabase dublado | 190 |
 | `README.md` | Instalação e uso | 190 |
-| `testes/regras.mjs` | 332 casos, importando os mesmos módulos do navegador | ~1000 |
-| `testes/fluxos.mjs` | 273 casos num navegador de verdade | ~1150 |
+| `testes/regras.mjs` | 393 casos, importando os mesmos módulos do navegador | ~1465 |
+| `testes/fluxos.mjs` | 306 casos num navegador de verdade | ~1475 |
 | `testes/rotas.mjs` | 85 casos derivados do registro de abas | ~200 |
 | `.claude/skills/nova-migration/SKILL.md` | Roteiro para mexer no schema | 127 |
 | `.claude/hooks/checa-html.mjs` | Tags fechadas, ids únicos | 121 |
@@ -87,7 +87,7 @@ módulos em `js/ui/screens/`, e a fachada tem 94 linhas.
 | `reversal-dialog.js` | estorno, conforme o contrato | ~140 |
 | `subscriptions-screen.js` | o que se repete sozinho | ~175 |
 | `groups-screen.js` | rateios e acertos | ~381 |
-| `goals-screen.js` | metas e alocações | ~235 |
+| `goals-screen.js` | metas, alocações e a regra mensal | ~330 |
 | `calendar-screen.js` | o calendário financeiro da aba Mês | ~180 |
 
 **A regra que governa a pasta:** nenhuma tela importa outra tela. Quando isso

@@ -21,6 +21,7 @@ em ordem. Este arquivo é o registro; o SQL é a fonte.
 | `20260913163724` | `../supabase/migrations/013_v2_grants_da_012.sql` | 13/09/2026 | **aplicada** · conserta o grant da 012 |
 | `20260913172346` | `../supabase/migrations/014_v2_metas.sql` | 13/09/2026 | **aplicada** |
 | `20260913222813` | `../supabase/migrations/015_v2_ownership_hardening.sql` | 13/09/2026 | **aplicada** |
+| `20260914164057` | `../supabase/migrations/016_v2_regra_de_alocacao.sql` | 14/09/2026 | **aplicada** |
 
 **Migração aplicada não se edita.** Quando o arquivo e o banco discordam, some
 a única fonte confiável sobre o que rodou. Conserto vira migração nova, e é por
@@ -644,11 +645,65 @@ A suíte `015_ownership.sql` tem 26 casos e foi conferida nos dois sentidos:
 26 de 26 com a migração aplicada, e 17 de 26 contra o estado 014, onde os
 casos 3 a 7 aceitam o que deveriam recusar e os 19 a 22 mostram a meta órfã.
 
+## 016 · a regra de alocação mensal das metas
+
+Uma meta passa a poder ter uma regra: *reservar R$ X por mês*. O contrato está
+em `CONTRATO_SOBRA.md`, seção "Alocação recorrente"; aqui fica o que o banco
+ganhou e por quê.
+
+**Duas colunas em `metas`** (`regra_valor`, `regra_ativa`) e **duas em
+`alocacoes_de_meta`** (`origem`, `competencia`). Nenhuma delas guarda uma
+subtração: o que faltou da regra num mês se deriva comparando o valor da regra
+com o que foi alocado, e guardar "faltou 200" mentiria no instante em que
+alguém editasse a regra.
+
+**Cinco `check`**, e o que importa neles é o par que não pode ficar pela
+metade: `regra_ativa` exige `regra_valor`, e `origem = 'regra'` exige
+`competencia`. Sem os dois, uma regra ligada sem valor ou uma alocação de regra
+sem mês entrariam calado, e só apareceriam na tela.
+
+**O índice único parcial** é o coração da migração:
+
+```sql
+create unique index alocacao_da_regra_uma_por_competencia
+  on public.alocacoes_de_meta (user_id, meta_id, competencia)
+  where origem = 'regra';
+```
+
+Parcial porque alocação **manual** não tem mês próprio e pode repetir à
+vontade: a pessoa reserva quando quiser, quantas vezes quiser. Só a da regra é
+uma por competência, e quem garante isso é o índice, não um `if` de tela --
+duas abas abertas no mesmo app fariam a segunda reserva.
+
+**`aplica_regra_de_meta`** devolve três saídas (`alocado`, `ja_aplicada`,
+`disponivel`) porque a tela precisa das três para escrever uma frase honesta:
+coube tudo, coube parte, ou não coube nada. Ela reserva
+`least(regra, disponível, o que falta para o alvo)`, e não cria linha nenhuma
+quando o resultado é zero -- alocação de zero não é informação, é ruído no
+histórico.
+
+**`desfaz_regra_de_meta`** apaga a linha daquela competência, e só ela. Apaga
+em vez de lançar uma negativa de propósito: a alocação de regra é a marca de
+"este mês já rodou", e uma negativa deixaria a marca no lugar. Alocação manual
+continua se desfazendo com valor negativo, que é o que preserva o histórico de
+uma decisão.
+
+**As permissões nomeiam os papéis um a um**, que é a lição da 012: função nova
+no Supabase nasce com `execute` para `anon`, e `revoke ... from public` **não**
+tira concessão explícita de papel. `anon` não executa nenhuma das duas;
+`authenticated` sim, e o papel de serviço também -- que este arquivo não
+soletra, porque `testes/audita.mjs` trata o nome dele como crítico fora dos
+arquivos que precisam escrevê-lo, e um documento de prosa não precisa.
+
+A suíte `016_regra.sql` tem 31 casos. O rebuild do zero fecha em 415 casos de
+SQL, 0 falhas, com o inventário batendo linha a linha.
+
 ## A 007 discordava do banco, e foi realinhada
 
 `ferramentas/confere-migracoes.mjs` acusava três linhas de comentário que
 estavam no arquivo e **não** no texto gravado em `schema_migrations`. Elas
-saíram do arquivo, e as quinze migrações passaram a bater com o banco.
+saíram do arquivo, e as migrações passaram a bater com o banco -- hoje as
+dezesseis, conferidas uma a uma.
 
 Alinhar ARQUIVO ao banco não fere a regra de imutabilidade: fere quem faz o
 contrário. O banco é o registro do que rodou; o arquivo deveria ser a cópia
@@ -733,9 +788,9 @@ errado com cara de certo; até haver contrato, pagamento de fatura é integral.
 fechou o contrato e implementou tudo; falta só a tela, e ela não depende de
 mais nenhuma decisão.
 
-**A instalação do zero virou `supabase/bootstrap/`.** Com quinze migrações
+**A instalação do zero virou `supabase/bootstrap/`.** Com dezesseis migrações
 aplicadas, `supabase-setup.sql` sozinho não reconstrói nada perto do banco
-inteiro, e a ordem "V1 mais quinze migrações" não estava escrita em lugar
+inteiro, e a ordem "V1 mais dezesseis migrações" não estava escrita em lugar
 nenhum. `bootstrap/schema.sql` é o resultado daquela história, gerado do
 catálogo, e a conferência de que ele bate com o banco é
 `ferramentas/confere-schema.mjs`.

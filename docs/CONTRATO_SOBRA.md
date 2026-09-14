@@ -209,6 +209,25 @@ criada. Uma alocação de zero não é informação, é ruído no histórico.
 
 **Nunca** se aloca valor negativo pela regra, e **nunca** acima do disponível.
 
+## O calendário NÃO mostra alocação de meta
+
+A pergunta foi feita, e a resposta é não. Vale escrever o porquê, porque "só se
+ajudar" é o tipo de decisão que alguém reabre daqui a seis meses.
+
+O calendário responde **uma** pergunta: *em que dia o dinheiro entra e sai da
+conta*. É por isso que ele é útil para quem está apertado -- ele diz se dá para
+esperar até sexta.
+
+Uma alocação de meta não entra nessa pergunta. Nenhum dinheiro se move, nenhuma
+conta muda de saldo, e o dia da alocação é uma data administrativa, não um
+evento de caixa. Pôr uma reserva de 500 no dia 1 ao lado de uma conta de luz de
+500 no dia 5 faria as duas parecerem a mesma coisa, e elas são opostas: uma
+tira dinheiro da conta, a outra não tira nada de lugar nenhum.
+
+Seria, em uma frase, misturar estoque com fluxo numa tela que existe
+inteiramente para separar os dois no tempo. A reserva do mês já aparece onde
+ela é a resposta: no cartão da meta e no bloco de Metas do Painel.
+
 ## O que este contrato NÃO resolve
 
 - **Sobra de meses futuros.** A projeção de vários meses é outra tela

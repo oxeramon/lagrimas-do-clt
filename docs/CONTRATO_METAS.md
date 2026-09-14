@@ -139,10 +139,31 @@ Zero diria "não precisa guardar nada", que é o oposto.
 Meses até o prazo é **pelo menos 1**: uma meta que vence este mês precisa do
 valor inteiro agora, não de uma divisão por zero.
 
+## A regra mensal, que saiu de "para depois"
+
+Uma meta pode ter uma regra: *reservar R$ X por mês*. Ela **não** é exceção a
+nada deste contrato -- continua sendo envelope, continua não criando transação,
+continua não mexendo em saldo de conta. A única diferença é que a alocação
+nasce marcada de onde veio (`origem = 'regra'`) e de qual mês é
+(`competencia`).
+
+As duas decisões que faltavam, e que agora estão tomadas:
+
+- **quando não há saldo para a regra inteira, reserva-se o que há.** Regra de
+  500 com 300 disponíveis vira reserva de 300: 500 seria mentira, e zero
+  perderia o mês inteiro por causa de 200. Disponível zero ou negativo não cria
+  linha nenhuma.
+- **uma alocação por competência**, garantida pelo índice único parcial da
+  migração 016, e não por verificação de tela.
+
+O que continua **fora**: a regra não dispara sozinha. Não há agendador, e quem
+aplica é a pessoa, pelo botão. Automatizar exigiria decidir o que acontece com
+os meses passados que ninguém aplicou, e essa decisão não foi tomada.
+
+O detalhe está em `CONTRATO_SOBRA.md`, "Alocação recorrente".
+
 ## O que fica para depois
 
-- **Alocação automática** (reservar X toda vez que entra salário). Precisa de
-  regra de recorrência própria e de decidir o que fazer quando não há saldo.
 - **Meta amarrada a uma conta específica** ("a poupança é da viagem"). Pede
   regra para transferência entre contas.
 - **Concluir a meta e gastar de dentro dela.** Hoje o gasto é uma transação

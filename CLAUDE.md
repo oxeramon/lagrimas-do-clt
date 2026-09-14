@@ -81,7 +81,7 @@ completo, está em `.claude/skills/public-repo-hygiene/SKILL.md`. A auditoria é
 
 Estrutura do banco: **24 tabelas e 6 views**, todas com RLS ligada e 24
 policies — `ping` sem trigger, como sempre. As views rodam com
-`security_invoker`. **Quinze migrações** já rodaram, e o registro do que cada
+`security_invoker`. **Dezesseis migrações** já rodaram, e o registro do que cada
 uma fez está em `docs/MIGRACOES.md`.
 
 Todas as tabelas da V2 estão ligadas a alguma tela. `ferramentas/confere-migracoes.mjs`
@@ -183,7 +183,7 @@ Nada acontece automaticamente: transação solta não marca compromisso, marcar
 pago no quadradinho não cria transação, e a ligação só existe quando a pessoa
 usa "Pagar" ou "Receber".
 
-**Quatro contratos governam o que pode ser somado**, e cada um foi escrito
+**Cinco contratos governam o que pode ser somado**, e cada um foi escrito
 antes do SQL correspondente:
 
 | Contrato | A frase |
@@ -192,6 +192,7 @@ antes do SQL correspondente:
 | `docs/CONTRATO_CARTAO.md` | compra no cartão é despesa; pagamento da fatura não é despesa nova |
 | `docs/CONTRATO_ESTORNO.md` | transação com vínculo estrutural não se estorna, se desfaz |
 | `docs/CONTRATO_METAS.md` | meta é envelope: ela não cria dinheiro nem muda saldo |
+| `docs/CONTRATO_SOBRA.md` | saldo é estoque, sobra é fluxo, e os dois nunca se somam |
 | a 011 | assinatura é REGRA, ocorrência é EVENTO com DATA própria |
 
 **Quatro invariantes viraram teste permanente**, e mexer em cálculo sem
@@ -368,7 +369,7 @@ ferramentas/reconstroi.sh --i-know-this-is-disposable
 ```
 Levanta um banco descartável, aplica `supabase/bootstrap/schema.sql` do zero,
 confere o inventário estrutural contra `inventario-esperado.txt` e roda as
-doze suítes de `supabase/testes/` -- 384 casos. É a prova de que o bootstrap
+treze suítes de `supabase/testes/` -- 415 casos. É a prova de que o bootstrap
 reconstrói o banco, e não só de que o arquivo parece certo. **Rode depois de
 qualquer migração nova**, junto com o passo 4 da seção "Reconstruir o banco do
 zero".

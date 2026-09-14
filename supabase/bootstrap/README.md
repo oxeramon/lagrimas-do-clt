@@ -38,7 +38,7 @@ SQL Editor → cole `schema.sql` inteiro → Run.
 A última coisa que ele imprime é a conferência:
 
 ```
-NOTICE: Banco pronto: 24 tabelas, 6 views, 37 funções, 31 gatilhos, 24 policies, RLS em todas.
+NOTICE: Banco pronto: 24 tabelas, 6 views, 39 funções, 31 gatilhos, 24 policies, RLS em todas.
 ```
 
 Se aparecer erro no meio, o banco ficou pela metade. Não tente emendar: apague
@@ -83,7 +83,7 @@ node ferramentas/confere-schema.mjs /caminho/do/inventario.txt
 Esperado:
 
 ```
-referência: 1396 linhas · banco: 1396 linhas
+referência: 1418 linhas · banco: 1418 linhas
 extensões de plataforma (diferença esperada, não é defeito): pg_stat_statements, pgcrypto, supabase_vault, uuid-ossp
 o contrato bate: nenhuma diferença estrutural.
 ```
@@ -103,7 +103,7 @@ toda função — e é o que prova que ninguém enxerga o dado de ninguém.
 
 ---
 
-## A prova, medida em 13/09/2026 (com a 015 aplicada)
+## A prova, medida em 14/09/2026 (com a 016 aplicada)
 
 O `schema.sql` não foi escrito de memória: foi lido do catálogo do banco em uso
 e reescrito em ordem de dependência. O que fecha o argumento é ter rodado o
@@ -111,14 +111,40 @@ arquivo num Postgres vazio e comparado os dois lados com a mesma régua.
 
 | | banco em uso | reconstruído do zero |
 |---|---|---|
-| linhas do inventário | 1400 | 1396 |
-| md5 de tudo | `084c231007b50770de9e12240dc186e0` | — |
-| md5 **sem a seção de extensões** | `ef507cc98774e20f38013a227653f55d` | `ef507cc98774e20f38013a227653f55d` |
+| linhas do inventário | 1422 | 1418 |
+| md5 de tudo | `5df38c4af01b4bc851c4a0a5b2eca9f0` | `eb2f46b6dad5e82074b11ea3a8c83bc3` |
 
-Um hash só, sobre as 1396 linhas inteiras, igual dos dois lados: colunas,
-chaves, índices, definição de view, corpo de função, gatilho, policy e
-permissão por papel. As quatro linhas de diferença são as extensões de
-plataforma, que vêm de fábrica com o projeto Supabase.
+Os dois hashes diferem, e a diferença é inteira das quatro linhas de extensão
+de plataforma. O que prova isso é a comparação **seção a seção**: as treze
+seções comparáveis batem md5 por md5, e é onde a coisa toda de fato mora.
+
+| seção | linhas | md5, nos dois lados |
+|---|---|---|
+| COL colunas | 244 | `cc1ee203…` |
+| CON constraints | 200 | `492c870da02db761a66ab767951137bb` |
+| IDX índices | 50 | `d03d866d0c098f41a13a0d9779d6dc23` |
+| FN assinatura de função | 39 | `6ee277e5204b61e0639301c26d361e02` |
+| FNBODY corpo de função | 39 | `4de03c1205fa9d94ee2b6cbb020da11d` |
+| GFN permissão de função | 117 | `1a3ac180026d9b17636391cafd0e4426` |
+| GTAB permissão de tabela | 630 | `0dcf0333…` |
+| TAB · POL · TRG · VIEW · VIEWDEF · CMT | 24 · 24 · 31 · 6 · 6 · 8 | iguais |
+
+Colunas, chaves, índices, definição de view, corpo de função, gatilho, policy e
+permissão por papel: tudo igual dos dois lados. As quatro linhas de diferença
+são as extensões de plataforma, que vêm de fábrica com o projeto Supabase e
+que nenhuma migração deste projeto cria.
+
+E a conferência não é só de hash: `ferramentas/reconstroi.sh` roda o inventário
+linha a linha contra `inventario-esperado.txt` e, no mesmo banco recém-criado,
+as treze suítes de `../testes/`.
+
+```
+== inventário estrutural
+referência: 1418 linhas · banco: 1418 linhas
+o contrato bate: nenhuma diferença estrutural.
+== suítes de SQL
+415 casos, 0 falhas
+```
 
 Uma ressalva honesta: o Postgres descartável rodou a **16.13**, e o projeto em
 uso roda a **17.6**. Todo recurso que o schema usa existe nas duas (`unique
