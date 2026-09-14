@@ -117,7 +117,9 @@ create table public.alocacoes_de_meta (
   valor numeric(14,2) not null,
   data date default CURRENT_DATE not null,
   obs text default ''::text not null,
-  criado_em timestamp with time zone default now() not null
+  criado_em timestamp with time zone default now() not null,
+  origem text default 'manual'::text not null,
+  competencia text
 );
 
 create table public.assinaturas (
@@ -345,7 +347,9 @@ create table public.metas (
   status text default 'ativa'::text not null,
   obs text default ''::text not null,
   ordem integer default 0 not null,
-  criado_em timestamp with time zone default now() not null
+  criado_em timestamp with time zone default now() not null,
+  regra_valor numeric(14,2),
+  regra_ativa boolean default false not null
 );
 
 create table public.pagamentos (
@@ -485,6 +489,11 @@ alter table public.transacoes add constraint transacoes_dono_id_unico unique (us
 alter table public.acertos add constraint acerto_entre_dois check ((de_id <> para_id));
 alter table public.acertos add constraint acertos_valor_check check ((valor > (0)::numeric));
 alter table public.alocacoes_de_meta add constraint alocacao_valor_check check ((valor <> (0)::numeric));
+alter table public.alocacoes_de_meta add constraint alocacoes_origem_check check ((origem = any (array['manual'::text, 'regra'::text])));
+alter table public.alocacoes_de_meta add constraint alocacoes_competencia_formato check (((competencia is null) or (competencia ~ '^\d{4}-(0[1-9]|1[0-2])$'::text)));
+-- A competência é o que torna a regra idempotente: sem ela o índice único não
+-- alcança a linha, e a regra rodaria duas vezes no mesmo mês.
+alter table public.alocacoes_de_meta add constraint regra_tem_competencia check (((origem <> 'regra'::text) or (competencia is not null)));
 alter table public.assinaturas add constraint assinatura_fim_depois_do_inicio check (((fim is null) or (fim >= inicio)));
 alter table public.assinaturas add constraint assinatura_paga_por_um_lugar_so check (((conta_id is null) or (cartao_id is null)));
 alter table public.assinaturas add constraint assinaturas_frequencia_check check ((frequencia = any (array['semanal'::text, 'mensal'::text, 'bimestral'::text, 'trimestral'::text, 'semestral'::text, 'anual'::text])));
@@ -539,6 +548,9 @@ alter table public.metas add constraint metas_nome_check check (((length(nome) >
 alter table public.metas add constraint metas_prioridade_check check (((prioridade >= 1) and (prioridade <= 3)));
 alter table public.metas add constraint metas_status_check check ((status = any (array['ativa'::text, 'concluida'::text, 'arquivada'::text])));
 alter table public.metas add constraint metas_valor_alvo_check check ((valor_alvo > (0)::numeric));
+alter table public.metas add constraint metas_regra_valor_check check (((regra_valor is null) or (regra_valor > (0)::numeric)));
+-- Regra ligada sem valor é um estado que não quer dizer nada.
+alter table public.metas add constraint regra_ativa_tem_valor check ((not regra_ativa) or (regra_valor is not null));
 alter table public.pagamentos add constraint pagamentos_mes_check check ((mes ~ '^\d{4}-\d{2}$'::text));
 alter table public.rateios add constraint rateios_valor_check check ((valor >= (0)::numeric));
 alter table public.receitas add constraint receita_intervalo_valido check (((mes_final is null) or (mes_inicial is null) or (mes_final >= mes_inicial)));
@@ -647,6 +659,9 @@ alter table public.transacoes add constraint transacoes_user_id_fkey foreign key
 
 create index acertos_grupo_idx on public.acertos using btree (user_id, grupo_id, data);
 create index alocacoes_da_meta on public.alocacoes_de_meta using btree (user_id, meta_id, data);
+-- PARCIAL de propósito: só alcança o que veio da regra. Reservar à mão duas
+-- vezes no mesmo mês continua sendo direito de quem usa.
+create unique index alocacao_da_regra_uma_por_competencia on public.alocacoes_de_meta using btree (user_id, meta_id, competencia) where (origem = 'regra'::text);
 create index assinaturas_user_idx on public.assinaturas using btree (user_id, ativo, ordem, nome);
 create index cartoes_user_idx on public.cartoes using btree (user_id, ordem, nome);
 create index categorias_pai_idx on public.categorias using btree (user_id, pai_id);
@@ -858,7 +873,9 @@ create view public.metas_resolvidas with (security_invoker = true) as
            when m.prazo is null then null::integer
            else greatest(1, (date_part('year'::text, age(m.prazo::timestamp with time zone, CURRENT_DATE::timestamp with time zone)) * 12::double precision
                              + date_part('month'::text, age(m.prazo::timestamp with time zone, CURRENT_DATE::timestamp with time zone)))::integer + 1)
-         end as meses_ate_prazo
+         end as meses_ate_prazo,
+         regra_valor,
+         regra_ativa
     from public.metas m
     left join lateral (
       select sum(x.valor) as reservado,
@@ -1670,6 +1687,90 @@ begin
   return novo;
 end $$;
 
+-- .......................................................  regra de alocação --
+-- Devolve três coisas porque "não alocou" tem duas causas diferentes, e
+-- confundi-las deixaria a tela sem o que dizer. Quando não cabe o valor
+-- inteiro, reserva o que couber: o valor cheio o banco recusaria, e zero
+-- perderia o mês por causa do que faltou.
+
+create function public.aplica_regra_de_meta(
+  p_meta uuid, p_competencia text,
+  out alocado numeric, out ja_aplicada boolean, out disponivel numeric)
+returns record
+language plpgsql
+set search_path to 'public'
+as $$
+declare
+  m public.metas%rowtype;
+  quanto numeric(14,2);
+begin
+  if auth.uid() is null then
+    raise exception 'meta: é preciso estar logado';
+  end if;
+  if p_competencia !~ '^\d{4}-(0[1-9]|1[0-2])$' then
+    raise exception 'meta: a competência precisa estar no formato AAAA-MM';
+  end if;
+
+  -- o RLS responde "é minha?" sozinho: meta de outra pessoa não é encontrada
+  select * into m from public.metas where id = p_meta;
+  if m.id is null then
+    raise exception 'meta: não encontrada';
+  end if;
+  if not m.regra_ativa then
+    raise exception 'meta: esta meta não tem regra mensal ligada';
+  end if;
+  if m.status <> 'ativa' then
+    raise exception 'meta: só meta ativa reserva por regra';
+  end if;
+
+  alocado := 0;
+  ja_aplicada := exists (
+    select 1 from public.alocacoes_de_meta
+     where meta_id = p_meta and competencia = p_competencia and origem = 'regra');
+
+  -- o que há de livre e ainda não prometido. As duas funções já leem sob RLS
+  disponivel := public.saldo_livre_do_usuario() - public.total_reservado_em_metas();
+
+  if ja_aplicada then return; end if;
+  if disponivel is null or disponivel <= 0 then return; end if;
+
+  quanto := least(m.regra_valor, disponivel);
+  -- não passa do que ainda falta para a meta: reservar além do alvo prometeria
+  -- dinheiro a um objetivo que já foi alcançado
+  quanto := least(quanto, greatest(0, m.valor_alvo - coalesce((
+    select sum(valor) from public.alocacoes_de_meta where meta_id = p_meta), 0)));
+  if quanto <= 0 then return; end if;
+
+  insert into public.alocacoes_de_meta (meta_id, valor, data, competencia, origem, obs)
+  values (p_meta, quanto, public.dia_no_mes(p_competencia, 1), p_competencia, 'regra',
+          'Regra mensal')
+  on conflict do nothing;
+
+  alocado := quanto;
+end $$;
+
+-- Sem isto a regra seria idempotente E irreversível, que juntas viram uma
+-- armadilha: aplicou errado, não dá para aplicar de novo nem para tirar.
+-- Apaga a linha em vez de lançar uma negativa: a alocação de regra é a marca
+-- de "este mês já rodou", e a negativa deixaria a marca no lugar.
+create function public.desfaz_regra_de_meta(p_meta uuid, p_competencia text)
+returns boolean
+language plpgsql
+set search_path to 'public'
+as $$
+declare apagadas int;
+begin
+  if auth.uid() is null then
+    raise exception 'meta: é preciso estar logado';
+  end if;
+
+  delete from public.alocacoes_de_meta
+   where meta_id = p_meta and competencia = p_competencia and origem = 'regra';
+  get diagnostics apagadas = row_count;
+  return apagadas > 0;
+end $$;
+
+
 -- ......................................................  funções de gatilho --
 -- Nenhuma delas tem `execute` para `anon`: ver a seção 12.
 
@@ -2187,6 +2288,8 @@ end $$;
 
 comment on table public.alocacoes_de_meta is 'Uma linha por reserva ou liberação. Valor com SINAL: positivo reserva, negativo libera. NÃO gera transação.';
 comment on table public.metas is 'Objetivo de destinação. NÃO guarda dinheiro e NÃO altera saldo: ver docs/CONTRATO_METAS.md.';
+comment on column public.alocacoes_de_meta.origem is 'manual (a pessoa reservou) ou regra (veio da regra mensal). Só regra entra no índice único por competência.';
+comment on column public.alocacoes_de_meta.competencia is 'AAAA-MM de qual mês a alocação de regra pertence. Nulo em alocação manual: ela não tem mês próprio, tem data.';
 comment on column public.transacoes.ocorrencia_em is 'A data da ocorrência de uma assinatura. É a identidade dela: mês não serve, porque semanal tem quatro ou cinco no mesmo mês.';
 comment on view public.faturas_resolvidas is 'A fatura com total, pago, restante e situação já derivados. `pago` vem de subconsulta, e não de join, porque com N pagamentos o join multiplicaria os itens e o total sairia errado.';
 comment on view public.metas_resolvidas is 'Meta com reservado, falta e percentual derivados. NÃO some reservado com saldo de conta: é o mesmo dinheiro visto de outro ângulo.';
@@ -2218,13 +2321,13 @@ begin
     from pg_class c join pg_namespace n on n.oid=c.relnamespace
    where n.nspname='public' and c.relkind='r' and not c.relrowsecurity;
 
-  if (t,v,f,g,p) is distinct from (24,6,37,31,24) then
-    raise exception 'bootstrap incompleto: % tabelas, % views, % funções, % gatilhos, % policies (esperado 24/6/37/31/24)',
+  if (t,v,f,g,p) is distinct from (24,6,39,31,24) then
+    raise exception 'bootstrap incompleto: % tabelas, % views, % funções, % gatilhos, % policies (esperado 24/6/39/31/24)',
       t, v, f, g, p;
   end if;
   if sem_rls is not null then
     raise exception 'tabela sem RLS: %', sem_rls;
   end if;
 
-  raise notice 'Banco pronto: 24 tabelas, 6 views, 37 funções, 31 gatilhos, 24 policies, RLS em todas.';
+  raise notice 'Banco pronto: 24 tabelas, 6 views, 39 funções, 31 gatilhos, 24 policies, RLS em todas.';
 end $$;
