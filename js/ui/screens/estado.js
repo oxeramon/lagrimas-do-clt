@@ -49,7 +49,7 @@ export async function carregaV2(){
   Object.assign(V2, cad.dados, { erro: null, carregado: true });
   const [t] = await Promise.all([
     carregaTransacoesDoMes(), carregaLiquidacoes(), carregaCartoesEFaturas(),
-    carregaAssinaturas(), carregaGruposEsaldos(), carregaMetas()]);
+    carregaAssinaturas(), carregaGruposEsaldos(), carregaMetasEAlocacoes()]);
   return t;
 }
 
@@ -89,8 +89,14 @@ export async function carregaAssinaturas(){
   return { erro: null };
 }
 
-/* Falhar aqui não derruba o resto: sem metas, a tela mostra o vazio. */
-export async function carregaMetas(){
+/* Falhar aqui não derruba o resto: sem metas, a tela mostra o vazio.
+
+   O nome NÃO é `carregaMetas`, embora fosse o óbvio: esse é o nome da função
+   do repositório que esta aqui chama, e a prévia de `testes/preview.mjs`
+   achata todos os módulos num escopo só -- dois `carregaMetas` viravam uma
+   colisão que derrubava a geração inteira. As irmãs já seguiam este padrão
+   (`carregaCartoesEFaturas`, `carregaGruposEsaldos`); esta ficou para trás. */
+export async function carregaMetasEAlocacoes(){
   const r = await v2.carregaMetas();
   if (r.erro){
     V2.metas = []; V2.alocacoes = []; V2.saldoLivre = 0;

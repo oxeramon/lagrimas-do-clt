@@ -46,7 +46,7 @@ import { renderCalendario, ligaCalendario } from "./screens/calendar-screen.js";
    modularização não pode custar uma edição no HTML. */
 export { V2, carregaV2, carregaLiquidacoes, carregaCartoesEFaturas,
          carregaAssinaturas, carregaGruposEsaldos, carregaTransacoesDoMes,
-         carregaMetas }
+         carregaMetasEAlocacoes }
   from "./screens/estado.js";
 export { atualizaFiltrosDeTela, vaiParaMes, renderTransacoes }
   from "./screens/transactions-screen.js";

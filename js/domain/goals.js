@@ -26,13 +26,18 @@ export const PRIORIDADES = [
 export const rotuloDaPrioridade = (p) =>
   (PRIORIDADES.find((x) => x.id === Number(p)) || { rotulo: "Média" }).rotulo;
 
-export const STATUS = [
+/* `STATUS_DA_META`, e não `STATUS`: `transactions.js` também exporta um
+   `STATUS`, com outro significado inteiro -- lá é o estado de uma transação
+   (realizada, prevista, cancelada), aqui é o de uma meta. Dois sentidos sob um
+   nome é a confusão que este projeto já pagou caro, e o sufixo custa seis
+   letras. O rótulo ao lado já se chamava `rotuloDoStatusDaMeta`. */
+export const STATUS_DA_META = [
   { id: "ativa",      rotulo: "Ativa" },
   { id: "concluida",  rotulo: "Concluída" },
   { id: "arquivada",  rotulo: "Arquivada" },
 ];
 export const rotuloDoStatusDaMeta = (s) =>
-  (STATUS.find((x) => x.id === s) || { rotulo: s }).rotulo;
+  (STATUS_DA_META.find((x) => x.id === s) || { rotulo: s }).rotulo;
 
 /* ------------------------------------------------- os três números --------
    `disponivel` é uma LEITURA DIFERENTE do mesmo dinheiro, não um dinheiro a

@@ -16,7 +16,7 @@
 import { $ } from "../../core/dom.js";
 import { esc } from "../../core/escape.js";
 import { money } from "../../core/money.js";
-import { PRIORIDADES, STATUS, rotuloDaPrioridade, indicadoresDeMetas,
+import { PRIORIDADES, STATUS_DA_META, rotuloDaPrioridade, indicadoresDeMetas,
          ordenaMetas, necessidadeMensal, emRisco, cabeReservar,
          capacidadeMensal, ritmoDaMeta, rotuloDoRitmo, RITMO,
          temRegra, estadoDaRegra, REGRA_PENDENTE, REGRA_PARCIAL }
@@ -169,7 +169,7 @@ function abreMeta(id){
   $("mt_prioridade").innerHTML = listaDeOpcoes(
     PRIORIDADES.map((p) => ({ id: String(p.id), rotulo: p.rotulo })),
     String(m ? m.prioridade : 2), "");
-  $("mt_status").innerHTML = listaDeOpcoes(STATUS, m ? m.status : "ativa", "");
+  $("mt_status").innerHTML = listaDeOpcoes(STATUS_DA_META, m ? m.status : "ativa", "");
   /* Vazio significa SEM regra. Não há caixa de "ativar": um valor em branco
      já diz tudo, e dois controles para um estado só é onde eles discordam. */
   $("mt_regra").value = m && m.regraAtiva && m.regraValor ? m.regraValor : "";
