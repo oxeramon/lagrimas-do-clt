@@ -368,7 +368,6 @@ begin
     raise exception 'fatura: a competência precisa estar no formato AAAA-MM';
   end if;
 
-  -- o RLS responde "é meu?" sozinho: cartão de outra pessoa não é encontrado
   select * into c from public.cartoes where id = p_cartao;
   if c.id is null then
     raise exception 'fatura: cartão não encontrado';
@@ -472,8 +471,6 @@ begin
        public.fatura_na_competencia(p_cartao, comp_i),
        compra, i, p_parcelas, p_categoria, 'saida', 'normal',
        p_descricao, valor_i,
-       -- a data da parcela serve para ordenar e mostrar; quem manda na fatura
-       -- é a competência, calculada acima
        (public.dia_no_mes(comp_i, extract(day from p_data)::int)),
        'realizada', 'cartao', compra::text, coalesce(p_obs,''));
   end loop;

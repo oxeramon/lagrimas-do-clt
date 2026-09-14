@@ -644,22 +644,61 @@ A suíte `015_ownership.sql` tem 26 casos e foi conferida nos dois sentidos:
 26 de 26 com a migração aplicada, e 17 de 26 contra o estado 014, onde os
 casos 3 a 7 aceitam o que deveriam recusar e os 19 a 22 mostram a meta órfã.
 
-## O arquivo da 007 discorda do banco, em comentário
+## A 007 discordava do banco, e foi realinhada
 
-`ferramentas/confere-migracoes.mjs` acusa, e está certo: o arquivo da 007 tem
-três linhas de comentário que **não** estão no texto gravado em
-`schema_migrations`. Uma delas é a linha 371, `-- o RLS responde "é meu?"
-sozinho`. Foram acrescentadas ao arquivo depois de a migração ter rodado.
+`ferramentas/confere-migracoes.mjs` acusava três linhas de comentário que
+estavam no arquivo e **não** no texto gravado em `schema_migrations`. Elas
+saíram do arquivo, e as quinze migrações passaram a bater com o banco.
 
-**O DDL é idêntico**: filtrando linha de comentário e linha vazia, os dois
-lados dão 377 linhas e o mesmo md5, `89a43a20df020239b5c6a5de0aeb98e1`. Nada
-de estrutural está em risco, e a comparação de inventário confirma isso por
-outro caminho.
+Alinhar ARQUIVO ao banco não fere a regra de imutabilidade: fere quem faz o
+contrário. O banco é o registro do que rodou; o arquivo deveria ser a cópia
+fiel desse registro, e não era.
 
-Fica registrado e não corrigido: migração aplicada é imutável, e editar o
-arquivo agora seria mexer no registro do que rodou. Se um dia for alinhado, o
-alinhamento é do ARQUIVO ao banco, nunca o contrário, e vira uma decisão
-consciente em vez de um remendo de passagem.
+### A prova, em três camadas
+
+**1. O carimbo.** A 007 rodou em 12/09/2026 às 23:08:51 UTC, que é o que a
+versão `20260912230851` significa. O arquivo tem **um único commit** em toda a
+história do repositório, `3a6e030`, de 23:11:17 UTC: cento e quarenta e seis
+segundos DEPOIS. Ele nasceu inteiro, com 578 linhas, e nunca foi tocado de
+novo.
+
+**2. O alinhamento.** Linha a linha, por md5, as 575 linhas do banco casam na
+ordem com 575 das 578 do arquivo. As três que sobram são comentário, e só
+comentário. Não há reordenação, não há DDL diferente, não há nada além disso.
+
+**3. O artefato executado, que é a camada que fecha o argumento.** As três
+linhas moram DENTRO de corpo de função: uma em `fatura_na_competencia`, duas
+em `registra_compra_de_cartao`. Corpo de função é gravado literalmente em
+`pg_proc.prosrc` -- treze funções deste banco guardam comentário ali, uma
+delas com sete. Essas duas guardam **zero**, e nenhuma migração posterior as
+redefine. As três linhas nunca foram executadas, e isso não depende de
+carimbo, de Git nem de inferência: está no banco.
+
+### O que NÃO ficou provado
+
+Dentro daqueles 146 segundos, se a prosa foi escrita antes ou depois da
+chamada de `apply_migration` é indeterminável. Git não guarda o estado da
+árvore antes do commit. A distinção não muda a decisão -- as linhas não
+rodaram, em nenhuma das duas hipóteses -- mas fica dita, porque "provei o que
+importa" e "provei tudo" não são a mesma frase.
+
+### A prosa que foi removida
+
+Ela explicava coisa certa, e explicação não deve morrer por morar no arquivo
+errado. Fica aqui:
+
+- em `fatura_na_competencia`, antes de ler o cartão: *o RLS responde "é meu?"
+  sozinho; cartão de outra pessoa não é encontrado*;
+- em `registra_compra_de_cartao`, na data de cada parcela: *a data da parcela
+  serve para ordenar e mostrar; quem manda na fatura é a competência,
+  calculada acima*.
+
+### Por que isso não vira uma 016
+
+Não há mudança de schema. O DDL era idêntico antes e depois -- filtrando
+comentário e linha vazia, os dois lados sempre deram 377 linhas e o mesmo md5,
+`89a43a20df020239b5c6a5de0aeb98e1`. O banco não foi tocado. O que mudou foi um
+arquivo de texto que passou a dizer a verdade sobre si mesmo.
 
 ## O que os advisors dizem agora
 
