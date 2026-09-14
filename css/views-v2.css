@@ -487,11 +487,34 @@
 .meta-regra.parcial{ background:var(--warn-soft) }
 .meta-regra.parcial span{ color:var(--warn) }
 
+/* ---- COMPETÊNCIAS PENDENTES ----
+   LISTA, e não tabela: três colunas de cabeçalho em 320px viram uma tabela
+   larga com rolagem lateral, que é exatamente o que o contrato proíbe. Cada
+   pendência é um bloco que empilha sozinho quando não cabe. */
+.pend-lista{ display:flex; flex-direction:column; gap:var(--e-2); margin-top:var(--e-3) }
+.pend-item{ display:flex; align-items:center; gap:var(--e-3); flex-wrap:wrap;
+  padding:var(--e-2) var(--e-3); border:1px solid var(--line);
+  border-radius:var(--raio-1); background:var(--surface-2) }
+/* o rótulo inteiro é área de clique da caixa: alvo pequeno em celular é alvo
+   que se erra */
+.pend-marca{ display:flex; align-items:center; gap:var(--e-3);
+  flex:1 1 60%; min-width:0; cursor:pointer }
+.pend-marca input{ flex:none }
+.pend-txt{ min-width:0 }
+.pend-txt b{ display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap }
+.pend-txt .meta{ display:block; font-size:12px; color:var(--ink-3) }
+.pend-acoes{ display:flex; gap:var(--e-2); margin-left:auto }
+/* valor que não vai acontecer não compete com os que vão */
+.fatura-itens .amt.zerado{ color:var(--ink-3); font-weight:var(--peso) }
+
 @media (max-width:600px){
   /* em 320px o percentual e o selo disputam a linha com o nome; deixá-los
      quebrar é melhor do que espremer os três */
   .meta-topo{ flex-wrap:wrap }
   .meta-pct{ margin-left:0 }
+  /* os dois botões descem para a linha de baixo em vez de espremer o nome */
+  .pend-marca{ flex:1 1 100% }
+  .pend-acoes{ margin-left:0 }
 }
 
 /* =========================================================== calendário ===

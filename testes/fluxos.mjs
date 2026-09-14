@@ -1401,6 +1401,199 @@ console.log("\nnavegação");
    7. ROLAGEM LATERAL: mobile é primeira classe
    ================================================================== */
 /* ==================================================================
+   COMPETÊNCIAS: a atual roda sozinha, as passadas esperam
+   ==================================================================
+   O fluxo inteiro do Modelo C, no navegador: abrir o app, ver a automação
+   do mês ter acontecido, ver as pendências do passado esperando, aplicar
+   uma, ignorar outra, recarregar e conferir que nada disso se desfez nem
+   duplicou.
+
+   O QUE ISTO PEGA E O TESTE DE UNIDADE NÃO: a automação roda na CARGA do
+   app, não na tela de Metas. Se alguém a mover para dentro de `renderMetas`
+   ela passa a depender de a pessoa abrir a aba -- e o teste abre o Painel
+   primeiro, de propósito.
+   ================================================================== */
+console.log("\ncompetências da regra");
+{
+  const { p, erros } = await abreApp(1440);
+  await criaConta(p, "Conta Alfa", 1000, true);
+
+  /* Uma meta com regra, e a vigência empurrada para trás para existirem
+     pendências. Mexer no dublê direto é o único jeito de ter passado: a tela
+     sempre cria a regra começando hoje, que é o contrato. */
+  await vaiPara(p, "metas");
+  await p.waitForTimeout(250);
+  await p.click("#btnNovaMeta");
+  await p.waitForTimeout(300);
+  await p.fill("#mt_nome", "Meta com regra");
+  await p.fill("#mt_alvo", "9000");
+  await p.fill("#mt_regra", "300");
+  await p.click("#mtSalvar");
+  await p.waitForTimeout(700);
+
+  const vigencia = await p.evaluate(() => {
+    const m = globalThis.__T.metas[0];
+    return { desde: m.regra_desde, hoje: new Date().toISOString().slice(0, 7) };
+  });
+  eq("a regra nasce valendo a partir do mês corrente", vigencia.desde, vigencia.hoje);
+
+  /* empurra a vigência três meses para trás e limpa o que a automação fez */
+  await p.evaluate(() => {
+    const d = new Date(); d.setMonth(d.getMonth() - 3);
+    globalThis.__T.metas[0].regra_desde =
+      d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0");
+    globalThis.__T.alocacoes_de_meta.length = 0;
+  });
+
+  /* RECARREGA PELO INÍCIO: a automação tem que rodar sem passar por Metas */
+  await p.reload({ waitUntil: "networkidle" });
+  await p.waitForTimeout(900);
+  const aposCarga = await p.evaluate(() => ({
+    aba: document.querySelector("[role=tabpanel]:not([hidden])")?.id,
+    deRegra: globalThis.__T.alocacoes_de_meta.filter((x) => x.origem === "regra"),
+  }));
+  eq("o app abriu no Início, não em Metas", aposCarga.aba, "p-painel");
+  eq("e mesmo assim a automação do mês rodou", aposCarga.deRegra.length, 1);
+  eq("reservando os 300 da regra", Number(aposCarga.deRegra[0].valor), 300);
+  eq("na competência ATUAL", aposCarga.deRegra[0].competencia,
+    new Date().toISOString().slice(0, 7));
+  /* O INVARIANTE: a automação é envelope, como tudo em Metas */
+  eq("a automação NÃO criou transação",
+    await p.evaluate(() => globalThis.__T.transacoes.length), 0);
+  eq("e NÃO mexeu no saldo da conta",
+    await p.evaluate(() => globalThis.__T.contas.reduce((s, c) => s + Number(c.saldo_inicial), 0)), 1000);
+
+  /* O PAINEL conta decisões, e nunca um valor */
+  const noPainel = await p.evaluate(() => {
+    const e = document.getElementById("pbPendencias");
+    return { visivel: !e.hidden, texto: e.textContent };
+  });
+  eq("o Painel avisa que há decisões esperando", noPainel.visivel, true);
+  eq("e fala em RESERVAS, não em reais",
+    /aguardando decisão/.test(noPainel.texto) && !/R\$/.test(noPainel.texto), true);
+
+  /* PENDÊNCIA NÃO ENTRA EM INDICADOR FINANCEIRO.
+     Há 300 reservados e três pendências de 300. Somá-las daria 1.200 em
+     "reservado" e 1.200 a menos em "livre de promessa" -- dinheiro que
+     ninguém prometeu a nada. Estes dois casos existem para que essa soma
+     vire falha de teste, e não decisão de tela: o mutation testing mostrou
+     que sem eles ela passava. */
+  const numerosDoPainel = await p.evaluate(() => ({
+    reservado: document.getElementById("pbReservado").textContent.replace(/\u00a0/g, " "),
+    disponivel: document.getElementById("pbDisponivel").textContent.replace(/\u00a0/g, " "),
+    saldo: document.getElementById("pnSaldoContas").textContent.replace(/\u00a0/g, " "),
+  }));
+  eq("reservado no Painel é 300, e não 1.200", numerosDoPainel.reservado, "R$ 300,00");
+  eq("livre de promessa é 700, e não zero", numerosDoPainel.disponivel, "R$ 700,00");
+  eq("e o saldo em contas continua inteiro", numerosDoPainel.saldo, "R$ 1.000,00");
+
+  /* AS PASSADAS NÃO FORAM APLICADAS. Esta é a linha que define o Modelo C. */
+  await vaiPara(p, "metas");
+  await p.waitForTimeout(500);
+  const pend = await p.evaluate(() => ({
+    bloco: !document.getElementById("blocoPendencias").hidden,
+    linhas: document.querySelectorAll(".pend-item").length,
+    resumo: document.getElementById("pdResumo").textContent,
+    reservado: document.getElementById("mtReservado").textContent.replace(/ /g, " "),
+  }));
+  eq("as três competências passadas viram pendência", pend.linhas, 3);
+  eq("o bloco de pendências aparece", pend.bloco, true);
+  /* 300 reservados, e NÃO 1.200: passado nunca é aplicado sozinho */
+  eq("RESERVOU SÓ O MÊS ATUAL, não os quatro", pend.reservado, "R$ 300,00");
+  eq("e o resumo diz que o total é PLANEJADO, não devido",
+    /planejados/.test(pend.resumo) && /não é dívida/.test(pend.resumo), true);
+
+  /* APLICAR UMA: o diálogo mostra tudo antes */
+  await p.locator("[data-aplicapend]").first().click();
+  await p.waitForTimeout(400);
+  const dlg = await p.evaluate(() => ({
+    aberto: document.getElementById("dlgCompetencias").open,
+    disponivel: document.getElementById("cmpDisponivel").textContent.replace(/ /g, " "),
+    total: document.getElementById("cmpTotal").textContent.replace(/ /g, " "),
+    linhas: document.querySelectorAll("#cmpLinhas .row").length,
+  }));
+  eq("o diálogo de confirmação abre", dlg.aberto, true);
+  eq("mostrando o disponível de HOJE", dlg.disponivel, "R$ 700,00");
+  eq("e quanto será reservado agora", dlg.total, "R$ 300,00");
+  eq("com uma linha só", dlg.linhas, 1);
+
+  await p.click("#cmpConfirmar");
+  await p.waitForTimeout(800);
+  const aposAplicar = await p.evaluate(() => ({
+    linhas: document.querySelectorAll(".pend-item").length,
+    deRegra: globalThis.__T.alocacoes_de_meta.filter((x) => x.origem === "regra").length,
+    reservado: document.getElementById("mtReservado").textContent.replace(/ /g, " "),
+    planejado: globalThis.__T.alocacoes_de_meta
+      .filter((x) => x.origem === "regra").map((x) => Number(x.valor_planejado)),
+  }));
+  eq("a pendência aplicada sai da lista", aposAplicar.linhas, 2);
+  eq("e virou alocação de regra", aposAplicar.deRegra, 2);
+  eq("o reservado vai a 600", aposAplicar.reservado, "R$ 600,00");
+  eq("cada alocação guarda o planejado congelado", aposAplicar.planejado, [300, 300]);
+
+  /* IGNORAR: dois cliques, e não volta */
+  const ignorar = p.locator("[data-ignorapend]").first();
+  await ignorar.click();
+  await p.waitForTimeout(200);
+  eq("o primeiro clique só arma", await ignorar.textContent(), "Confirmar");
+  await ignorar.click();
+  await p.waitForTimeout(800);
+  const aposIgnorar = await p.evaluate(() => ({
+    linhas: document.querySelectorAll(".pend-item").length,
+    decisoes: globalThis.__T.competencias_de_regra.length,
+    situacao: globalThis.__T.competencias_de_regra[0]?.situacao,
+    planejado: Number(globalThis.__T.competencias_de_regra[0]?.valor_planejado),
+    deRegra: globalThis.__T.alocacoes_de_meta.filter((x) => x.origem === "regra").length,
+  }));
+  eq("a ignorada sai da lista de pendências", aposIgnorar.linhas, 1);
+  eq("a decisão foi gravada", aposIgnorar.situacao, "ignorada");
+  eq("com o planejado congelado", aposIgnorar.planejado, 300);
+  eq("IGNORAR NÃO CRIA ALOCAÇÃO", aposIgnorar.deRegra, 2);
+
+  /* RECARREGAR: nada se desfaz, nada duplica */
+  await p.reload({ waitUntil: "networkidle" });
+  await p.waitForTimeout(900);
+  await vaiPara(p, "metas");
+  await p.waitForTimeout(500);
+  const aposRecarga = await p.evaluate(() => ({
+    linhas: document.querySelectorAll(".pend-item").length,
+    deRegra: globalThis.__T.alocacoes_de_meta.filter((x) => x.origem === "regra").length,
+    decisoes: globalThis.__T.competencias_de_regra.length,
+    reservado: document.getElementById("mtReservado").textContent.replace(/ /g, " "),
+  }));
+  eq("recarregar não ressuscita a ignorada", aposRecarga.linhas, 1);
+  eq("nem duplica a alocação do mês", aposRecarga.deRegra, 2);
+  eq("a decisão persiste", aposRecarga.decisoes, 1);
+  eq("e o reservado não se mexeu", aposRecarga.reservado, "R$ 600,00");
+
+  /* A ÚLTIMA: aplicar a que sobrou, com o disponível de hoje */
+  await p.locator("[data-aplicapend]").first().click();
+  await p.waitForTimeout(400);
+  await p.click("#cmpConfirmar");
+  await p.waitForTimeout(800);
+  const fim = await p.evaluate(() => ({
+    bloco: document.getElementById("blocoPendencias").hidden,
+    painel: document.getElementById("pbPendencias").hidden,
+    reservado: document.getElementById("mtReservado").textContent.replace(/ /g, " "),
+    transacoes: globalThis.__T.transacoes.length,
+  }));
+  eq("sem pendência, o bloco some", fim.bloco, true);
+  eq("o reservado chega a 900", fim.reservado, "R$ 900,00");
+  eq("e NADA disso virou transação", fim.transacoes, 0);
+
+  await vaiPara(p, "painel");
+  await p.waitForTimeout(400);
+  eq("o aviso do Painel some junto",
+    await p.evaluate(() => document.getElementById("pbPendencias").hidden), true);
+  /* o saldo em contas continua INTEIRO: reserva não é saída */
+  eq("e o saldo em contas continua 1.000",
+    (await p.textContent("#pnSaldoContas")).replace(/ /g, " "), "R$ 1.000,00");
+
+  eq("nenhum erro de JavaScript no caminho das competências", erros, []);
+  await p.close();
+}
+
+/* ==================================================================
    CAMPO COM SUGESTÃO: clicar na opção tem que preencher o campo
    ==================================================================
    O DEFEITO QUE ISTO PEGA, e que esteve no ar:
@@ -1540,6 +1733,23 @@ console.log("\nrolagem lateral");
   eq("as duas linhas de regra estão na tela, uma pendente e uma aplicada",
     [await p.locator("[data-aplicaregra]").count(),
      await p.locator("[data-desfazregra]").count()], [1, 1]);
+
+  /* E COMPETÊNCIAS PENDENTES NA TELA, que é peça larga: nome de meta, mês,
+     valor e dois botões numa linha. Empurra a vigência para trás para elas
+     existirem, com nome longo de propósito. */
+  await p.evaluate(() => {
+    const d = new Date(); d.setMonth(d.getMonth() - 2);
+    const desde = d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0");
+    for (const m of globalThis.__T.metas) if (m.regra_ativa) m.regra_desde = desde;
+  });
+  /* recarrega de verdade: trocar de aba não relê o banco, e a vigência
+     acabou de mudar por baixo */
+  await p.reload({ waitUntil: "domcontentloaded" });
+  await p.waitForTimeout(900);
+  await vaiPara(p, "metas");
+  await p.waitForTimeout(600);
+  eq("há pendências na tela para medir",
+    (await p.locator(".pend-item").count()) > 0, true);
 
   for (const largura of [320, 360, 390, 768, 1366, 1440]){
     await p.setViewportSize({ width: largura, height: 900 });

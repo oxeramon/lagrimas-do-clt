@@ -385,12 +385,17 @@ export function carregaMetas(){
     c.from("metas_resolvidas").select("*").order("ordem", { ascending: true }),
     c.from("alocacoes_de_meta").select("*").order("data", { ascending: false }),
     c.rpc("saldo_livre_do_usuario"),
-  ]).then(([me, al, sl]) => {
-    const falha = [me, al, sl].find((r) => r.error);
+    /* as decisões sobre competências da regra. Sem elas o domínio não
+       consegue distinguir "ignorada" de "pendente", e uma competência
+       ignorada voltaria a cobrar para sempre. */
+    c.from("competencias_de_regra").select("*"),
+  ]).then(([me, al, sl, cp]) => {
+    const falha = [me, al, sl, cp].find((r) => r.error);
     if (falha) return { dados: null, erro: falha.error.message };
     return { erro: null, dados: {
       metas: doBanco(me.data || []),
       alocacoes: doBanco(al.data || []),
+      decisoes: doBanco(cp.data || []),
       /* o saldo LIVRE vem do banco, e não de uma soma na tela: ele decide o que
          o gatilho vai aceitar, e dois cálculos diferentes discordariam */
       saldoLivre: Number(sl.data || 0),
@@ -447,3 +452,36 @@ export const desfazRegraDeMeta = (metaId, competencia) => consulta(
   bancoV2().rpc("desfaz_regra_de_meta", {
     p_meta: metaId, p_competencia: competencia,
   }), "regra da meta");
+
+/* AUTOMAÇÃO DA COMPETÊNCIA ATUAL. Uma chamada, uma transação, todas as regras
+   ativas -- e só o mês corrente. Quem decide a ordem e o quanto é o banco; a
+   tela nem sabe quantas metas existem quando chama.
+
+   Devolve uma linha por meta que a automação alcançou, com quanto foi alocado.
+   Lista vazia é resposta normal: quer dizer que não havia nada a fazer. */
+export const aplicaRegrasDoMes = async (competencia) => {
+  const r = await consulta(bancoV2().rpc("aplica_regras_da_competencia", {
+    p_competencia: competencia || null,
+  }), "regras do mês");
+  if (r.erro) return r;
+  return { erro: null, dados: Array.isArray(r.dados) ? r.dados : [] };
+};
+
+/* Ignorar uma competência passada. Decisão persistente: não some do histórico
+   e não vira alocação. */
+export const ignoraCompetencia = (metaId, competencia) => consulta(
+  bancoV2().rpc("ignora_competencia_de_regra", {
+    p_meta: metaId, p_competencia: competencia,
+  }), "competência");
+
+/* Regularizar uma lista de pendências, de uma vez. O banco recalcula o
+   disponível a cada uma, em ordem determinística, e devolve o resultado LINHA
+   A LINHA -- inclusive o erro de uma competência que não deu, sem derrubar as
+   outras. A tela mostra o que de fato aconteceu, não o que tinha previsto. */
+export const regularizaCompetencias = async (itens) => {
+  const r = await consulta(bancoV2().rpc("regulariza_competencias", {
+    p_itens: itens,
+  }), "competências");
+  if (r.erro) return r;
+  return { erro: null, dados: Array.isArray(r.dados) ? r.dados : [] };
+};

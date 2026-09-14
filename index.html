@@ -172,6 +172,9 @@
             <div class="pr-linha"><span>Livre de promessa</span><strong id="pbDisponivel">—</strong></div>
             <div class="pr-linha"><span>Precisa por mês</span><strong id="pbPorMes">—</strong></div>
             <p class="hint" id="pbProximaMeta" hidden></p>
+            <!-- CONTAGEM, nunca valor. Pendência de regra não é passivo e não
+                 se soma a indicador nenhum -- docs/CONTRATO_COMPETENCIAS.md. -->
+            <p class="hint" id="pbPendencias" hidden></p>
             <p class="hint" id="pbMetas" hidden></p>
           </div>
           <div class="pr-col" id="blocoCompartilhado" hidden>
@@ -685,6 +688,22 @@
           </div>
         </div>
 
+        <!-- COMPETÊNCIAS PENDENTES. Meses em que a regra não rodou e que
+             esperam DECISÃO. O número aqui não é dívida, saldo, despesa nem
+             valor reservado: é a soma das regras que não rodaram, e a frase
+             abaixo dele é obrigada a dizer isso.
+             Ver docs/CONTRATO_COMPETENCIAS.md. -->
+        <div class="card" id="blocoPendencias" hidden>
+          <div class="lente">
+            <div class="card-h">
+              <h2>Competências pendentes</h2>
+              <button class="btn" id="pdAplicarSel" hidden>Aplicar selecionadas</button>
+            </div>
+            <p class="hint" id="pdResumo"></p>
+            <div id="pdLista" class="pend-lista"></div>
+          </div>
+        </div>
+
         <div id="listaMetas"></div>
       </div>
     </section>
@@ -1066,6 +1085,29 @@
   </form>
 </dialog>
 
+<!-- ================================================ regularizar competência
+     NADA SURPRESA: antes de confirmar, a pessoa vê meta, competência, quanto
+     a regra pedia, quanto há disponível HOJE e quanto será reservado agora.
+     Com várias, a simulação é SEQUENCIAL -- o disponível é descontado a cada
+     uma, e nunca regra vezes número de meses. -->
+<dialog id="dlgCompetencias">
+  <div class="dlg-h"><h2 id="cmpTitulo">Aplicar competências</h2><button type="button" class="btn ghost" data-fechar="dlgCompetencias" aria-label="Fechar"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M18 6L6 18M6 6l12 12"/></svg></button></div>
+  <div class="formgrid">
+    <div class="full fatura-saldo">
+      <div><span class="rot">Disponível hoje</span><b id="cmpDisponivel">—</b></div>
+      <div><span class="rot">Será reservado</span><b id="cmpTotal">—</b></div>
+    </div>
+    <div class="full" id="cmpLinhas"></div>
+    <p class="hint full" id="cmpAviso"></p>
+    <p class="hint full" id="cmpErro" role="alert" hidden></p>
+  </div>
+  <div class="dlg-f">
+    <span style="flex:1"></span>
+    <button type="button" class="btn" data-fechar="dlgCompetencias">Cancelar</button>
+    <button type="button" class="btn primary" id="cmpConfirmar">Confirmar</button>
+  </div>
+</dialog>
+
 <!-- =========================================================== alocação
      Reservar e liberar são a MESMA operação com sinais diferentes. Nenhuma
      das duas cria transação nem mexe em saldo de conta. -->
@@ -1087,6 +1129,7 @@
         <input id="al_obs" autocomplete="off"></div>
     </div>
     <p class="hint full" id="alAviso"></p>
+    <div class="full" id="alAutomacao"></div>
     <div class="full" id="alHistorico"></div>
     <p class="hint full" id="alErro" role="alert" hidden></p>
   </div>
@@ -1599,6 +1642,7 @@ import { ligaTelasV2, carregaV2, renderV2, atualizaFiltrosDeTela, V2,
   from "./js/ui/v2-screens.js";
 import { proximaAVencer, vencidas } from "./js/domain/cards.js";
 import { indicadoresDeMetas, capacidadeMensal, proximaMeta } from "./js/domain/goals.js";
+import { resumoDePendencias } from "./js/domain/competencias.js";
 import { indicadoresDeAssinaturas, proximasCobrancas } from "./js/domain/subscriptions.js";
 import { chaveDe, resumoDoMes } from "./js/domain/reconciliation.js";
 
@@ -2519,6 +2563,18 @@ function renderBlocosDoPainel(){
     linhaProx.hidden = !prox;
     if (prox) linhaProx.textContent =
       "Mais próxima: " + prox.nome + ", " + money(prox.falta) + " até " + diaLegivel(prox.prazo) + ".";
+
+    /* A ÚNICA coisa que o Painel diz sobre competências pendentes: QUANTAS
+       decisões esperam. Sem valor, de propósito -- um número em reais aqui
+       seria lido como dinheiro devido, e pendência de regra não é passivo.
+       Quem mostra o total planejado é a tela de Metas, com a frase que
+       explica o que ele é. */
+    const pend = resumoDePendencias(V2.metas, V2.alocacoes, V2.decisoes, HOJE);
+    const linhaPend = $("pbPendencias");
+    linhaPend.hidden = pend.quantas === 0;
+    if (pend.quantas) linhaPend.textContent = pend.quantas === 1
+      ? "1 reserva de meta aguardando decisão."
+      : pend.quantas + " reservas de metas aguardando decisão.";
 
     const aviso = $("pbMetas");
     /* Três avisos, e um de cada vez, na ordem em que doem: dinheiro prometido

@@ -96,13 +96,37 @@ export const fechaServidor = () => servidor.close();
 /* --------------------------------------------------------------- dublê --*/
 
 const DUBLE = `
-const T = { instituicoes:[], contas:[], categorias:[], transacoes:[], liquidacoes:[],
-            metas:[], alocacoes_de_meta:[],
+const VAZIO = { instituicoes:[], contas:[], categorias:[], transacoes:[], liquidacoes:[],
+            metas:[], alocacoes_de_meta:[], competencias_de_regra:[],
             cartoes:[], faturas:[], compras_de_cartao:[], assinaturas:[],
             dividas:[], fixas:[], credores:[], receitas:[], pagamentos:[], fixas_mes:[], config:[] };
-let seq = 0;
-const uid = () => "id-" + (++seq);
+
+/* O DUBLE SOBREVIVE A UM RELOAD, e precisa sobreviver: sem isto nao da para
+   testar "recarregue e veja que a decisao persiste", que e metade do contrato
+   de competencias -- uma competencia ignorada que voltasse depois do F5 seria
+   o defeito, e o teste nao conseguiria nem chegar la.
+   sessionStorage e por aba e morre com ela, entao um teste nao contamina o
+   seguinte. Cada aba nova comeca vazia, como antes. */
+const CHAVE = "__duble__";
+let T, seq = 0;
+try {
+  const bruto = sessionStorage.getItem(CHAVE);
+  const salvo = bruto ? JSON.parse(bruto) : null;
+  T = salvo ? { ...VAZIO, ...salvo.T } : { ...VAZIO };
+  seq = salvo ? salvo.seq : 0;
+} catch { T = { ...VAZIO }; }
+
+const salva = () => {
+  try { sessionStorage.setItem(CHAVE, JSON.stringify({ T, seq })); } catch {}
+};
+const uid = () => { const id = "id-" + (++seq); salva(); return id; };
 globalThis.__T = T;
+globalThis.__salvaDuble = salva;
+/* Grava ANTES de a pagina sair. Assim vale para tudo -- insert, update, delete
+   e ate o que o proprio teste mexe direto em __T -- sem espalhar chamadas de
+   salvamento por cada caminho de escrita, que e onde uma acabaria esquecida. */
+addEventListener("beforeunload", salva);
+addEventListener("pagehide", salva);
 
 /* a view saldos_de_conta, recalculada como o Postgres faria:
    saldo_inicial + entradas realizadas − saídas realizadas */
@@ -181,7 +205,8 @@ function metasResolvidas(){
              meses_ate_prazo: meses,
              /* a regra vem CRUA da tabela: a view so repassa as duas colunas */
              regra_valor: m.regra_valor == null ? null : Number(m.regra_valor),
-             regra_ativa: m.regra_ativa === true };
+             regra_ativa: m.regra_ativa === true,
+             regra_desde: m.regra_desde || null };
   });
 }
 
@@ -495,44 +520,126 @@ export function createClient(){
          tetos e o limite do alvo, porque e exatamente isso que a tela nao
          pode decidir sozinha: se ele alocasse a regra inteira sempre, a tela
          concordaria com um banco que recusa. */
-      if (nome === "aplica_regra_de_meta"){
-        const m = T.metas.find(x => x.id === a.p_meta);
-        if (!m) return Promise.resolve({ data:null, error:{ message:"meta: não encontrada" } });
-        if (!m.regra_ativa) return Promise.resolve({ data:null,
-          error:{ message:"meta: esta meta não tem regra mensal ligada" } });
-        if (m.status !== "ativa") return Promise.resolve({ data:null,
-          error:{ message:"meta: só meta ativa reserva por regra" } });
-
-        const jaAplicada = T.alocacoes_de_meta.some(x =>
-          x.meta_id === a.p_meta && x.competencia === a.p_competencia && x.origem === "regra");
+      /* o mes corrente, na mesma regua do app */
+      const mesDeHoje = () => { const d = new Date();
+        return d.getFullYear() + "-" + String(d.getMonth()+1).padStart(2,"0"); };
+      const disponivelDeAgora = () => {
         const livre = saldos().filter(s => {
           const c = T.contas.find(x => x.id === s.conta_id);
           return !c || (c.liquidez || "livre") === "livre";
         }).reduce((s,x) => s + Number(x.saldo), 0);
         const reservado = T.alocacoes_de_meta.reduce((s,x) => s + Number(x.valor), 0);
-        const disponivel = Math.round((livre - reservado) * 100) / 100;
-        const vazio = (al) => ({ data:[{ alocado:0, ja_aplicada:al, disponivel }], error:null });
+        return Math.round((livre - reservado) * 100) / 100;
+      };
+      /* APLICAR UMA COMPETENCIA, espelhando a 017. O duble reproduz as recusas
+         de VIGENCIA, de competencia FUTURA e de competencia ja DECIDIDA: sem
+         elas a tela concordaria com um banco que recusa. */
+      const aplicaUma = (metaId, comp) => {
+        const m = T.metas.find(x => x.id === metaId);
+        if (!m) return { erro:"meta: não encontrada" };
+        if (!m.regra_ativa) return { erro:"meta: esta meta não tem regra mensal ligada" };
+        if (m.status !== "ativa") return { erro:"meta: só meta ativa reserva por regra" };
+        if (!m.regra_desde || comp < m.regra_desde) return { erro:"meta: a regra não valia em " + comp };
+        if (comp > mesDeHoje()) return { erro:"meta: não dá para reservar uma competência futura" };
+        if (T.competencias_de_regra.some(c => c.meta_id === metaId && c.competencia === comp))
+          return { erro:"meta: a competência " + comp + " já foi decidida" };
 
-        if (jaAplicada) return Promise.resolve(vazio(true));
-        if (!(disponivel > 0)) return Promise.resolve(vazio(false));
-        const naMeta = T.alocacoes_de_meta.filter(x => x.meta_id === a.p_meta)
+        const jaAplicada = T.alocacoes_de_meta.some(x =>
+          x.meta_id === metaId && x.competencia === comp && x.origem === "regra");
+        const disponivel = disponivelDeAgora();
+        if (jaAplicada) return { alocado:0, ja_aplicada:true, disponivel };
+        if (!(disponivel > 0)) return { alocado:0, ja_aplicada:false, disponivel };
+        const naMeta = T.alocacoes_de_meta.filter(x => x.meta_id === metaId)
                         .reduce((s,x) => s + Number(x.valor), 0);
         /* nem acima do disponivel, nem acima do que falta para o alvo */
         const quanto = Math.min(Number(m.regra_valor), disponivel,
                                 Math.max(0, Number(m.valor_alvo) - naMeta));
-        if (!(quanto > 0)) return Promise.resolve(vazio(false));
-        T.alocacoes_de_meta.push({ id:uid(), user_id:"u1", meta_id:a.p_meta,
-          valor:quanto, data:a.p_competencia + "-01", competencia:a.p_competencia,
-          origem:"regra", obs:"Regra mensal" });
-        return Promise.resolve({ data:[{ alocado:quanto, ja_aplicada:false, disponivel }], error:null });
+        if (!(quanto > 0)) return { alocado:0, ja_aplicada:false, disponivel };
+        T.alocacoes_de_meta.push({ id:uid(), user_id:"u1", meta_id:metaId,
+          valor:quanto, data:comp + "-01", competencia:comp,
+          origem:"regra", obs:"Regra mensal",
+          /* o CONGELAMENTO: quanto a regra pedia neste instante */
+          valor_planejado:Number(m.regra_valor),
+          criado_em:new Date().toISOString() });
+        return { alocado:quanto, ja_aplicada:false, disponivel };
+      };
+      /* a ordem determinIstica da 017: prioridade, prazo, criado_em, id */
+      const ordemDasMetas = (a1, b1) => {
+        const pa = Number(a1.prioridade ?? 2), pb = Number(b1.prioridade ?? 2);
+        if (pa !== pb) return pa - pb;
+        if (!a1.prazo && b1.prazo) return 1;
+        if (a1.prazo && !b1.prazo) return -1;
+        if (a1.prazo && b1.prazo){ const d = String(a1.prazo).localeCompare(String(b1.prazo));
+          if (d) return d; }
+        return String(a1.id).localeCompare(String(b1.id));
+      };
+
+      if (nome === "aplica_regra_de_meta"){
+        const r = aplicaUma(a.p_meta, a.p_competencia);
+        if (r.erro) return Promise.resolve({ data:null, error:{ message:r.erro } });
+        return Promise.resolve({ data:[r], error:null });
+      }
+      /* A AUTOMACAO: so a competencia atual, nunca o passado. */
+      if (nome === "aplica_regras_da_competencia"){
+        const comp = a.p_competencia || mesDeHoje();
+        if (comp !== mesDeHoje()) return Promise.resolve({ data:null,
+          error:{ message:"meta: a automação só roda na competência atual" } });
+        const alvos = T.metas.filter(m => m.regra_ativa && m.status === "ativa"
+          && m.regra_desde && m.regra_desde <= comp
+          && !T.alocacoes_de_meta.some(x => x.meta_id === m.id && x.competencia === comp && x.origem === "regra")
+          && !T.competencias_de_regra.some(c => c.meta_id === m.id && c.competencia === comp))
+          .slice().sort(ordemDasMetas);
+        const fora = [];
+        for (const m of alvos){
+          const r = aplicaUma(m.id, comp);
+          if (!r.erro) fora.push({ meta_id:m.id, alocado:r.alocado, ja_aplicada:r.ja_aplicada });
+        }
+        return Promise.resolve({ data:fora, error:null });
+      }
+      if (nome === "ignora_competencia_de_regra"){
+        const m = T.metas.find(x => x.id === a.p_meta);
+        if (!m) return Promise.resolve({ data:null, error:{ message:"meta: não encontrada" } });
+        if (m.regra_valor == null) return Promise.resolve({ data:null,
+          error:{ message:"meta: esta meta não tem regra mensal" } });
+        if (!m.regra_desde || a.p_competencia < m.regra_desde) return Promise.resolve({ data:null,
+          error:{ message:"meta: a regra não valia em " + a.p_competencia } });
+        if (T.alocacoes_de_meta.some(x => x.meta_id === a.p_meta
+              && x.competencia === a.p_competencia && x.origem === "regra"))
+          return Promise.resolve({ data:null,
+            error:{ message:"meta: a competência " + a.p_competencia + " já foi aplicada" } });
+        if (!T.competencias_de_regra.some(c => c.meta_id === a.p_meta && c.competencia === a.p_competencia))
+          T.competencias_de_regra.push({ id:uid(), user_id:"u1", meta_id:a.p_meta,
+            competencia:a.p_competencia, situacao:"ignorada",
+            valor_planejado:Number(m.regra_valor), decidida_em:new Date().toISOString() });
+        return Promise.resolve({ data:true, error:null });
+      }
+      /* REGULARIZAR EM LOTE: sequencial, e o erro de uma nao derruba as outras */
+      if (nome === "regulariza_competencias"){
+        const itens = Array.isArray(a.p_itens) ? a.p_itens : [];
+        const comMeta = itens.map(i => ({ ...i, m: T.metas.find(x => x.id === i.meta_id) }))
+          .filter(i => i.m)
+          .sort((x, y) => ordemDasMetas(x.m, y.m)
+            || String(x.competencia).localeCompare(String(y.competencia)));
+        const fora = [];
+        for (const i of comMeta){
+          const r = aplicaUma(i.meta_id, i.competencia);
+          fora.push({ meta_id:i.meta_id, competencia:i.competencia,
+            alocado:r.erro ? 0 : r.alocado, erro:r.erro || null });
+        }
+        return Promise.resolve({ data:fora, error:null });
       }
       /* Desfazer APAGA a linha da regra daquele mes, e so ela. As manuais
          ficam: elas nao vieram da regra. */
       if (nome === "desfaz_regra_de_meta"){
-        const antes = T.alocacoes_de_meta.length;
+        const antes = T.alocacoes_de_meta.length + T.competencias_de_regra.length;
         T.alocacoes_de_meta = T.alocacoes_de_meta.filter(x => !(
           x.meta_id === a.p_meta && x.competencia === a.p_competencia && x.origem === "regra"));
-        return Promise.resolve({ data: T.alocacoes_de_meta.length < antes, error:null });
+        /* a decisao vai junto: desfazer devolve a competencia a PENDENTE, e
+           deixa-la ignorada seria devolver a um estado que ninguem escolheu */
+        T.competencias_de_regra = T.competencias_de_regra.filter(c => !(
+          c.meta_id === a.p_meta && c.competencia === a.p_competencia));
+        return Promise.resolve({ data:
+          T.alocacoes_de_meta.length + T.competencias_de_regra.length < antes, error:null });
       }
       if (nome === "estorna_transacao"){
         const o = T.transacoes.find(x => x.id === a.p_transacao);

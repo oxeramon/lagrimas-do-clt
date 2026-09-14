@@ -30,6 +30,13 @@ export const V2 = {
      tela: é ele que o gatilho usa para decidir o que aceitar, e dois
      cálculos diferentes discordariam. */
   metas: [], alocacoes: [], saldoLivre: 0,
+  /* as decisões sobre competências da regra. Sem elas não dá para distinguir
+     "ignorada" de "pendente" -- `docs/CONTRATO_COMPETENCIAS.md`. */
+  decisoes: [],
+  /* A automação da competência atual roda UMA VEZ por carga do app, e este
+     é o ferrolho. Ela não pode depender de a pessoa abrir a aba de Metas:
+     se a regra é automática, tem que funcionar com o app aberto no Início. */
+  regrasDoMesRodaram: false,
   /* A SOBRA DO MÊS, publicada pelo Painel. Ela nasce da V1 (compromissos e
      receitas do mês), que mora no `index.html`, e as telas da V2 precisam dela
      para falar de capacidade -- `docs/CONTRATO_SOBRA.md`.
@@ -50,6 +57,10 @@ export async function carregaV2(){
   const [t] = await Promise.all([
     carregaTransacoesDoMes(), carregaLiquidacoes(), carregaCartoesEFaturas(),
     carregaAssinaturas(), carregaGruposEsaldos(), carregaMetasEAlocacoes()]);
+  /* DEPOIS das metas estarem em memória, e antes de qualquer tela desenhar.
+     Aqui, e não na tela de Metas: a regra é automática, então tem que rodar
+     com o app aberto no Início. */
+  await rodaRegrasDoMes();
   return t;
 }
 
@@ -99,14 +110,50 @@ export async function carregaAssinaturas(){
 export async function carregaMetasEAlocacoes(){
   const r = await v2.carregaMetas();
   if (r.erro){
-    V2.metas = []; V2.alocacoes = []; V2.saldoLivre = 0;
+    V2.metas = []; V2.alocacoes = []; V2.decisoes = []; V2.saldoLivre = 0;
     console.warn("metas indisponíveis:", r.erro);
   } else {
     V2.metas = r.dados.metas;
     V2.alocacoes = r.dados.alocacoes;
+    V2.decisoes = r.dados.decisoes;
     V2.saldoLivre = r.dados.saldoLivre;
   }
   return { erro: null };
+}
+
+/* A AUTOMAÇÃO DA COMPETÊNCIA ATUAL.
+ *
+ * Roda uma vez por carga do app, depois de sessão válida e de as metas
+ * estarem em memória. Só o mês corrente: competência passada nunca é aplicada
+ * sem alguém confirmar, e quem garante isso é a própria função do banco, que
+ * recusa qualquer competência que não seja a de hoje.
+ *
+ * O FERROLHO É POR CARGA, não por sessão gravada em lugar nenhum. Recarregar
+ * a página roda de novo, e isso é de propósito: quando não há disponível,
+ * NADA acontece -- nenhuma linha nasce, nenhuma some -- e a tentativa seguinte
+ * é a chance de o dinheiro ter entrado no dia 20. A idempotência de verdade
+ * mora no índice único da 016, não neste booleano.
+ *
+ * FALHAR AQUI NÃO DERRUBA NADA e não marca competência como resolvida: o erro
+ * vai para o console e a próxima carga tenta de novo. Meia operação não existe
+ * -- a função do banco é uma transação só.
+ */
+export async function rodaRegrasDoMes(){
+  if (V2.regrasDoMesRodaram) return { erro: null, dados: [] };
+  if (!(V2.metas || []).some((m) => m.regraAtiva)) {
+    V2.regrasDoMesRodaram = true;
+    return { erro: null, dados: [] };
+  }
+  const r = await v2.aplicaRegrasDoMes(null);
+  if (r.erro){
+    console.warn("regras do mês não rodaram:", r.erro);
+    return { erro: r.erro, dados: [] };
+  }
+  V2.regrasDoMesRodaram = true;
+  /* alocou alguma coisa? então metas e saldo em memória estão velhos */
+  const alocou = r.dados.some((x) => Number(x.alocado) > 0);
+  if (alocou) await carregaMetasEAlocacoes();
+  return { erro: null, dados: r.dados };
 }
 
 export async function carregaGruposEsaldos(){
