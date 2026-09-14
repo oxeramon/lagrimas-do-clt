@@ -204,6 +204,10 @@ function metasResolvidas(){
              percentual: Math.min(Math.round(reservado * 100 / Number(m.valor_alvo)), 100),
              meses_ate_prazo: meses,
              /* a regra vem CRUA da tabela: a view so repassa as duas colunas */
+             /* as TRES colunas de regra, como a view do banco devolve depois
+                da 018. O dublê tinha esta terceira antes de o banco ter, e foi
+                por isso que ele escondeu o defeito: duble escrito a partir do
+                modelo mente quando o modelo e o catalogo discordam. */
              regra_valor: m.regra_valor == null ? null : Number(m.regra_valor),
              regra_ativa: m.regra_ativa === true,
              regra_desde: m.regra_desde || null };

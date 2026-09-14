@@ -324,6 +324,22 @@ select pg_temp.confere(35,'e a decisão de outra pessoa não é visível',
     where meta_id='55550009-0000-4000-8000-000000000009'), 0::bigint);
 
 -- ---------------------------------------------------------------------
+-- 45 · A VIEW EXPÕE O QUE O DOMÍNIO CONSOME
+-- ---------------------------------------------------------------------
+-- O caso que faltava, e que custou a migração 018: a 017 acrescentou
+-- `metas.regra_desde` e não recriou `metas_resolvidas`. O app lê a VIEW, não
+-- a tabela, então `regraDesde` chegava `undefined` na tela, `regraVigente()`
+-- respondia `false` para toda meta, e nenhuma pendência aparecia -- sem erro
+-- nenhum, que é o pior tipo de defeito.
+--
+-- O dublê dos testes de navegador não pegou porque foi escrito a partir do
+-- MODELO e não do catálogo: ele devolvia a coluna que o banco não tinha.
+select pg_temp.confere(45,'a view de metas expõe as três colunas da regra',
+  (select count(*) from information_schema.columns
+    where table_schema='public' and table_name='metas_resolvidas'
+      and column_name in ('regra_valor','regra_ativa','regra_desde')), 3::bigint);
+
+-- ---------------------------------------------------------------------
 -- 36..39 · ANON NÃO EXECUTA NADA DISSO
 -- ---------------------------------------------------------------------
 set local role anon;
