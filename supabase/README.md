@@ -5,7 +5,7 @@ Qual arquivo é o quê, e em que ordem eles entram.
 | Pasta ou arquivo | Papel |
 |---|---|
 | `bootstrap/` | **Instalação do zero.** `schema.sql` põe o banco inteiro num projeto Supabase vazio; `seed.sql` é carga de exemplo opcional; `inventario-esperado.txt` é como o banco deve ficar. O passo a passo está no `bootstrap/README.md` |
-| `migrations/` | **O registro do que já rodou**, 001 a 016. Migração aplicada é imutável, comentário incluído. O que cada uma fez está em `../docs/MIGRACOES.md` |
+| `migrations/` | **O registro do que já rodou**, 001 a 019. Migração aplicada é imutável, comentário incluído. O que cada uma fez está em `../docs/MIGRACOES.md` |
 | `testes/` | **Suítes que rodam no banco de verdade**, uma por migração que mudou regra de modelo, mais `isolamento.sql`, que varre o banco inteiro. Abrem em `begin` e fecham em `rollback`: não gravam nada |
 | `../supabase-setup.sql` | **A V1, histórico.** Instala oito das vinte e quatro tabelas. Não serve para instalar um banco novo, e fica onde está por ser o registro de como o banco começou |
 

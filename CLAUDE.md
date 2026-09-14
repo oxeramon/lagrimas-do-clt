@@ -79,9 +79,9 @@ completo, está em `.claude/skills/public-repo-hygiene/SKILL.md`. A auditoria é
 | O que vai ao ar | **só o artefato**: `index.html`, `css/*.css`, `js/**/*.js`. `docs/`, `supabase/`, `testes/`, `.claude/` e `ferramentas/` ficam no repositório e NÃO são publicados — ver `docs/PUBLICACAO.md` |
 | Projeto Supabase | região São Paulo; a URL e a chave publicável ficam no topo do `<script type="module">` do `index.html`, que é a fonte para qualquer coisa que precise delas |
 
-Estrutura do banco: **24 tabelas e 6 views**, todas com RLS ligada e 24
+Estrutura do banco: **25 tabelas e 6 views**, todas com RLS ligada e 25
 policies — `ping` sem trigger, como sempre. As views rodam com
-`security_invoker`. **Dezesseis migrações** já rodaram, e o registro do que cada
+`security_invoker`. **Dezenove migrações** já rodaram, e o registro do que cada
 uma fez está em `docs/MIGRACOES.md`.
 
 Todas as tabelas da V2 estão ligadas a alguma tela. `ferramentas/confere-migracoes.mjs`
@@ -183,7 +183,7 @@ Nada acontece automaticamente: transação solta não marca compromisso, marcar
 pago no quadradinho não cria transação, e a ligação só existe quando a pessoa
 usa "Pagar" ou "Receber".
 
-**Cinco contratos governam o que pode ser somado**, e cada um foi escrito
+**Seis contratos governam o que pode ser somado**, e cada um foi escrito
 antes do SQL correspondente:
 
 | Contrato | A frase |
@@ -193,6 +193,7 @@ antes do SQL correspondente:
 | `docs/CONTRATO_ESTORNO.md` | transação com vínculo estrutural não se estorna, se desfaz |
 | `docs/CONTRATO_METAS.md` | meta é envelope: ela não cria dinheiro nem muda saldo |
 | `docs/CONTRATO_SOBRA.md` | saldo é estoque, sobra é fluxo, e os dois nunca se somam |
+| `docs/CONTRATO_COMPETENCIAS.md` | a competência atual roda sozinha; as passadas esperam decisão |
 | a 011 | assinatura é REGRA, ocorrência é EVENTO com DATA própria |
 
 **Quatro invariantes viraram teste permanente**, e mexer em cálculo sem
@@ -369,7 +370,7 @@ ferramentas/reconstroi.sh --i-know-this-is-disposable
 ```
 Levanta um banco descartável, aplica `supabase/bootstrap/schema.sql` do zero,
 confere o inventário estrutural contra `inventario-esperado.txt` e roda as
-treze suítes de `supabase/testes/` -- 415 casos. É a prova de que o bootstrap
+catorze suítes de `supabase/testes/` -- 460 casos. É a prova de que o bootstrap
 reconstrói o banco, e não só de que o arquivo parece certo. **Rode depois de
 qualquer migração nova**, junto com o passo 4 da seção "Reconstruir o banco do
 zero".

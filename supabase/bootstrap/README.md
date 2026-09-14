@@ -38,7 +38,7 @@ SQL Editor → cole `schema.sql` inteiro → Run.
 A última coisa que ele imprime é a conferência:
 
 ```
-NOTICE: Banco pronto: 24 tabelas, 6 views, 39 funções, 31 gatilhos, 24 policies, RLS em todas.
+NOTICE: Banco pronto: 25 tabelas, 6 views, 43 funções, 32 gatilhos, 25 policies, RLS em todas.
 ```
 
 Se aparecer erro no meio, o banco ficou pela metade. Não tente emendar: apague
@@ -83,7 +83,7 @@ node ferramentas/confere-schema.mjs /caminho/do/inventario.txt
 Esperado:
 
 ```
-referência: 1418 linhas · banco: 1418 linhas
+referência: 1473 linhas · banco: 1473 linhas
 extensões de plataforma (diferença esperada, não é defeito): pg_stat_statements, pgcrypto, supabase_vault, uuid-ossp
 o contrato bate: nenhuma diferença estrutural.
 ```
@@ -103,7 +103,7 @@ toda função — e é o que prova que ninguém enxerga o dado de ninguém.
 
 ---
 
-## A prova, medida em 14/09/2026 (com a 016 aplicada)
+## A prova, medida em 14/09/2026 (com a 019 aplicada)
 
 O `schema.sql` não foi escrito de memória: foi lido do catálogo do banco em uso
 e reescrito em ordem de dependência. O que fecha o argumento é ter rodado o
@@ -111,23 +111,31 @@ arquivo num Postgres vazio e comparado os dois lados com a mesma régua.
 
 | | banco em uso | reconstruído do zero |
 |---|---|---|
-| linhas do inventário | 1422 | 1418 |
-| md5 de tudo | `5df38c4af01b4bc851c4a0a5b2eca9f0` | `eb2f46b6dad5e82074b11ea3a8c83bc3` |
+| linhas do inventário | 1477 | 1473 |
 
-Os dois hashes diferem, e a diferença é inteira das quatro linhas de extensão
-de plataforma. O que prova isso é a comparação **seção a seção**: as treze
-seções comparáveis batem md5 por md5, e é onde a coisa toda de fato mora.
+Os totais diferem em quatro linhas, e são as quatro extensões de plataforma. O
+que prova isso é a comparação **seção a seção**: as treze seções comparáveis
+batem md5 por md5, e é onde a coisa toda de fato mora.
 
 | seção | linhas | md5, nos dois lados |
 |---|---|---|
-| COL colunas | 244 | `cc1ee203…` |
-| CON constraints | 200 | `492c870da02db761a66ab767951137bb` |
-| IDX índices | 50 | `d03d866d0c098f41a13a0d9779d6dc23` |
-| FN assinatura de função | 39 | `6ee277e5204b61e0639301c26d361e02` |
-| FNBODY corpo de função | 39 | `4de03c1205fa9d94ee2b6cbb020da11d` |
-| GFN permissão de função | 117 | `1a3ac180026d9b17636391cafd0e4426` |
-| GTAB permissão de tabela | 630 | `0dcf0333…` |
-| TAB · POL · TRG · VIEW · VIEWDEF · CMT | 24 · 24 · 31 · 6 · 6 · 8 | iguais |
+| COL colunas | 253 | `db79f91d6e604432250db0ff39561237` |
+| CON constraints | 211 | `cc16daf84e7a2d70ccbd9b4b0343ab33` |
+| IDX índices | 52 | `f4c8752764dec5e4234b1aeb9040238d` |
+| FN assinatura de função | 43 | `4a3cf210116cc25039e83fd08084425e` |
+| FNBODY corpo de função | 43 | `f8b42630fd687ffeb72799671ad73368` |
+| GFN permissão de função | 129 | `b4c5385a356364648e12db8658654071` |
+| GTAB permissão de tabela | 638 | `826112a9a4566d5af898a2847e6162de` |
+| POL policies | 25 | `8bab59b28ff6bedc40a00db48254b9e7` |
+| TAB tabelas | 25 | `dd13de2a7e797e4745bbec87be64d746` |
+| TRG gatilhos | 32 | `14eec099766ebff41a45d09b06a11d92` |
+| CMT · VIEW · VIEWDEF | 10 · 6 · 6 | iguais |
+
+**Foi esta tabela que achou três defeitos da rodada da 017**, e nenhum deles
+aparecia lendo o código: dois comentários que não tinham ido para o bootstrap,
+quatro corpos de função em que os comentários tinham sido reescritos na cópia,
+e um `execute` que a 017 deixou para `authenticated` numa função de gatilho --
+este último no BANCO, e consertado pela 019.
 
 Colunas, chaves, índices, definição de view, corpo de função, gatilho, policy e
 permissão por papel: tudo igual dos dois lados. As quatro linhas de diferença
@@ -136,14 +144,14 @@ que nenhuma migração deste projeto cria.
 
 E a conferência não é só de hash: `ferramentas/reconstroi.sh` roda o inventário
 linha a linha contra `inventario-esperado.txt` e, no mesmo banco recém-criado,
-as treze suítes de `../testes/`.
+as catorze suítes de `../testes/`.
 
 ```
 == inventário estrutural
-referência: 1418 linhas · banco: 1418 linhas
+referência: 1473 linhas · banco: 1473 linhas
 o contrato bate: nenhuma diferença estrutural.
 == suítes de SQL
-415 casos, 0 falhas
+460 casos, 0 falhas
 ```
 
 Uma ressalva honesta: o Postgres descartável rodou a **16.13**, e o projeto em

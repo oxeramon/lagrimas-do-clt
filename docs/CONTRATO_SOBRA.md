@@ -184,7 +184,7 @@ Uma meta pode ter uma regra: *reservar R$ X por mês*.
 | | |
 |---|---|
 | Cria transação? | **Não.** Alocar não é movimento. Vale o contrato de Metas inteiro |
-| Roda sozinha? | **Não.** Quem dispara é a pessoa, pela tela. Não há agendador |
+| Roda sozinha? | **Na competência atual, sim**, quando o app abre. No passado, nunca: vira pendência e espera decisão (`CONTRATO_COMPETENCIAS.md`) |
 | Duas vezes na mesma competência? | **Uma alocação só.** Garantido pelo banco, não por `if` de tela |
 | Reversível? | **Sim.** Liberar é uma linha de valor negativo, como qualquer alocação |
 | Rastreável? | **Sim.** A alocação nasce marcada como vinda de regra, com a competência |
@@ -232,8 +232,10 @@ ela é a resposta: no cartão da meta e no bloco de Metas do Painel.
 
 - **Sobra de meses futuros.** A projeção de vários meses é outra tela
   (Projeção) e outro contrato. Aqui a sobra é a do mês em foco.
-- **Regra que dispara sozinha.** Sem agendador, a regra é aplicada quando a
-  pessoa manda. Automatizar exige decidir o que acontece com meses passados
-  não aplicados, e essa decisão não foi tomada.
+- ~~**Regra que dispara sozinha.**~~ Resolvido em `CONTRATO_COMPETENCIAS.md`:
+  a competência atual roda na abertura do app, e a decisão que faltava -- o que
+  fazer com os meses passados não aplicados -- é o Modelo C. Eles viram
+  pendência e esperam confirmação. Continua sem agendador: a automação
+  acontece quando a pessoa usa o app.
 - **Meta que gasta de dentro de si.** Continua como está: quando a compra
   acontece, é uma transação normal, e a meta se conclui à mão.

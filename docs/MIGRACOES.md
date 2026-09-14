@@ -22,6 +22,9 @@ em ordem. Este arquivo é o registro; o SQL é a fonte.
 | `20260913172346` | `../supabase/migrations/014_v2_metas.sql` | 13/09/2026 | **aplicada** |
 | `20260913222813` | `../supabase/migrations/015_v2_ownership_hardening.sql` | 13/09/2026 | **aplicada** |
 | `20260914164057` | `../supabase/migrations/016_v2_regra_de_alocacao.sql` | 14/09/2026 | **aplicada** |
+| `20260914185552` | `../supabase/migrations/017_v2_competencias_da_regra.sql` | 14/09/2026 | **aplicada** |
+| — | `../supabase/migrations/018_v2_vigencia_na_view.sql` | 14/09/2026 | **aplicada** · conserta o esquecimento da 017 |
+| — | `../supabase/migrations/019_v2_grant_do_gatilho_da_017.sql` | 14/09/2026 | **aplicada** · conserta o grant da 017 |
 
 **Migração aplicada não se edita.** Quando o arquivo e o banco discordam, some
 a única fonte confiável sobre o que rodou. Conserto vira migração nova, e é por
@@ -698,12 +701,65 @@ arquivos que precisam escrevê-lo, e um documento de prosa não precisa.
 A suíte `016_regra.sql` tem 31 casos. O rebuild do zero fecha em 415 casos de
 SQL, 0 falhas, com o inventário batendo linha a linha.
 
+## 017 · competências da regra, e o Modelo C
+
+A pergunta: a regra de 500 por mês ficou três meses sem rodar. O que o app faz
+quando a pessoa volta?
+
+**Não reserva 1.500.** A competência atual roda sozinha; as passadas viram
+pendência e esperam decisão. O contrato inteiro está em
+`CONTRATO_COMPETENCIAS.md`, escrito antes do SQL.
+
+**Três coisas viraram estado, e só elas**, porque são as três que não se
+derivam: `metas.regra_desde` (a vigência da regra),
+`alocacoes_de_meta.valor_planejado` (quanto a regra pedia no instante da
+aplicação) e a tabela `competencias_de_regra` (a decisão de ignorar).
+
+"Aplicada" continua sendo a existência da alocação. "Pendente" continua sendo a
+AUSÊNCIA de decisão. "Faltou" continua sendo a subtração. E `criado_em` já
+existia: competência não é data de aplicação, e isso não precisou de coluna.
+
+**Três funções novas.** `aplica_regras_da_competencia` é a automação, e recusa
+qualquer competência que não seja a de hoje -- é essa recusa que impede a
+aplicação retroativa sem consentimento. `ignora_competencia_de_regra` grava a
+decisão. `regulariza_competencias` aplica uma lista em sequência e devolve o
+resultado linha a linha, inclusive o erro de uma sem derrubar as outras.
+
+As duas funções da 016 foram **redefinidas** por `create or replace`, caminho
+da 003 e da 013: o arquivo da 016 continua imutável e continua sendo o registro
+do que ela fez.
+
+**Concorrência:** `pg_advisory_xact_lock` por usuário nas duas funções de lote,
+somado ao índice único parcial que a 016 já tinha.
+
+Suíte `017_competencias.sql`, 45 casos. Onze mutações conferidas; duas
+sobreviventes eram buraco de teste e viraram casos novos, e uma é mutante
+equivalente, registrado como tal.
+
+## 018 e 019 · o que a 017 esqueceu
+
+Duas migrações curtas, e as duas existem porque **conserto de migração
+aplicada vira migração nova**.
+
+**018.** A 017 acrescentou `metas.regra_desde` e não recriou
+`metas_resolvidas`. O app lê a VIEW: `regraDesde` chegaria `undefined`,
+`regraVigente()` responderia `false` para toda meta, e nenhuma pendência
+apareceria -- sem erro nenhum. O dublê dos testes de navegador não pegou
+porque devolvia a coluna que o banco não tinha: dublê escrito a partir do
+modelo mente exatamente quando o modelo e o catálogo discordam.
+
+**019.** A 017 revogou `execute` da função de gatilho de `public` e `anon`, e
+esqueceu `authenticated` -- a lição da 012 aplicada pela metade. Chamar uma
+função de gatilho direto não faz nada, então não havia porta aberta; havia uma
+exceção silenciosa entre doze funções iguais. Quem pegou foi a comparação de
+inventário, não uma leitura de código.
+
 ## A 007 discordava do banco, e foi realinhada
 
 `ferramentas/confere-migracoes.mjs` acusava três linhas de comentário que
 estavam no arquivo e **não** no texto gravado em `schema_migrations`. Elas
 saíram do arquivo, e as migrações passaram a bater com o banco -- hoje as
-dezesseis, conferidas uma a uma.
+dezenove, conferidas uma a uma.
 
 Alinhar ARQUIVO ao banco não fere a regra de imutabilidade: fere quem faz o
 contrário. O banco é o registro do que rodou; o arquivo deveria ser a cópia
@@ -788,9 +844,9 @@ errado com cara de certo; até haver contrato, pagamento de fatura é integral.
 fechou o contrato e implementou tudo; falta só a tela, e ela não depende de
 mais nenhuma decisão.
 
-**A instalação do zero virou `supabase/bootstrap/`.** Com dezesseis migrações
+**A instalação do zero virou `supabase/bootstrap/`.** Com dezenove migrações
 aplicadas, `supabase-setup.sql` sozinho não reconstrói nada perto do banco
-inteiro, e a ordem "V1 mais dezesseis migrações" não estava escrita em lugar
+inteiro, e a ordem "V1 mais dezenove migrações" não estava escrita em lugar
 nenhum. `bootstrap/schema.sql` é o resultado daquela história, gerado do
 catálogo, e a conferência de que ele bate com o banco é
 `ferramentas/confere-schema.mjs`.

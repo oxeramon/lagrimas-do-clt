@@ -156,9 +156,13 @@ As duas decisões que faltavam, e que agora estão tomadas:
 - **uma alocação por competência**, garantida pelo índice único parcial da
   migração 016, e não por verificação de tela.
 
-O que continua **fora**: a regra não dispara sozinha. Não há agendador, e quem
-aplica é a pessoa, pelo botão. Automatizar exigiria decidir o que acontece com
-os meses passados que ninguém aplicou, e essa decisão não foi tomada.
+A regra **dispara sozinha na competência atual**, quando o app abre. No passado
+nunca: os meses não aplicados viram pendência e esperam confirmação -- é o
+Modelo C, e está inteiro em `CONTRATO_COMPETENCIAS.md`.
+
+O que continua **fora**: agendador. Não há cron nem função agendada, e a
+automação acontece quando a pessoa usa o app. O sistema registra as
+competências perdidas para quando ela voltar.
 
 O detalhe está em `CONTRATO_SOBRA.md`, "Alocação recorrente".
 
