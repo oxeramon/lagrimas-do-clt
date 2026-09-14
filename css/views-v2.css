@@ -194,26 +194,50 @@
 /* ==================================================================
    FOLHA · o "Mais" do celular e as operações rápidas
    ================================================================== */
+/* A folha é a TERCEIRA peça flutuante do app, e usa o mesmo vidro das outras
+   duas: `--vidro-face` e `--vidro-relevo`, os mesmos valores que a lateral e o
+   rodapé leem. Não é imitação de vidro, é o mesmo material.
+
+   E ela FLUTUA de verdade. Antes era uma faixa colada na borda de baixo, com
+   canto arredondado só em cima -- o que fazia sentido quando o rodapé também
+   era colado, e parou de fazer no dia em que ele passou a flutuar. A folga é
+   `--lateral-solta`, a mesma das outras duas: duas peças flutuantes na mesma
+   tela precisam flutuar igual, e a folha abre logo acima do rodapé.
+
+   O `env(safe-area-inset-bottom)` saiu do padding e foi para a folga: a peça
+   inteira sobe, em vez de crescer por dentro. */
 .folha{ border:none; padding:0; background:transparent; max-width:none; width:100%;
   margin:auto auto 0 }
-.folha::backdrop{ background:color-mix(in srgb, var(--pedra-900) 42%, transparent) }
+/* O escurecido atrás é mais LEVE desde que a folha virou vidro, e não é
+   detalhe: com 42% a página sumia, o desfoque ficava sem o que desfocar e a
+   peça lia como cartão leitoso. Vidro precisa de alguma coisa atrás para
+   parecer vidro -- foi a mesma descoberta da lateral, onde a luz ambiente
+   precisou ser inventada porque atrás dela só havia fundo chapado. */
+.folha::backdrop{ background:color-mix(in srgb, var(--pedra-900) 28%, transparent) }
 .folha .corpo{
-  background:var(--vidro); backdrop-filter:var(--desfoque);
+  margin:var(--lateral-solta);
+  margin-bottom:calc(var(--lateral-solta) + env(safe-area-inset-bottom));
+  background:var(--vidro-face);
+  backdrop-filter:var(--desfoque);
   -webkit-backdrop-filter:var(--desfoque);
-  border-top:1px solid var(--vidro-linha);
-  border-radius:var(--r-lg) var(--r-lg) 0 0;
-  padding:var(--e-5) var(--e-4) calc(var(--e-6) + env(safe-area-inset-bottom));
+  border:1px solid var(--vidro-linha);
+  border-radius:var(--raio-4);
+  box-shadow:var(--vidro-relevo), var(--sh-2);
+  padding:var(--e-4) var(--e-3) var(--e-4);
   animation:sobe var(--t-medio) var(--curva);
 }
 @keyframes sobe{ from{ transform:translateY(14px); opacity:0 } to{ transform:none; opacity:1 } }
-.folha .puxador{ width:36px; height:4px; border-radius:2px; background:var(--line-strong);
+.folha .puxador{ width:36px; height:4px; border-radius:2px; background:var(--vidro-linha);
   margin:0 auto var(--e-4) }
 .folha .opcoes{ display:grid; gap:var(--e-1) }
 .folha .opcoes button{ display:flex; align-items:center; gap:var(--e-3); width:100%;
-  padding:var(--e-3); border-radius:var(--r-sm); border:none; background:transparent;
+  padding:var(--e-3); border-radius:var(--nav-raio); border:none; background:transparent;
   color:var(--ink); font-size:14.5px; text-align:left; cursor:pointer }
-.folha .opcoes button:hover{ background:var(--surface-2) }
-.folha .opcoes button[aria-selected="true"]{ background:var(--brand-soft); color:var(--brand) }
+/* Os itens DENTRO do vidro, pela mesma razão da lateral: fundo OPACO aqui vira
+   adesivo colado na frente da placa -- o desfoque continua atrás, mas o item
+   não participa dele e a peça deixa de parecer um material só. */
+.folha .opcoes button:hover{ background:var(--vidro-brilho) }
+.folha .opcoes button[aria-selected="true"]{ background:var(--brand-vidro); color:var(--brand) }
 .folha .opcoes svg{ width:18px; height:18px; flex:none; fill:none; stroke:currentColor;
   stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round }
 

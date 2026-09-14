@@ -1677,6 +1677,84 @@ console.log("\ncampo com sugestão");
   await p.close();
 }
 
+/* ==================================================================
+   A FOLHA "MAIS" É O MESMO VIDRO DAS OUTRAS PEÇAS
+   ==================================================================
+   Três peças flutuam neste app: a lateral, o rodapé do celular e a folha
+   do "Mais". O contrato visual é que elas sejam o MESMO MATERIAL, e não
+   três imitações uma da outra -- por isso as três leem `--vidro-face` e
+   `--vidro-relevo` em vez de cada uma montar a sua pilha de camadas.
+
+   O QUE ISTO PEGA: alguém ajustar o vidro de uma e esquecer as outras.
+   Comparar os valores COMPUTADOS é o único jeito de cobrar isso: dois
+   `background-image` diferentes significam dois materiais, por mais que o
+   CSS pareça parecido lendo de olho.
+   ================================================================== */
+console.log("\nvidro da folha Mais");
+{
+  const { p, erros } = await abreApp(390);
+  await p.click("#navm-mais");
+  await p.waitForTimeout(400);
+
+  const v = await p.evaluate(() => {
+    const folha = getComputedStyle(document.querySelector(".folha .corpo"));
+    const rodape = getComputedStyle(document.querySelector(".rodapenav"));
+    const dlg = document.querySelector(".folha");
+    const c = document.querySelector(".folha .corpo").getBoundingClientRect();
+    const r = document.querySelector(".rodapenav").getBoundingClientRect();
+    return {
+      aberta: dlg.open,
+      /* o MESMO material: face e relevo idênticos */
+      mesmaFace: folha.backgroundImage === rodape.backgroundImage,
+      temFace: /gradient/.test(folha.backgroundImage),
+      temDesfoque: /blur/.test(folha.backdropFilter || folha.webkitBackdropFilter || ""),
+      temRelevo: /inset/.test(folha.boxShadow),
+      /* e a MESMA geometria de peça flutuante: folga igual dos dois lados */
+      folgaFolha: [Math.round(c.left), Math.round(innerWidth - c.right)],
+      folgaRodape: [Math.round(r.left), Math.round(innerWidth - r.right)],
+      /* canto arredondado nos QUATRO cantos: colada na borda ela tinha dois */
+      cantos: folha.borderTopLeftRadius === folha.borderBottomLeftRadius,
+      rolagem: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+    };
+  });
+
+  eq("a folha abre", v.aberta, true);
+  eq("ela usa a MESMA face de vidro que o rodapé", v.mesmaFace, true);
+  eq("e a face é a de camadas, não uma cor chapada", v.temFace, true);
+  eq("com desfoque do que está atrás", v.temDesfoque, true);
+  eq("e as bordas internas que dão espessura", v.temRelevo, true);
+  eq("flutua com a mesma folga do rodapé", v.folgaFolha, v.folgaRodape);
+  eq("e arredonda nos quatro cantos, não só em cima", v.cantos, true);
+  eq("sem rolagem lateral com a folha aberta", v.rolagem, 0);
+
+  /* Item selecionado DENTRO do vidro não pode ser fundo opaco: opaco vira
+     adesivo colado na frente da placa, e a peça deixa de parecer um material
+     só. Mesma regra da lateral. */
+  await p.evaluate(() => {
+    const b = document.querySelector(".folha .opcoes button");
+    b.setAttribute("aria-selected", "true");
+  });
+  const sel = await p.evaluate(() => {
+    const b = document.querySelector('.folha .opcoes button[aria-selected="true"]');
+    return getComputedStyle(b).backgroundColor;
+  });
+  /* DUAS FORMAS PARA A MESMA COISA: `color-mix` resolve para
+     `color(srgb r g b / a)` no Chromium, e não para `rgba(...)`. Cor OPACA
+     volta como `rgb(...)`, sem alfa nenhum -- então a pergunta certa é "tem
+     alfa, e ele é menor que 1?", em qualquer das duas escritas. Procurar só
+     por `rgba(` reprovava um valor que estava certo. */
+  const alfa = (cor) => {
+    const m = String(cor).match(/\/\s*([\d.]+)\s*\)/)      // color(srgb … / a)
+           || String(cor).match(/rgba\([^,]+,[^,]+,[^,]+,\s*([\d.]+)\)/);
+    return m ? Number(m[1]) : 1;
+  };
+  eq("o item selecionado é translúcido, não opaco", alfa(sel) < 1, true);
+  eq("e não é transparente a ponto de sumir", alfa(sel) > 0.1, true);
+
+  eq("nenhum erro de JavaScript na folha", erros, []);
+  await p.close();
+}
+
 console.log("\nrolagem lateral");
 {
   const { p } = await abreApp(1440);
