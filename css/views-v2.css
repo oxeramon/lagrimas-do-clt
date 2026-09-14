@@ -240,7 +240,14 @@
   .contas-grade{ grid-template-columns:1fr }
   .fatias{ grid-template-columns:1fr; gap:var(--e-1) }
   .fatia{ display:flex; align-items:baseline; justify-content:space-between; gap:var(--e-3) }
-  .fatia span{ margin-top:0 }
+  /* QUEM ENCOLHE É O RÓTULO, NUNCA O NÚMERO. Deitada, a fatia põe valor e
+     rótulo lado a lado, e os dois eram itens flexíveis: "reservado em metas"
+     tomava a largura e "R$ 1.500,00" saía truncado como "R$ 1.500,…" -- um
+     valor de dinheiro ilegível, que é o pior defeito possível nesta tela.
+     O rótulo é texto e quebra em duas linhas sem perder nada; o número não
+     quebra e não pode perder dígito. Visto em 320px, na prévia. */
+  .fatia b{ flex:none }
+  .fatia span{ margin-top:0; min-width:0; text-align:right }
   .barra-filtro{ position:static }
   .pirulito{ grid-template-columns:minmax(56px,34%) 1fr auto }
   .flutua{ display:grid }
@@ -459,15 +466,25 @@
 
 .meta-acoes{ display:flex; gap:var(--e-2); flex-wrap:wrap }
 
-/* A REGRA MENSAL: linha própria entre a barra e os botões. Ela é discreta de
-   propósito -- é um lembrete do plano, não um alerta -- e `flex-wrap` deixa o
-   botão descer em vez de espremer a frase, que é o que acontece em 320px. */
+/* A REGRA MENSAL: faixa própria entre a barra e os botões.
+   Ela é uma FAIXA, com fundo e recuo, e não uma linha solta. Em 320px a frase
+   e o botão não cabem lado a lado, o botão desce -- e solto ele ficava a um
+   palmo de "Reservar" e "Editar", parecendo o terceiro botão da barra de
+   ações. O fundo é o que diz "estes dois são uma coisa só, e essa coisa não é
+   a barra de baixo". Medido na prévia em 320px, que foi onde o defeito
+   apareceu: no monitor os dois cabiam na mesma linha e nada disso existia. */
 .meta-regra{ display:flex; align-items:center; gap:var(--e-2); flex-wrap:wrap;
-  margin-bottom:var(--e-3); font-size:12px; color:var(--ink-3) }
+  margin-bottom:var(--e-3); padding:var(--e-2) var(--e-3);
+  border-radius:var(--raio-1); background:var(--surface-2);
+  font-size:12px; color:var(--ink-3) }
 .meta-regra span{ min-width:0 }
+/* O botão da faixa não compete com os da barra de ações: ele é menor e vem
+   depois do texto, empurrado para a direita quando há espaço. */
+.meta-regra .btn{ margin-left:auto }
 /* Parcial não é erro, é informação: coube menos do que a regra pedia. Aviso,
    nunca grave -- nada quebrou, e o dinheiro que faltava simplesmente não
    estava lá. */
+.meta-regra.parcial{ background:var(--warn-soft) }
 .meta-regra.parcial span{ color:var(--warn) }
 
 @media (max-width:600px){

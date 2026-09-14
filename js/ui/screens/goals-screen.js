@@ -132,9 +132,15 @@ function linhaDeMeta(m, precisaPorMes){
    na tela, e um botão que aplicasse "os meses que faltaram" criaria reservas
    que ninguém pediu, em datas que ninguém escolheu.
 
-   Ela é linha PRÓPRIA, e não mais um botão na barra de ações: três botões numa
+   Ela é FAIXA própria, e não mais um botão na barra de ações: três botões numa
    linha já estouram a largura em 320px, e o texto aqui é longo demais para
-   caber ao lado dos outros dois. */
+   caber ao lado dos outros dois.
+
+   E o verbo é "Aplicar", não "Reservar". Em 320px o botão desce para a linha
+   de baixo e fica a um palmo do "Reservar" da barra de ações -- dois botões
+   com a mesma palavra, um acima do outro, fazendo coisas diferentes: um aplica
+   a regra do mês, o outro abre o diálogo para escolher um valor. Foi visível
+   só na prévia em 320px. */
 function blocoDaRegra(m){
   if (!temRegra(m) || m.status !== "ativa") return "";
   const { estado, faltou } = estadoDaRegra(m, V2.alocacoes, V2.mes);
@@ -143,7 +149,7 @@ function blocoDaRegra(m){
   if (estado === REGRA_PENDENTE)
     return '<div class="meta-regra"><span>Regra: ' + esc(money(m.regraValor))
       + ' por mês</span><button type="button" class="btn ghost sm" data-aplicaregra="'
-      + esc(m.metaId) + '">Reservar ' + esc(mes) + '</button></div>';
+      + esc(m.metaId) + '">Aplicar ' + esc(mes) + '</button></div>';
 
   /* Já aplicada. O que faltou é DERIVADO, e aparece porque muda a decisão:
      coube 300 de 500, e os 200 que faltaram não voltam sozinhos. */
