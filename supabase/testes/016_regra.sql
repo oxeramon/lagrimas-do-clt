@@ -66,13 +66,22 @@ insert into public.contas (id, user_id, nome, saldo_inicial, saldo_inicial_em, l
   ('bbbb0002-0000-4000-8000-000000000002','11111111-1111-4111-8111-111111111111',
    'Restrita de A', 9000.00, '2026-01-01', 'restrita');
 
-insert into public.metas (id, user_id, nome, valor_alvo, regra_valor, regra_ativa) values
+-- `regra_desde` entrou na 017: regra ligada passou a exigir vigência, e sem
+-- ela o check `regra_ativa_tem_desde` recusa a linha. A data é anterior a
+-- todas as competências deste arquivo, para que a vigência cubra o que os
+-- casos abaixo aplicam.
+--
+-- Este arquivo testa o que a 016 trouxe -- o índice único por competência e o
+-- `least(regra, disponível, falta)` -- e continua testando. O que mudou foi o
+-- CENÁRIO, que precisa ser válido no schema de hoje: migração é imutável,
+-- suíte de teste não é, e uma suíte que não roda mais não prova nada.
+insert into public.metas (id, user_id, nome, valor_alvo, regra_valor, regra_ativa, regra_desde) values
   ('55550001-0000-4000-8000-000000000001','11111111-1111-4111-8111-111111111111',
-   'Com regra', 5000.00, 300.00, true),
+   'Com regra', 5000.00, 300.00, true, '2026-01'),
   ('55550002-0000-4000-8000-000000000002','11111111-1111-4111-8111-111111111111',
-   'Sem regra', 2000.00, null, false),
+   'Sem regra', 2000.00, null, false, null),
   ('55550003-0000-4000-8000-000000000003','22222222-2222-4222-8222-222222222222',
-   'De B', 1000.00, 100.00, true);
+   'De B', 1000.00, 100.00, true, '2026-01');
 
 
 -- ---------------------------------------------------------------------
@@ -164,20 +173,25 @@ $cmd$);
 -- ---------------------------------------------------------------------
 -- 15 a 18 · quando não cabe a regra inteira
 -- ---------------------------------------------------------------------
--- Sobram 600 livres (1.000 − 400 já reservados) e a regra de outubro pede 300:
--- essa cabe. Novembro pede 300 de novo, com 300 sobrando: cabe rente.
--- Dezembro não tem mais nada, e é aí que a regra encolhe.
+-- Sobram 600 livres (1.000 − 400 já reservados) e a regra de junho pede 300:
+-- essa cabe. Julho pede 300 de novo, com 300 sobrando: cabe rente. Agosto não
+-- tem mais nada, e é aí que a regra encolhe.
+--
+-- OS MESES SÃO PASSADOS desde a 017, e não podem deixar de ser: reservar
+-- competência FUTURA passou a ser recusado, porque é adiantar uma decisão que
+-- ainda nem chegou. Este bloco usava junho, julho e agosto, e o
+-- rebuild acusou -- que é exatamente o serviço que ele presta.
 do $$
 declare r record;
 begin
-  select * into r from public.aplica_regra_de_meta('55550001-0000-4000-8000-000000000001','2026-10');
-  insert into resultado values (15,'outubro ainda cabe inteiro', r.alocado = 300.00,
+  select * into r from public.aplica_regra_de_meta('55550001-0000-4000-8000-000000000001','2026-06');
+  insert into resultado values (15,'junho ainda cabe inteiro', r.alocado = 300.00,
     'alocado ' || r.alocado);
-  select * into r from public.aplica_regra_de_meta('55550001-0000-4000-8000-000000000001','2026-11');
-  insert into resultado values (16,'novembro cabe rente, e zera o disponível', r.alocado = 300.00,
+  select * into r from public.aplica_regra_de_meta('55550001-0000-4000-8000-000000000001','2026-07');
+  insert into resultado values (16,'julho cabe rente, e zera o disponível', r.alocado = 300.00,
     'alocado ' || r.alocado);
-  select * into r from public.aplica_regra_de_meta('55550001-0000-4000-8000-000000000001','2026-12');
-  insert into resultado values (17,'dezembro não tem o que reservar, e NÃO cria linha',
+  select * into r from public.aplica_regra_de_meta('55550001-0000-4000-8000-000000000001','2026-08');
+  insert into resultado values (17,'agosto não tem o que reservar, e NÃO cria linha',
     r.alocado = 0, 'alocado ' || r.alocado);
   insert into resultado values (18,'e o disponível está zerado', r.disponivel = 0,
     'disponivel ' || r.disponivel);
@@ -185,7 +199,7 @@ end $$;
 
 select pg_temp.confere(19,'nenhuma alocação de zero foi criada: ruído não é histórico',
   (select count(*) from public.alocacoes_de_meta
-    where meta_id = '55550001-0000-4000-8000-000000000001' and competencia = '2026-12'), 0::bigint);
+    where meta_id = '55550001-0000-4000-8000-000000000001' and competencia = '2026-08'), 0::bigint);
 select pg_temp.confere(20,'o reservado bateu no saldo livre e parou ali',
   (select reservado from public.metas_resolvidas
     where meta_id = '55550001-0000-4000-8000-000000000001'), 1000.00::numeric);
@@ -198,8 +212,8 @@ select pg_temp.confere(21,'reservar 1.000 não tirou um centavo da conta',
 -- ---------------------------------------------------------------------
 -- 22 a 24 · desfazer
 -- ---------------------------------------------------------------------
-select pg_temp.confere(22,'desfazer a regra de novembro devolve verdadeiro',
-  public.desfaz_regra_de_meta('55550001-0000-4000-8000-000000000001','2026-11'), true);
+select pg_temp.confere(22,'desfazer a regra de julho devolve verdadeiro',
+  public.desfaz_regra_de_meta('55550001-0000-4000-8000-000000000001','2026-07'), true);
 select pg_temp.confere(23,'e o reservado volta para 700',
   (select reservado from public.metas_resolvidas
     where meta_id = '55550001-0000-4000-8000-000000000001'), 700.00::numeric);

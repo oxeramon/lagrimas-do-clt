@@ -1,6 +1,8 @@
 CMT alocacoes_de_meta Uma linha por reserva ou liberação. Valor com SINAL: positivo reserva, negativo libera. NÃO gera transação.
 CMT alocacoes_de_meta.competencia AAAA-MM de qual mês a alocação de regra pertence. Nulo em alocação manual: ela não tem mês próprio, tem data.
 CMT alocacoes_de_meta.origem manual (a pessoa reservou) ou regra (veio da regra mensal). Só regra entra no índice único por competência.
+CMT competencias_de_regra Decisões sobre competências da regra mensal. Hoje só "ignorada": aplicada se deriva da alocação, e pendente é a ausência de decisão.
+CMT competencias_de_regra.valor_planejado Quanto a regra pedia quando a decisão foi tomada. Congela o histórico: mudar a regra depois não reescreve o passado.
 CMT faturas_resolvidas A fatura com total, pago, restante e situação já derivados. `pago` vem de subconsulta, e não de join, porque com N pagamentos o join multiplicaria os itens e o total sairia errado.
 CMT liquidacao_uma_por_competencia Um compromisso da V1 se liquida uma vez por competência. Fatura fica de fora: ela recebe N pagamentos, e o limite dela é de VALOR, não de contagem.
 CMT metas Objetivo de destinação. NÃO guarda dinheiro e NÃO altera saldo: ver docs/CONTRATO_METAS.md.
@@ -25,6 +27,7 @@ COL alocacoes_de_meta.obs text NOT NULL default=''::text
 COL alocacoes_de_meta.origem text NOT NULL default='manual'::text
 COL alocacoes_de_meta.user_id uuid NOT NULL
 COL alocacoes_de_meta.valor numeric(14,2) NOT NULL
+COL alocacoes_de_meta.valor_planejado numeric(14,2)
 COL assinaturas.ativo boolean NOT NULL default=true
 COL assinaturas.cartao_id uuid
 COL assinaturas.categoria_id uuid
@@ -66,6 +69,13 @@ COL categorias.nome text NOT NULL
 COL categorias.ordem integer NOT NULL default=0
 COL categorias.pai_id uuid
 COL categorias.user_id uuid NOT NULL
+COL competencias_de_regra.competencia text NOT NULL
+COL competencias_de_regra.decidida_em timestamp with time zone NOT NULL default=now()
+COL competencias_de_regra.id uuid NOT NULL default=gen_random_uuid()
+COL competencias_de_regra.meta_id uuid NOT NULL
+COL competencias_de_regra.situacao text NOT NULL default='ignorada'::text
+COL competencias_de_regra.user_id uuid NOT NULL
+COL competencias_de_regra.valor_planejado numeric(14,2) NOT NULL
 COL compras_de_cartao.cartao_id uuid NOT NULL
 COL compras_de_cartao.categoria_id uuid
 COL compras_de_cartao.criado_em timestamp with time zone NOT NULL default=now()
@@ -200,6 +210,7 @@ COL metas.ordem integer NOT NULL default=0
 COL metas.prazo date
 COL metas.prioridade smallint NOT NULL default=2
 COL metas.regra_ativa boolean NOT NULL default=false
+COL metas.regra_desde text
 COL metas.regra_valor numeric(14,2)
 COL metas.status text NOT NULL default='ativa'::text
 COL metas.user_id uuid NOT NULL
@@ -266,7 +277,9 @@ CON alocacoes_de_meta.alocacoes_de_meta_pkey PRIMARY KEY (id)
 CON alocacoes_de_meta.alocacoes_de_meta_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE
 CON alocacoes_de_meta.alocacoes_origem_check CHECK ((origem = ANY (ARRAY['manual'::text, 'regra'::text])))
 CON alocacoes_de_meta.confere_alocacao_de_meta TRIGGER DEFERRABLE INITIALLY DEFERRED
+CON alocacoes_de_meta.manual_nao_tem_planejado CHECK (((origem = 'regra'::text) OR (valor_planejado IS NULL)))
 CON alocacoes_de_meta.regra_tem_competencia CHECK (((origem <> 'regra'::text) OR (competencia IS NOT NULL)))
+CON alocacoes_de_meta.valor_planejado_positivo CHECK (((valor_planejado IS NULL) OR (valor_planejado > (0)::numeric)))
 CON assinaturas.assinatura_fim_depois_do_inicio CHECK (((fim IS NULL) OR (fim >= inicio)))
 CON assinaturas.assinatura_nome_unico UNIQUE (user_id, nome)
 CON assinaturas.assinatura_paga_por_um_lugar_so CHECK (((conta_id IS NULL) OR (cartao_id IS NULL)))
@@ -301,6 +314,13 @@ CON categorias.categorias_nivel_check CHECK (((nivel >= 1) AND (nivel <= 3)))
 CON categorias.categorias_pai_dono_fk FOREIGN KEY (user_id, pai_id) REFERENCES categorias(user_id, id) ON UPDATE CASCADE ON DELETE CASCADE
 CON categorias.categorias_pkey PRIMARY KEY (id)
 CON categorias.categorias_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE
+CON competencias_de_regra.competencia_da_meta_do_dono FOREIGN KEY (user_id, meta_id) REFERENCES metas(user_id, id) ON DELETE CASCADE
+CON competencias_de_regra.competencia_formato CHECK ((competencia ~ '^\d{4}-(0[1-9]|1[0-2])$'::text))
+CON competencias_de_regra.competencia_planejado_positivo CHECK ((valor_planejado > (0)::numeric))
+CON competencias_de_regra.competencia_situacao_check CHECK ((situacao = 'ignorada'::text))
+CON competencias_de_regra.competencias_de_regra_dono_id_unico UNIQUE (user_id, id)
+CON competencias_de_regra.competencias_de_regra_pkey PRIMARY KEY (id)
+CON competencias_de_regra.competencias_de_regra_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE
 CON compras_de_cartao.compras_cartao_dono_fk FOREIGN KEY (user_id, cartao_id) REFERENCES cartoes(user_id, id) ON UPDATE CASCADE ON DELETE CASCADE
 CON compras_de_cartao.compras_categoria_dono_fk FOREIGN KEY (user_id, categoria_id) REFERENCES categorias(user_id, id) ON UPDATE CASCADE ON DELETE SET NULL (categoria_id)
 CON compras_de_cartao.compras_de_cartao_descricao_check CHECK (((length(descricao) >= 1) AND (length(descricao) <= 120)))
@@ -401,7 +421,9 @@ CON metas.metas_regra_valor_check CHECK (((regra_valor IS NULL) OR (regra_valor 
 CON metas.metas_status_check CHECK ((status = ANY (ARRAY['ativa'::text, 'concluida'::text, 'arquivada'::text])))
 CON metas.metas_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE
 CON metas.metas_valor_alvo_check CHECK ((valor_alvo > (0)::numeric))
+CON metas.regra_ativa_tem_desde CHECK (((NOT regra_ativa) OR (regra_desde IS NOT NULL)))
 CON metas.regra_ativa_tem_valor CHECK (((NOT regra_ativa) OR (regra_valor IS NOT NULL)))
+CON metas.regra_desde_formato CHECK (((regra_desde IS NULL) OR (regra_desde ~ '^\d{4}-(0[1-9]|1[0-2])$'::text)))
 CON pagamentos.pagamentos_mes_check CHECK ((mes ~ '^\d{4}-\d{2}$'::text))
 CON pagamentos.pagamentos_pkey PRIMARY KEY (user_id, mes, item_id)
 CON pagamentos.pagamentos_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE
@@ -452,10 +474,12 @@ CON transacoes.transacoes_valor_check CHECK ((valor > (0)::numeric))
 CON transacoes.transferencia_tem_grupo CHECK (((natureza = 'transferencia'::text) = (transferencia_id IS NOT NULL)))
 FN alocacoes_set_user_id() -> trigger func invoker volatile search_path=public
 FN aplica_regra_de_meta(p_meta uuid, p_competencia text, OUT alocado numeric, OUT ja_aplicada boolean, OUT disponivel numeric) -> record func invoker volatile search_path=public
+FN aplica_regras_da_competencia(p_competencia text DEFAULT NULL::text) -> TABLE(meta_id uuid, alocado numeric, ja_aplicada boolean) func invoker volatile search_path=public
 FN atualiza_transferencia(p_transferencia uuid, p_conta_origem uuid, p_conta_destino uuid, p_valor numeric, p_data date, p_descricao text DEFAULT 'Transferência'::text, p_obs text DEFAULT ''::text, p_status text DEFAULT 'realizada'::text) -> uuid func invoker volatile search_path=public
 FN ciclo_da_fatura(p_competencia text, p_fechamento integer, p_vencimento integer, OUT abertura date, OUT fechamento date, OUT vencimento date) -> record func invoker immutable search_path=public
 FN competencia_da_compra(p_data date, p_fechamento integer) -> text func invoker immutable search_path=public
 FN competencia_da_ocorrencia(p_data date, p_frequencia text) -> text func invoker immutable search_path=public
+FN competencias_set_user_id() -> trigger func invoker volatile search_path=public
 FN confere_alocacao_de_meta() -> trigger func invoker volatile search_path=public
 FN confere_estorno() -> trigger func invoker volatile search_path=public
 FN confere_liquidacao(p_tipo text, p_item_id text, p_competencia text, p_conta uuid, p_valor numeric) -> void func invoker volatile search_path=public
@@ -471,6 +495,7 @@ FN dia_no_mes(p_mes text, p_dia integer) -> date func invoker immutable search_p
 FN estorna_transacao(p_transacao uuid, p_valor numeric DEFAULT NULL::numeric, p_data date DEFAULT NULL::date, p_obs text DEFAULT ''::text) -> uuid func invoker volatile search_path=public
 FN fatura_do_cartao(p_cartao uuid, p_data date) -> uuid func invoker volatile search_path=public
 FN fatura_na_competencia(p_cartao uuid, p_competencia text) -> uuid func invoker volatile search_path=public
+FN ignora_competencia_de_regra(p_meta uuid, p_competencia text) -> boolean func invoker volatile search_path=public
 FN limpa_marca_da_liquidacao() -> trigger func invoker volatile search_path=public
 FN liquida_compromisso(p_tipo text, p_item_id text, p_competencia text, p_conta uuid, p_valor numeric, p_data date, p_descricao text, p_categoria uuid DEFAULT NULL::uuid, p_obs text DEFAULT ''::text) -> uuid func invoker volatile search_path=public
 FN materializa_assinaturas(p_ate date DEFAULT NULL::date) -> integer func invoker volatile search_path=public
@@ -482,6 +507,7 @@ FN recebe_receita(p_receita uuid, p_competencia text, p_conta uuid, p_valor nume
 FN registra_acerto(p_grupo uuid, p_de uuid, p_para uuid, p_valor numeric, p_data date, p_conta uuid DEFAULT NULL::uuid, p_obs text DEFAULT ''::text) -> uuid func invoker volatile search_path=public
 FN registra_compra_de_cartao(p_cartao uuid, p_descricao text, p_valor_total numeric, p_data date, p_parcelas integer DEFAULT 1, p_categoria uuid DEFAULT NULL::uuid, p_obs text DEFAULT ''::text) -> uuid func invoker volatile search_path=public
 FN registra_despesa_do_grupo(p_grupo uuid, p_descricao text, p_valor numeric, p_data date, p_pago_por uuid, p_rateios jsonb, p_categoria uuid DEFAULT NULL::uuid, p_obs text DEFAULT ''::text) -> uuid func invoker volatile search_path=public
+FN regulariza_competencias(p_itens jsonb) -> TABLE(meta_id uuid, competencia text, alocado numeric, erro text) func invoker volatile search_path=public
 FN remove_transferencia(p_transferencia uuid) -> integer func invoker volatile search_path=public
 FN saldo_livre_do_usuario() -> numeric func invoker stable search_path=public
 FN set_user_id() -> trigger func DEFINER volatile search_path=public
@@ -490,11 +516,13 @@ FN total_pago_da_fatura(p_fatura uuid) -> numeric func invoker stable search_pat
 FN total_reservado_em_metas() -> numeric func invoker stable search_path=public
 FN valida_transferencia() -> trigger func invoker volatile search_path=public
 FNBODY alocacoes_set_user_id() 0bf135911e89bf011cac69f3c9f484db
-FNBODY aplica_regra_de_meta(p_meta uuid, p_competencia text, OUT alocado numeric, OUT ja_aplicada boolean, OUT disponivel numeric) c9ce0abbcd008decb719b2b212d3f1ff
+FNBODY aplica_regra_de_meta(p_meta uuid, p_competencia text, OUT alocado numeric, OUT ja_aplicada boolean, OUT disponivel numeric) f77a6fdd21b192d87e95519d067fdf69
+FNBODY aplica_regras_da_competencia(p_competencia text) 0d2cdd0227a48e74934fdd8b1414f810
 FNBODY atualiza_transferencia(p_transferencia uuid, p_conta_origem uuid, p_conta_destino uuid, p_valor numeric, p_data date, p_descricao text, p_obs text, p_status text) 5e66fc5da502e6e77b73463fd767908a
 FNBODY ciclo_da_fatura(p_competencia text, p_fechamento integer, p_vencimento integer, OUT abertura date, OUT fechamento date, OUT vencimento date) 72dfd1024519c330fcccc5eaa02d45bf
 FNBODY competencia_da_compra(p_data date, p_fechamento integer) 5fa03b0e7824b40f73bb25439ca9642c
 FNBODY competencia_da_ocorrencia(p_data date, p_frequencia text) f39cfe7272d00c18d9ceb643e5249f78
+FNBODY competencias_set_user_id() 0bf135911e89bf011cac69f3c9f484db
 FNBODY confere_alocacao_de_meta() 9d934543c21c7496fa952af161812d49
 FNBODY confere_estorno() 3781ebf40f74b9ab9929f69a423a2115
 FNBODY confere_liquidacao(p_tipo text, p_item_id text, p_competencia text, p_conta uuid, p_valor numeric) b10dd170479580be0f3c054f46991eea
@@ -505,11 +533,12 @@ FNBODY confere_soma_do_rateio() be5a62bab90c0363a9b0b2a88391d9df
 FNBODY cria_transferencia(p_conta_origem uuid, p_conta_destino uuid, p_valor numeric, p_data date, p_descricao text, p_obs text, p_status text) aa5739965e24cf539b0fa8ab30d90e4c
 FNBODY desfaz_liquidacao(p_tipo text, p_item_id text, p_competencia text) 3670de052cd442b20fc24a768f731892
 FNBODY desfaz_pagamento_de_fatura(p_pagamento uuid) d052ea0c9736d0a3aefe62bbc99d5cb2
-FNBODY desfaz_regra_de_meta(p_meta uuid, p_competencia text) 5bb96df6994b7fde397c415c30f1d5e6
+FNBODY desfaz_regra_de_meta(p_meta uuid, p_competencia text) 8194a5227a611da48e60649c2abf3b20
 FNBODY dia_no_mes(p_mes text, p_dia integer) 474866bca555555e09de2671a1c2544e
 FNBODY estorna_transacao(p_transacao uuid, p_valor numeric, p_data date, p_obs text) 419ff1e12ef3b22b10c59c1bffe3ac59
 FNBODY fatura_do_cartao(p_cartao uuid, p_data date) 7a207674bd4bf7499b3bdfc16829b27f
 FNBODY fatura_na_competencia(p_cartao uuid, p_competencia text) 427af468cc7740448478d99a61e00309
+FNBODY ignora_competencia_de_regra(p_meta uuid, p_competencia text) 635576beb515df8599ecbd2f394ac486
 FNBODY limpa_marca_da_liquidacao() 304d01b06740b702d992c2727805887b
 FNBODY liquida_compromisso(p_tipo text, p_item_id text, p_competencia text, p_conta uuid, p_valor numeric, p_data date, p_descricao text, p_categoria uuid, p_obs text) 051419a8f098033b5b50f4bd3fe7b44a
 FNBODY materializa_assinaturas(p_ate date) 6c24973a36d1a5ace55adf857849c0fd
@@ -521,6 +550,7 @@ FNBODY recebe_receita(p_receita uuid, p_competencia text, p_conta uuid, p_valor 
 FNBODY registra_acerto(p_grupo uuid, p_de uuid, p_para uuid, p_valor numeric, p_data date, p_conta uuid, p_obs text) 07b9bebca35fef954801067eab522110
 FNBODY registra_compra_de_cartao(p_cartao uuid, p_descricao text, p_valor_total numeric, p_data date, p_parcelas integer, p_categoria uuid, p_obs text) c2e9672e524a86866cba40558323f66a
 FNBODY registra_despesa_do_grupo(p_grupo uuid, p_descricao text, p_valor numeric, p_data date, p_pago_por uuid, p_rateios jsonb, p_categoria uuid, p_obs text) e7079c661b7f4e2642d2ca491956005f
+FNBODY regulariza_competencias(p_itens jsonb) 732aa859ed69d25a81995554dcc6e358
 FNBODY remove_transferencia(p_transferencia uuid) d2e3e4f457cf868bcf990e0ea613c0e6
 FNBODY saldo_livre_do_usuario() 2414a64fb0aa90dca86c7c2914eb3e5d
 FNBODY set_user_id() 6334fa58fe2b5b203d708f62fa4bf166
@@ -534,6 +564,9 @@ GFN alocacoes_set_user_id() service_role=EXECUTE
 GFN aplica_regra_de_meta(p_meta uuid, p_competencia text, OUT alocado numeric, OUT ja_aplicada boolean, OUT disponivel numeric) anon=nao
 GFN aplica_regra_de_meta(p_meta uuid, p_competencia text, OUT alocado numeric, OUT ja_aplicada boolean, OUT disponivel numeric) authenticated=EXECUTE
 GFN aplica_regra_de_meta(p_meta uuid, p_competencia text, OUT alocado numeric, OUT ja_aplicada boolean, OUT disponivel numeric) service_role=EXECUTE
+GFN aplica_regras_da_competencia(p_competencia text) anon=nao
+GFN aplica_regras_da_competencia(p_competencia text) authenticated=EXECUTE
+GFN aplica_regras_da_competencia(p_competencia text) service_role=EXECUTE
 GFN atualiza_transferencia(p_transferencia uuid, p_conta_origem uuid, p_conta_destino uuid, p_valor numeric, p_data date, p_descricao text, p_obs text, p_status text) anon=nao
 GFN atualiza_transferencia(p_transferencia uuid, p_conta_origem uuid, p_conta_destino uuid, p_valor numeric, p_data date, p_descricao text, p_obs text, p_status text) authenticated=EXECUTE
 GFN atualiza_transferencia(p_transferencia uuid, p_conta_origem uuid, p_conta_destino uuid, p_valor numeric, p_data date, p_descricao text, p_obs text, p_status text) service_role=EXECUTE
@@ -546,6 +579,9 @@ GFN competencia_da_compra(p_data date, p_fechamento integer) service_role=EXECUT
 GFN competencia_da_ocorrencia(p_data date, p_frequencia text) anon=nao
 GFN competencia_da_ocorrencia(p_data date, p_frequencia text) authenticated=EXECUTE
 GFN competencia_da_ocorrencia(p_data date, p_frequencia text) service_role=EXECUTE
+GFN competencias_set_user_id() anon=nao
+GFN competencias_set_user_id() authenticated=nao
+GFN competencias_set_user_id() service_role=EXECUTE
 GFN confere_alocacao_de_meta() anon=nao
 GFN confere_alocacao_de_meta() authenticated=nao
 GFN confere_alocacao_de_meta() service_role=EXECUTE
@@ -591,6 +627,9 @@ GFN fatura_do_cartao(p_cartao uuid, p_data date) service_role=EXECUTE
 GFN fatura_na_competencia(p_cartao uuid, p_competencia text) anon=nao
 GFN fatura_na_competencia(p_cartao uuid, p_competencia text) authenticated=EXECUTE
 GFN fatura_na_competencia(p_cartao uuid, p_competencia text) service_role=EXECUTE
+GFN ignora_competencia_de_regra(p_meta uuid, p_competencia text) anon=nao
+GFN ignora_competencia_de_regra(p_meta uuid, p_competencia text) authenticated=EXECUTE
+GFN ignora_competencia_de_regra(p_meta uuid, p_competencia text) service_role=EXECUTE
 GFN limpa_marca_da_liquidacao() anon=nao
 GFN limpa_marca_da_liquidacao() authenticated=nao
 GFN limpa_marca_da_liquidacao() service_role=EXECUTE
@@ -624,6 +663,9 @@ GFN registra_compra_de_cartao(p_cartao uuid, p_descricao text, p_valor_total num
 GFN registra_despesa_do_grupo(p_grupo uuid, p_descricao text, p_valor numeric, p_data date, p_pago_por uuid, p_rateios jsonb, p_categoria uuid, p_obs text) anon=nao
 GFN registra_despesa_do_grupo(p_grupo uuid, p_descricao text, p_valor numeric, p_data date, p_pago_por uuid, p_rateios jsonb, p_categoria uuid, p_obs text) authenticated=EXECUTE
 GFN registra_despesa_do_grupo(p_grupo uuid, p_descricao text, p_valor numeric, p_data date, p_pago_por uuid, p_rateios jsonb, p_categoria uuid, p_obs text) service_role=EXECUTE
+GFN regulariza_competencias(p_itens jsonb) anon=nao
+GFN regulariza_competencias(p_itens jsonb) authenticated=EXECUTE
+GFN regulariza_competencias(p_itens jsonb) service_role=EXECUTE
 GFN remove_transferencia(p_transferencia uuid) anon=nao
 GFN remove_transferencia(p_transferencia uuid) authenticated=EXECUTE
 GFN remove_transferencia(p_transferencia uuid) service_role=EXECUTE
@@ -771,6 +813,14 @@ GTAB categorias service_role SELECT
 GTAB categorias service_role TRIGGER
 GTAB categorias service_role TRUNCATE
 GTAB categorias service_role UPDATE
+GTAB competencias_de_regra authenticated DELETE
+GTAB competencias_de_regra authenticated INSERT
+GTAB competencias_de_regra authenticated SELECT
+GTAB competencias_de_regra authenticated UPDATE
+GTAB competencias_de_regra service_role DELETE
+GTAB competencias_de_regra service_role INSERT
+GTAB competencias_de_regra service_role SELECT
+GTAB competencias_de_regra service_role UPDATE
 GTAB compras_de_cartao anon DELETE
 GTAB compras_de_cartao anon INSERT
 GTAB compras_de_cartao anon REFERENCES
@@ -1281,6 +1331,7 @@ IDX CREATE INDEX assinaturas_user_idx ON public.assinaturas USING btree (user_id
 IDX CREATE INDEX cartoes_user_idx ON public.cartoes USING btree (user_id, ordem, nome)
 IDX CREATE INDEX categorias_pai_idx ON public.categorias USING btree (user_id, pai_id)
 IDX CREATE INDEX categorias_user_idx ON public.categorias USING btree (user_id, ativo, ordem)
+IDX CREATE INDEX competencias_da_meta ON public.competencias_de_regra USING btree (user_id, meta_id)
 IDX CREATE INDEX compras_cartao_idx ON public.compras_de_cartao USING btree (user_id, cartao_id, data_compra)
 IDX CREATE INDEX contas_instituicao_dono_idx ON public.contas USING btree (user_id, instituicao_id)
 IDX CREATE INDEX contas_instituicao_idx ON public.contas USING btree (instituicao_id)
@@ -1323,6 +1374,7 @@ IDX CREATE INDEX transacoes_status_idx ON public.transacoes USING btree (user_id
 IDX CREATE INDEX transacoes_transferencia_idx ON public.transacoes USING btree (user_id, transferencia_id)
 IDX CREATE INDEX transacoes_user_data_idx ON public.transacoes USING btree (user_id, data DESC)
 IDX CREATE UNIQUE INDEX alocacao_da_regra_uma_por_competencia ON public.alocacoes_de_meta USING btree (user_id, meta_id, competencia) WHERE (origem = 'regra'::text)
+IDX CREATE UNIQUE INDEX competencia_uma_por_meta ON public.competencias_de_regra USING btree (user_id, meta_id, competencia)
 IDX CREATE UNIQUE INDEX liquidacao_uma_por_competencia ON public.liquidacoes USING btree (user_id, tipo, item_id, competencia) WHERE (tipo <> 'fatura'::text)
 IDX CREATE UNIQUE INDEX membro_um_sou_eu_por_grupo ON public.membros USING btree (user_id, grupo_id) WHERE sou_eu
 POL acertos.acertos_own cmd=ALL roles=authenticated using=(user_id = auth.uid()) check=(user_id = auth.uid())
@@ -1330,6 +1382,7 @@ POL alocacoes_de_meta.alocacoes_do_dono cmd=ALL roles=authenticated using=(user_
 POL assinaturas.assinaturas_own cmd=ALL roles=authenticated using=(user_id = auth.uid()) check=(user_id = auth.uid())
 POL cartoes.cartoes_own cmd=ALL roles=authenticated using=(user_id = auth.uid()) check=(user_id = auth.uid())
 POL categorias.categorias_own cmd=ALL roles=authenticated using=(user_id = auth.uid()) check=(user_id = auth.uid())
+POL competencias_de_regra.competencias_do_dono cmd=ALL roles=authenticated using=(user_id = ( SELECT auth.uid() AS uid)) check=(user_id = ( SELECT auth.uid() AS uid))
 POL compras_de_cartao.compras_de_cartao_own cmd=ALL roles=authenticated using=(user_id = auth.uid()) check=(user_id = auth.uid())
 POL config.config_own cmd=ALL roles=authenticated using=(user_id = auth.uid()) check=(user_id = auth.uid())
 POL contas.contas_own cmd=ALL roles=authenticated using=(user_id = auth.uid()) check=(user_id = auth.uid())
@@ -1354,6 +1407,7 @@ TAB alocacoes_de_meta rls=on
 TAB assinaturas rls=on
 TAB cartoes rls=on
 TAB categorias rls=on
+TAB competencias_de_regra rls=on
 TAB compras_de_cartao rls=on
 TAB config rls=on
 TAB contas rls=on
@@ -1380,6 +1434,7 @@ TRG assinaturas.assinaturas_set_user CREATE TRIGGER assinaturas_set_user BEFORE 
 TRG cartoes.cartoes_set_user CREATE TRIGGER cartoes_set_user BEFORE INSERT ON public.cartoes FOR EACH ROW EXECUTE FUNCTION set_user_id() deferrable=nao initdeferred=nao
 TRG categorias.categorias_1_set_user CREATE TRIGGER categorias_1_set_user BEFORE INSERT ON public.categorias FOR EACH ROW EXECUTE FUNCTION set_user_id() deferrable=nao initdeferred=nao
 TRG categorias.categorias_2_nivel CREATE TRIGGER categorias_2_nivel BEFORE INSERT OR UPDATE OF pai_id ON public.categorias FOR EACH ROW EXECUTE FUNCTION nivel_da_categoria() deferrable=nao initdeferred=nao
+TRG competencias_de_regra.a_competencias_set_user CREATE TRIGGER a_competencias_set_user BEFORE INSERT ON public.competencias_de_regra FOR EACH ROW EXECUTE FUNCTION competencias_set_user_id() deferrable=nao initdeferred=nao
 TRG compras_de_cartao.compras_de_cartao_set_user CREATE TRIGGER compras_de_cartao_set_user BEFORE INSERT ON public.compras_de_cartao FOR EACH ROW EXECUTE FUNCTION set_user_id() deferrable=nao initdeferred=nao
 TRG config.config_set_user CREATE TRIGGER config_set_user BEFORE INSERT ON public.config FOR EACH ROW EXECUTE FUNCTION set_user_id() deferrable=nao initdeferred=nao
 TRG contas.contas_set_user CREATE TRIGGER contas_set_user BEFORE INSERT ON public.contas FOR EACH ROW EXECUTE FUNCTION set_user_id() deferrable=nao initdeferred=nao
@@ -1412,7 +1467,7 @@ VIEW saldos_do_grupo security_invoker=on
 VIEW transacoes_com_estorno security_invoker=on
 VIEWDEF assinaturas_resolvidas  SELECT id, user_id, nome, logo, valor, frequencia, categoria_id, conta_id, cartao_id, inicio, fim, ativo, obs, ordem, criado_em, CASE frequencia WHEN 'semanal'::text THEN round(valor * 52::numeric / 12::numeric, 2) WHEN 'mensal'::text THEN valor WHEN 'bimestral'::text THEN round(valor / 2::numeric, 2) WHEN 'trimestral'::text THEN round(valor / 3::numeric, 2) WHEN 'semestral'::text THEN round(valor / 6::numeric, 2) WHEN 'anual'::text THEN round(valor / 12::numeric, 2) ELSE NULL::numeric END AS custo_mensal, CASE frequencia WHEN 'semanal'::text THEN round(valor * 52::numeric, 2) WHEN 'mensal'::text THEN valor * 12::numeric WHEN 'bimestral'::text THEN valor * 6::numeric WHEN 'trimestral'::text THEN valor * 4::numeric WHEN 'semestral'::text THEN valor * 2::numeric WHEN 'anual'::text THEN valor ELSE NULL::numeric END AS custo_anual, ( SELECT min(t.data) AS min FROM transacoes t WHERE t.assinatura_id = a.id AND t.user_id = a.user_id AND t.data >= CURRENT_DATE AND t.status = 'prevista'::text) AS proxima_cobranca FROM assinaturas a;
 VIEWDEF faturas_resolvidas  SELECT f.id AS fatura_id, f.user_id, f.cartao_id, f.competencia, f.abertura, f.fechamento, f.vencimento, f.obs, COALESCE(i.total, 0::numeric)::numeric(14,2) AS total, COALESCE(i.itens, 0::bigint) AS itens, COALESCE(p.pago, 0::numeric)::numeric(14,2) AS pago, (COALESCE(i.total, 0::numeric) - COALESCE(p.pago, 0::numeric))::numeric(14,2) AS restante, COALESCE(p.pagamentos, 0::bigint) AS pagamentos, CASE WHEN COALESCE(i.total, 0::numeric) > 0::numeric AND COALESCE(p.pago, 0::numeric) >= COALESCE(i.total, 0::numeric) THEN 'paga'::text WHEN COALESCE(p.pago, 0::numeric) > 0::numeric THEN 'parcial'::text WHEN CURRENT_DATE >= f.fechamento THEN 'fechada'::text ELSE 'aberta'::text END AS situacao FROM faturas f LEFT JOIN LATERAL ( SELECT sum( CASE WHEN t.tipo = 'entrada'::text THEN - t.valor ELSE t.valor END) AS total, count(*) AS itens FROM transacoes t WHERE t.fatura_id = f.id AND t.user_id = f.user_id AND (t.status = ANY (ARRAY['realizada'::text, 'conciliada'::text]))) i ON true LEFT JOIN LATERAL ( SELECT sum(l.valor) AS pago, count(*) AS pagamentos FROM liquidacoes l WHERE l.user_id = f.user_id AND l.tipo = 'fatura'::text AND l.item_id = f.id::text) p ON true;
-VIEWDEF metas_resolvidas  SELECT m.id AS meta_id, m.user_id, m.nome, m.valor_alvo, m.prazo, m.prioridade, m.cor, m.icone, m.status, m.obs, m.ordem, m.criado_em, COALESCE(a.reservado, 0::numeric)::numeric(14,2) AS reservado, GREATEST(m.valor_alvo - COALESCE(a.reservado, 0::numeric), 0::numeric)::numeric(14,2) AS falta, COALESCE(a.quantas, 0::bigint) AS alocacoes, LEAST(round(COALESCE(a.reservado, 0::numeric) * 100::numeric / m.valor_alvo), 100::numeric)::integer AS percentual, CASE WHEN m.prazo IS NULL THEN NULL::integer ELSE GREATEST(1, (date_part('year'::text, age(m.prazo::timestamp with time zone, CURRENT_DATE::timestamp with time zone)) * 12::double precision + date_part('month'::text, age(m.prazo::timestamp with time zone, CURRENT_DATE::timestamp with time zone)))::integer + 1) END AS meses_ate_prazo, m.regra_valor, m.regra_ativa FROM metas m LEFT JOIN LATERAL ( SELECT sum(x.valor) AS reservado, count(*) AS quantas FROM alocacoes_de_meta x WHERE x.meta_id = m.id AND x.user_id = m.user_id) a ON true;
+VIEWDEF metas_resolvidas  SELECT m.id AS meta_id, m.user_id, m.nome, m.valor_alvo, m.prazo, m.prioridade, m.cor, m.icone, m.status, m.obs, m.ordem, m.criado_em, COALESCE(a.reservado, 0::numeric)::numeric(14,2) AS reservado, GREATEST(m.valor_alvo - COALESCE(a.reservado, 0::numeric), 0::numeric)::numeric(14,2) AS falta, COALESCE(a.quantas, 0::bigint) AS alocacoes, LEAST(round(COALESCE(a.reservado, 0::numeric) * 100::numeric / m.valor_alvo), 100::numeric)::integer AS percentual, CASE WHEN m.prazo IS NULL THEN NULL::integer ELSE GREATEST(1, (date_part('year'::text, age(m.prazo::timestamp with time zone, CURRENT_DATE::timestamp with time zone)) * 12::double precision + date_part('month'::text, age(m.prazo::timestamp with time zone, CURRENT_DATE::timestamp with time zone)))::integer + 1) END AS meses_ate_prazo, m.regra_valor, m.regra_ativa, m.regra_desde FROM metas m LEFT JOIN LATERAL ( SELECT sum(x.valor) AS reservado, count(*) AS quantas FROM alocacoes_de_meta x WHERE x.meta_id = m.id AND x.user_id = m.user_id) a ON true;
 VIEWDEF saldos_de_conta  SELECT c.id AS conta_id, c.user_id, c.nome, c.tipo, c.liquidez, c.saldo_inicial, c.saldo_inicial_em, c.saldo_inicial + COALESCE(sum( CASE WHEN t.tipo = 'entrada'::text THEN t.valor ELSE - t.valor END), 0::numeric) AS saldo FROM contas c LEFT JOIN transacoes t ON t.conta_id = c.id AND t.user_id = c.user_id AND (t.status = ANY (ARRAY['realizada'::text, 'conciliada'::text])) AND t.data >= c.saldo_inicial_em GROUP BY c.id, c.user_id, c.nome, c.tipo, c.liquidez, c.saldo_inicial, c.saldo_inicial_em;
 VIEWDEF saldos_do_grupo  SELECT id AS membro_id, user_id, grupo_id, nome, apelido, sou_eu, ativo, COALESCE(( SELECT sum(d.valor) AS sum FROM despesas_do_grupo d WHERE d.pago_por_id = m.id AND d.user_id = m.user_id), 0::numeric)::numeric(14,2) AS pagou, COALESCE(( SELECT sum(r.valor) AS sum FROM rateios r WHERE r.membro_id = m.id AND r.user_id = m.user_id), 0::numeric)::numeric(14,2) AS coube, COALESCE(( SELECT sum(a.valor) AS sum FROM acertos a WHERE a.para_id = m.id AND a.user_id = m.user_id), 0::numeric)::numeric(14,2) AS recebeu, COALESCE(( SELECT sum(a.valor) AS sum FROM acertos a WHERE a.de_id = m.id AND a.user_id = m.user_id), 0::numeric)::numeric(14,2) AS quitou, (COALESCE(( SELECT sum(d.valor) AS sum FROM despesas_do_grupo d WHERE d.pago_por_id = m.id AND d.user_id = m.user_id), 0::numeric) - COALESCE(( SELECT sum(r.valor) AS sum FROM rateios r WHERE r.membro_id = m.id AND r.user_id = m.user_id), 0::numeric) - COALESCE(( SELECT sum(a.valor) AS sum FROM acertos a WHERE a.para_id = m.id AND a.user_id = m.user_id), 0::numeric) + COALESCE(( SELECT sum(a.valor) AS sum FROM acertos a WHERE a.de_id = m.id AND a.user_id = m.user_id), 0::numeric))::numeric(14,2) AS saldo FROM membros m;
 VIEWDEF transacoes_com_estorno  SELECT id AS transacao_id, user_id, valor, COALESCE(( SELECT sum(e.valor) AS sum FROM transacoes e WHERE e.estorno_de_id = t.id AND e.user_id = t.user_id AND e.status <> 'cancelada'::text), 0::numeric)::numeric(14,2) AS estornado, (valor - COALESCE(( SELECT sum(e.valor) AS sum FROM transacoes e WHERE e.estorno_de_id = t.id AND e.user_id = t.user_id AND e.status <> 'cancelada'::text), 0::numeric))::numeric(14,2) AS estornavel, natureza = 'normal'::text AND NOT (EXISTS ( SELECT 1 FROM liquidacoes l WHERE l.transacao_id = t.id AND l.user_id = t.user_id)) AS pode_estornar FROM transacoes t;

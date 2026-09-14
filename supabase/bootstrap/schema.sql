@@ -119,7 +119,20 @@ create table public.alocacoes_de_meta (
   obs text default ''::text not null,
   criado_em timestamp with time zone default now() not null,
   origem text default 'manual'::text not null,
-  competencia text
+  competencia text,
+  valor_planejado numeric(14,2)
+);
+
+-- As DECISÕES sobre competências da regra. Hoje só "ignorada": "aplicada" se
+-- deriva da alocação, e "pendente" é a ausência de decisão.
+create table public.competencias_de_regra (
+  id uuid default gen_random_uuid() not null,
+  user_id uuid not null,
+  meta_id uuid not null,
+  competencia text not null,
+  situacao text default 'ignorada'::text not null,
+  valor_planejado numeric(14,2) not null,
+  decidida_em timestamp with time zone default now() not null
 );
 
 create table public.assinaturas (
@@ -349,7 +362,8 @@ create table public.metas (
   ordem integer default 0 not null,
   criado_em timestamp with time zone default now() not null,
   regra_valor numeric(14,2),
-  regra_ativa boolean default false not null
+  regra_ativa boolean default false not null,
+  regra_desde text
 );
 
 create table public.pagamentos (
@@ -426,6 +440,8 @@ create table public.transacoes (
 
 alter table public.acertos add constraint acertos_pkey primary key (id);
 alter table public.alocacoes_de_meta add constraint alocacoes_de_meta_pkey primary key (id);
+alter table public.competencias_de_regra add constraint competencias_de_regra_pkey primary key (id);
+alter table public.competencias_de_regra add constraint competencias_de_regra_dono_id_unico unique (user_id, id);
 alter table public.assinaturas add constraint assinaturas_pkey primary key (id);
 alter table public.cartoes add constraint cartoes_pkey primary key (id);
 alter table public.categorias add constraint categorias_pkey primary key (id);
@@ -494,6 +510,13 @@ alter table public.alocacoes_de_meta add constraint alocacoes_competencia_format
 -- A competência é o que torna a regra idempotente: sem ela o índice único não
 -- alcança a linha, e a regra rodaria duas vezes no mesmo mês.
 alter table public.alocacoes_de_meta add constraint regra_tem_competencia check (((origem <> 'regra'::text) or (competencia is not null)));
+alter table public.alocacoes_de_meta add constraint valor_planejado_positivo check (((valor_planejado is null) or (valor_planejado > (0)::numeric)));
+alter table public.alocacoes_de_meta add constraint manual_nao_tem_planejado check (((origem = 'regra'::text) or (valor_planejado is null)));
+alter table public.metas add constraint regra_desde_formato check (((regra_desde is null) or (regra_desde ~ '^\d{4}-(0[1-9]|1[0-2])$'::text)));
+alter table public.metas add constraint regra_ativa_tem_desde check (((not regra_ativa) or (regra_desde is not null)));
+alter table public.competencias_de_regra add constraint competencia_formato check ((competencia ~ '^\d{4}-(0[1-9]|1[0-2])$'::text));
+alter table public.competencias_de_regra add constraint competencia_situacao_check check ((situacao = 'ignorada'::text));
+alter table public.competencias_de_regra add constraint competencia_planejado_positivo check ((valor_planejado > (0)::numeric));
 alter table public.assinaturas add constraint assinatura_fim_depois_do_inicio check (((fim is null) or (fim >= inicio)));
 alter table public.assinaturas add constraint assinatura_paga_por_um_lugar_so check (((conta_id is null) or (cartao_id is null)));
 alter table public.assinaturas add constraint assinaturas_frequencia_check check ((frequencia = any (array['semanal'::text, 'mensal'::text, 'bimestral'::text, 'trimestral'::text, 'semestral'::text, 'anual'::text])));
@@ -600,6 +623,8 @@ alter table public.acertos add constraint acertos_transacao_dono_fk foreign key 
 alter table public.acertos add constraint acertos_user_id_fkey foreign key (user_id) references auth.users(id) on delete cascade;
 alter table public.alocacoes_de_meta add constraint alocacao_da_meta_do_dono foreign key (user_id, meta_id) references public.metas(user_id, id) on delete cascade;
 alter table public.alocacoes_de_meta add constraint alocacoes_de_meta_user_id_fkey foreign key (user_id) references auth.users(id) on delete cascade;
+alter table public.competencias_de_regra add constraint competencia_da_meta_do_dono foreign key (user_id, meta_id) references public.metas(user_id, id) on delete cascade;
+alter table public.competencias_de_regra add constraint competencias_de_regra_user_id_fkey foreign key (user_id) references auth.users(id) on delete cascade;
 alter table public.assinaturas add constraint assinaturas_cartao_dono_fk foreign key (user_id, cartao_id) references public.cartoes(user_id, id) on update cascade on delete set null (cartao_id);
 alter table public.assinaturas add constraint assinaturas_categoria_dono_fk foreign key (user_id, categoria_id) references public.categorias(user_id, id) on update cascade on delete set null (categoria_id);
 alter table public.assinaturas add constraint assinaturas_conta_dono_fk foreign key (user_id, conta_id) references public.contas(user_id, id) on update cascade on delete set null (conta_id);
@@ -662,6 +687,8 @@ create index alocacoes_da_meta on public.alocacoes_de_meta using btree (user_id,
 -- PARCIAL de propósito: só alcança o que veio da regra. Reservar à mão duas
 -- vezes no mesmo mês continua sendo direito de quem usa.
 create unique index alocacao_da_regra_uma_por_competencia on public.alocacoes_de_meta using btree (user_id, meta_id, competencia) where (origem = 'regra'::text);
+create unique index competencia_uma_por_meta on public.competencias_de_regra using btree (user_id, meta_id, competencia);
+create index competencias_da_meta on public.competencias_de_regra using btree (user_id, meta_id);
 create index assinaturas_user_idx on public.assinaturas using btree (user_id, ativo, ordem, nome);
 create index cartoes_user_idx on public.cartoes using btree (user_id, ordem, nome);
 create index categorias_pai_idx on public.categorias using btree (user_id, pai_id);
@@ -875,7 +902,8 @@ create view public.metas_resolvidas with (security_invoker = true) as
                              + date_part('month'::text, age(m.prazo::timestamp with time zone, CURRENT_DATE::timestamp with time zone)))::integer + 1)
          end as meses_ate_prazo,
          regra_valor,
-         regra_ativa
+         regra_ativa,
+         regra_desde
     from public.metas m
     left join lateral (
       select sum(x.valor) as reservado,
@@ -1723,6 +1751,20 @@ begin
     raise exception 'meta: só meta ativa reserva por regra';
   end if;
 
+  -- VIGÊNCIA: a regra não alcança mês anterior ao seu começo. Sem isto, uma
+  -- regra criada hoje geraria pendência de todo mês desde sempre.
+  if m.regra_desde is null or p_competencia < m.regra_desde then
+    raise exception 'meta: a regra não valia em %', p_competencia;
+  end if;
+  if p_competencia > to_char(current_date, 'YYYY-MM') then
+    raise exception 'meta: não dá para reservar uma competência futura';
+  end if;
+
+  if exists (select 1 from public.competencias_de_regra
+              where meta_id = p_meta and competencia = p_competencia) then
+    raise exception 'meta: a competência % já foi decidida', p_competencia;
+  end if;
+
   alocado := 0;
   ja_aplicada := exists (
     select 1 from public.alocacoes_de_meta
@@ -1741,9 +1783,10 @@ begin
     select sum(valor) from public.alocacoes_de_meta where meta_id = p_meta), 0)));
   if quanto <= 0 then return; end if;
 
-  insert into public.alocacoes_de_meta (meta_id, valor, data, competencia, origem, obs)
+  insert into public.alocacoes_de_meta
+         (meta_id, valor, data, competencia, origem, obs, valor_planejado)
   values (p_meta, quanto, public.dia_no_mes(p_competencia, 1), p_competencia, 'regra',
-          'Regra mensal')
+          'Regra mensal', m.regra_valor)
   on conflict do nothing;
 
   alocado := quanto;
@@ -1758,7 +1801,9 @@ returns boolean
 language plpgsql
 set search_path to 'public'
 as $$
-declare apagadas int;
+declare
+  alocacoes int;
+  decisoes int;
 begin
   if auth.uid() is null then
     raise exception 'meta: é preciso estar logado';
@@ -1766,8 +1811,169 @@ begin
 
   delete from public.alocacoes_de_meta
    where meta_id = p_meta and competencia = p_competencia and origem = 'regra';
-  get diagnostics apagadas = row_count;
-  return apagadas > 0;
+  get diagnostics alocacoes = row_count;
+
+  delete from public.competencias_de_regra
+   where meta_id = p_meta and competencia = p_competencia;
+  get diagnostics decisoes = row_count;
+
+  -- duas variáveis, e não uma somada: `get diagnostics` atribui a uma
+  -- VARIÁVEL, não a uma expressão, e `= apagadas + row_count` nem compila
+  return alocacoes + decisoes > 0;
+end $$;
+
+
+-- IGNORAR uma competência. Decisão persistente, e por isso uma linha. Recusa
+-- ignorar o que já foi aplicado: as duas decisões se contradizem, e Postgres
+-- não expressa isso em `check` porque a condição atravessa duas tabelas --
+-- então quem cobra é esta função, o único caminho até a tabela.
+create function public.ignora_competencia_de_regra(p_meta uuid, p_competencia text)
+returns boolean
+language plpgsql
+set search_path to 'public'
+as $$
+declare m public.metas%rowtype;
+begin
+  if auth.uid() is null then
+    raise exception 'meta: é preciso estar logado';
+  end if;
+  if p_competencia !~ '^\d{4}-(0[1-9]|1[0-2])$' then
+    raise exception 'meta: a competência precisa estar no formato AAAA-MM';
+  end if;
+
+  select * into m from public.metas where id = p_meta;
+  if m.id is null then
+    raise exception 'meta: não encontrada';
+  end if;
+  if m.regra_valor is null then
+    raise exception 'meta: esta meta não tem regra mensal';
+  end if;
+  if m.regra_desde is null or p_competencia < m.regra_desde then
+    raise exception 'meta: a regra não valia em %', p_competencia;
+  end if;
+
+  if exists (select 1 from public.alocacoes_de_meta
+              where meta_id = p_meta and competencia = p_competencia and origem = 'regra') then
+    raise exception 'meta: a competência % já foi aplicada', p_competencia;
+  end if;
+
+  insert into public.competencias_de_regra (meta_id, competencia, situacao, valor_planejado)
+  values (p_meta, p_competencia, 'ignorada', m.regra_valor)
+  on conflict do nothing;
+  return true;
+end $$;
+
+
+-- A AUTOMAÇÃO DA COMPETÊNCIA ATUAL: uma chamada, uma transação, todas as
+-- regras ativas, e SÓ o mês corrente. Passado nunca entra aqui -- é isso que
+-- o Modelo C quer dizer.
+--
+-- A ordem é DETERMINÍSTICA, nunca a que o banco devolver: prioridade, prazo
+-- mais próximo, criado_em, id. O disponível é recalculado a cada meta, dentro
+-- de `aplica_regra_de_meta`, então com 800 livres duas regras de 500 dão 500 e
+-- 300, nunca 500 e 500.
+--
+-- O lock por usuário serializa duas abas abrindo juntas.
+create function public.aplica_regras_da_competencia(p_competencia text default null)
+returns table (meta_id uuid, alocado numeric, ja_aplicada boolean)
+language plpgsql
+set search_path to 'public'
+as $$
+declare
+  comp text;
+  r record;
+  res record;
+begin
+  if auth.uid() is null then
+    raise exception 'meta: é preciso estar logado';
+  end if;
+
+  comp := coalesce(p_competencia, to_char(current_date, 'YYYY-MM'));
+  if comp !~ '^\d{4}-(0[1-9]|1[0-2])$' then
+    raise exception 'meta: a competência precisa estar no formato AAAA-MM';
+  end if;
+  -- A automação é da competência ATUAL. Passar outra é pedir aplicação
+  -- retroativa sem consentimento, que é exatamente o que não pode.
+  if comp <> to_char(current_date, 'YYYY-MM') then
+    raise exception 'meta: a automação só roda na competência atual';
+  end if;
+
+  perform pg_advisory_xact_lock(hashtext('regras:' || auth.uid()::text));
+
+  for r in
+    select m.id, m.prazo, m.prioridade, m.criado_em
+      from public.metas m
+     where m.regra_ativa
+       and m.status = 'ativa'
+       and m.regra_desde is not null
+       and m.regra_desde <= comp
+       and not exists (select 1 from public.alocacoes_de_meta a
+                        where a.meta_id = m.id and a.competencia = comp and a.origem = 'regra')
+       and not exists (select 1 from public.competencias_de_regra c
+                        where c.meta_id = m.id and c.competencia = comp)
+     order by m.prioridade asc,
+              m.prazo asc nulls last,
+              m.criado_em asc,
+              m.id asc
+  loop
+    select * into res from public.aplica_regra_de_meta(r.id, comp);
+    meta_id := r.id;
+    alocado := res.alocado;
+    ja_aplicada := res.ja_aplicada;
+    return next;
+  end loop;
+end $$;
+
+
+-- REGULARIZAR pendências escolhidas, em sequência, numa chamada só, para o
+-- disponível ser recalculado a cada uma e a soma nunca passar dele.
+--
+-- Cada competência é uma operação completa. Uma que não couber não desfaz as
+-- que couberam: são reservas independentes, e o erro dela volta na própria
+-- linha para a tela poder dizer qual não deu e por quê.
+create function public.regulariza_competencias(p_itens jsonb)
+returns table (meta_id uuid, competencia text, alocado numeric, erro text)
+language plpgsql
+set search_path to 'public'
+as $$
+declare
+  r record;
+  res record;
+begin
+  if auth.uid() is null then
+    raise exception 'meta: é preciso estar logado';
+  end if;
+  if p_itens is null or jsonb_typeof(p_itens) <> 'array' then
+    raise exception 'meta: a lista de competências precisa ser um array';
+  end if;
+
+  perform pg_advisory_xact_lock(hashtext('regras:' || auth.uid()::text));
+
+  for r in
+    select (i->>'meta_id')::uuid as mid, i->>'competencia' as comp,
+           m.prioridade, m.prazo, m.criado_em
+      from jsonb_array_elements(p_itens) i
+      join public.metas m on m.id = (i->>'meta_id')::uuid
+     order by m.prioridade asc,
+              m.prazo asc nulls last,
+              (i->>'competencia') asc,
+              m.criado_em asc,
+              m.id asc
+  loop
+    meta_id := r.mid;
+    competencia := r.comp;
+    alocado := 0;
+    erro := null;
+    begin
+      select * into res from public.aplica_regra_de_meta(r.mid, r.comp);
+      alocado := res.alocado;
+    exception when others then
+      -- o erro de UMA competência não derruba as outras; ele volta na linha
+      -- dela, para a tela poder dizer qual não deu e por quê
+      erro := sqlerrm;
+    end;
+    return next;
+  end loop;
 end $$;
 
 
@@ -1786,6 +1992,16 @@ begin
 end $$;
 
 create function public.metas_set_user_id()
+returns trigger
+language plpgsql
+set search_path to 'public'
+as $$
+begin
+  new.user_id := coalesce(new.user_id, auth.uid());
+  return new;
+end $$;
+
+create function public.competencias_set_user_id()
 returns trigger
 language plpgsql
 set search_path to 'public'
@@ -2025,6 +2241,8 @@ create trigger acertos_set_user before insert on public.acertos
 -- dispara gatilho de mesmo evento em ordem alfabética de nome.
 create trigger a_alocacoes_set_user before insert on public.alocacoes_de_meta
   for each row execute function public.alocacoes_set_user_id();
+create trigger a_competencias_set_user before insert on public.competencias_de_regra
+  for each row execute function public.competencias_set_user_id();
 create constraint trigger confere_alocacao_de_meta after insert or update on public.alocacoes_de_meta
   deferrable initially deferred for each row execute function public.confere_alocacao_de_meta();
 
@@ -2106,6 +2324,7 @@ create constraint trigger transacoes_transferencia_completa after insert or dele
 
 alter table public.acertos enable row level security;
 alter table public.alocacoes_de_meta enable row level security;
+alter table public.competencias_de_regra enable row level security;
 alter table public.assinaturas enable row level security;
 alter table public.cartoes enable row level security;
 alter table public.categorias enable row level security;
@@ -2144,6 +2363,9 @@ create policy acertos_own on public.acertos for all to authenticated
   using ((user_id = auth.uid()))
   with check ((user_id = auth.uid()));
 create policy alocacoes_do_dono on public.alocacoes_de_meta for all to authenticated
+  using ((user_id = ( select auth.uid() as uid)))
+  with check ((user_id = ( select auth.uid() as uid)));
+create policy competencias_do_dono on public.competencias_de_regra for all to authenticated
   using ((user_id = ( select auth.uid() as uid)))
   with check ((user_id = ( select auth.uid() as uid)));
 create policy assinaturas_own on public.assinaturas for all to authenticated
@@ -2248,6 +2470,15 @@ begin
   end loop;
 end $$;
 
+-- A EXCEÇÃO: `competencias_de_regra` não dá NADA a `anon` -- nem a permissão
+-- inócua que as outras dão -- e dá aos outros dois só as quatro que se usam.
+-- É uma camada a mais e não uma inconsistência: ali a recusa vem ANTES do
+-- RLS, e o teste 39 da suíte da 017 cobra exatamente isso. Foi assim que a
+-- 017 criou a tabela, e é assim que o banco em uso está; o laço acima é
+-- genérico e passaria por cima das duas coisas.
+revoke all on table public.competencias_de_regra from anon, authenticated, service_role;
+grant select, insert, update, delete on table public.competencias_de_regra to authenticated, service_role;
+
 -- ..................................................................  funções --
 -- `anon` não executa NENHUMA. Uma função é código do lado do servidor: dar
 -- `execute` a quem não fez login é abrir uma porta que o RLS não guarda.
@@ -2292,6 +2523,8 @@ comment on column public.alocacoes_de_meta.origem is 'manual (a pessoa reservou)
 comment on column public.alocacoes_de_meta.competencia is 'AAAA-MM de qual mês a alocação de regra pertence. Nulo em alocação manual: ela não tem mês próprio, tem data.';
 comment on column public.transacoes.ocorrencia_em is 'A data da ocorrência de uma assinatura. É a identidade dela: mês não serve, porque semanal tem quatro ou cinco no mesmo mês.';
 comment on view public.faturas_resolvidas is 'A fatura com total, pago, restante e situação já derivados. `pago` vem de subconsulta, e não de join, porque com N pagamentos o join multiplicaria os itens e o total sairia errado.';
+comment on table public.competencias_de_regra is 'Decisões sobre competências da regra mensal. Hoje só "ignorada": aplicada se deriva da alocação, e pendente é a ausência de decisão.';
+comment on column public.competencias_de_regra.valor_planejado is 'Quanto a regra pedia quando a decisão foi tomada. Congela o histórico: mudar a regra depois não reescreve o passado.';
 comment on view public.metas_resolvidas is 'Meta com reservado, falta e percentual derivados. NÃO some reservado com saldo de conta: é o mesmo dinheiro visto de outro ângulo.';
 comment on index public.liquidacao_uma_por_competencia is 'Um compromisso da V1 se liquida uma vez por competência. Fatura fica de fora: ela recebe N pagamentos, e o limite dela é de VALOR, não de contagem.';
 
@@ -2321,13 +2554,13 @@ begin
     from pg_class c join pg_namespace n on n.oid=c.relnamespace
    where n.nspname='public' and c.relkind='r' and not c.relrowsecurity;
 
-  if (t,v,f,g,p) is distinct from (24,6,39,31,24) then
-    raise exception 'bootstrap incompleto: % tabelas, % views, % funções, % gatilhos, % policies (esperado 24/6/39/31/24)',
+  if (t,v,f,g,p) is distinct from (25,6,43,32,25) then
+    raise exception 'bootstrap incompleto: % tabelas, % views, % funções, % gatilhos, % policies (esperado 25/6/43/32/25)',
       t, v, f, g, p;
   end if;
   if sem_rls is not null then
     raise exception 'tabela sem RLS: %', sem_rls;
   end if;
 
-  raise notice 'Banco pronto: 24 tabelas, 6 views, 39 funções, 31 gatilhos, 24 policies, RLS em todas.';
+  raise notice 'Banco pronto: 25 tabelas, 6 views, 43 funções, 32 gatilhos, 25 policies, RLS em todas.';
 end $$;

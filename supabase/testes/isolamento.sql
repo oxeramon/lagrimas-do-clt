@@ -69,7 +69,17 @@ begin
             where s.nspname = 'public' and c.relkind = 'r'
               and not (c.relname = any (fora)) order by c.relname
   loop
-    execute format('select count(*) from public.%I', r.relname) into n;
+    /* SEM PERMISSÃO É MAIS FORTE QUE SEM LINHA, e não um caso de erro.
+       A maioria das tabelas dá `select` a `anon` e conta com o RLS para
+       devolver zero linhas -- duas camadas dizendo a mesma coisa.
+       `competencias_de_regra` não dá nem o `select`: ali a recusa vem ANTES
+       do RLS. As duas situações respondem "anon não vê nada", que é o que
+       este teste pergunta, então a exceção conta como zero. */
+    begin
+      execute format('select count(*) from public.%I', r.relname) into n;
+    exception when insufficient_privilege then
+      n := 0;
+    end;
     if n <> 0 then ruins := ruins || r.relname || '=' || n || ' '; end if;
   end loop;
   return coalesce(nullif(rtrim(ruins), ''), 'nenhuma');
@@ -287,11 +297,19 @@ insert into public.acertos (user_id, grupo_id, de_id, para_id, valor, data) valu
   ('11111111-1111-4111-8111-111111111111','66660001-0000-4000-8000-000000000001',
    '66660003-0000-4000-8000-000000000003','66660002-0000-4000-8000-000000000002', 40.00,'2026-02-11');
 
-insert into public.metas (id, user_id, nome, valor_alvo) values
-  ('55550001-0000-4000-8000-000000000001','11111111-1111-4111-8111-111111111111','Meta Um', 2000.00);
+insert into public.metas (id, user_id, nome, valor_alvo, regra_valor, regra_ativa, regra_desde) values
+  ('55550001-0000-4000-8000-000000000001','11111111-1111-4111-8111-111111111111','Meta Um', 2000.00,
+   300.00, true, '2026-01');
 
 insert into public.alocacoes_de_meta (user_id, meta_id, valor, data) values
   ('11111111-1111-4111-8111-111111111111','55550001-0000-4000-8000-000000000001', 500.00,'2026-02-01');
+
+-- A decisão de ignorar uma competência. Entra aqui pelo mesmo motivo de todas
+-- as outras linhas deste cenário: tabela vazia devolve zero para qualquer
+-- papel e passaria de graça na varredura.
+insert into public.competencias_de_regra (user_id, meta_id, competencia, situacao, valor_planejado) values
+  ('11111111-1111-4111-8111-111111111111','55550001-0000-4000-8000-000000000001',
+   '2026-02', 'ignorada', 300.00);
 
 insert into public.ping (id) values (1);
 
