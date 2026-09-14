@@ -40,6 +40,14 @@ export function erroLegivel(erro, contexto){
   if (cod === "23502") return onde + "faltou preencher um campo obrigatório.";
   if (cod === "42501" || /permission denied|row-level security/i.test(msg))
     return onde + "você não tem acesso a esse registro.";
+  /* RELÓGIO FORA DE HORA, e não sessão vencida. O PostgREST recusa um token
+     cujo `iat` está no FUTURO em relação ao relógio dele -- "JWT issued at
+     future", "token used before issued". Dizer "sua sessão expirou" aqui manda
+     a pessoa fazer login de novo, e o login novo é recusado igual: o problema
+     não é o token, é a diferença de horário. */
+  if (/issued at future|used before issued|iat/i.test(msg))
+    return "O relógio do seu aparelho está fora de hora, e o servidor recusou a sessão. "
+         + "Acerte a data e a hora automaticamente e recarregue.";
   if (cod === "PGRST301" || /JWT|not authenticated|session|expired/i.test(msg))
     return "Sua sessão expirou. Entre de novo.";
   if (/Failed to fetch|NetworkError|network|timeout/i.test(msg))

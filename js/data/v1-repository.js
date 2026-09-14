@@ -9,7 +9,7 @@
  * `{ dados, erro }`, com `erro` já em português e curto. Quem decide se isso
  * vira toast, caixa vermelha ou silêncio é a tela.
  */
-import { conexao, executa } from "./client.js";
+import { conexao, executa, erroLegivel } from "./client.js";
 
 /* nome privado e distinto por arquivo: a prévia achata todos os módulos
    num escopo só, e dois `const sb` colidiriam. */
@@ -37,14 +37,18 @@ export async function carregaTudoV1(){
     c.from("config").select("renda").maybeSingle(),
   ]);
 
+  /* PELA TRADUÇÃO, e não cru. O cabeçalho deste arquivo promete `erro` em
+     português e curto, e esta linha era a única que não cumpria: ela repassava
+     a mensagem do PostgREST direto para a tela. Quem estava sem carregar via
+     "JWT issued at future" num app inteiro em português. */
   const falha = [dv, fx, cr, rc, pg, cf].find((r) => r.error);
-  if (falha) return { dados: null, erro: falha.error.message, fatal: true };
+  if (falha) return { dados: null, erro: erroLegivel(falha.error), fatal: true };
 
   return {
     erro: null,
     fatal: false,
     /* `fixas_mes` devolve o erro separado: a tela avisa sem parar de funcionar */
-    erroFixasMes: fm.error ? fm.error.message : null,
+    erroFixasMes: fm.error ? erroLegivel(fm.error) : null,
     dados: {
       dividas: dv.data || [],
       fixas: fx.data || [],
