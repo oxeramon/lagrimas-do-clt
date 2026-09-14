@@ -116,27 +116,18 @@ main{max-width:1160px; margin:0 auto; padding:22px 20px 72px}
    3. as duas bordas internas -- luz em cima, assentamento embaixo -- que dão
       espessura. Sem elas sobra um retângulo leitoso.
 
-   Os dois `linear-gradient` por cima do `--vidro` são o reflexo: um no canto
-   de cima, outro assentando na base. É o que faz a peça parecer curva em vez
-   de reta. O de cima morre nos primeiros 22% de propósito -- indo mais fundo
-   ele passava por cima dos primeiros itens e apagava o realce do selecionado,
-   que é informação e não enfeite. */
+   A face e o relevo saem de `--vidro-face` e `--vidro-relevo`, em
+   `tokens.css`. O rodapé do celular lê os MESMOS dois, e é isso que faz as
+   duas peças serem o mesmo material em vez de duas imitações uma da outra. */
 .lateral{position:sticky; top:var(--lateral-solta); align-self:start; z-index:1;
   margin:var(--lateral-solta); height:calc(100vh - var(--lateral-solta) * 2);
   display:flex; flex-direction:column; gap:var(--e-1);
   padding:var(--e-5) var(--e-3);
   border:1px solid var(--vidro-linha); border-radius:var(--raio-4);
-  background:linear-gradient(157deg,
-      color-mix(in srgb, var(--vidro-brilho) 80%, transparent) 0%,
-      transparent 22%),
-    linear-gradient(0deg,
-      color-mix(in srgb, var(--vidro-brilho) 40%, transparent) 0%,
-      transparent 22%),
-    color-mix(in srgb, var(--vidro) 84%, transparent);
+  background:var(--vidro-face);
   backdrop-filter:var(--desfoque);
   -webkit-backdrop-filter:var(--desfoque);
-  box-shadow:inset 0 1px 0 var(--vidro-brilho),
-    inset 0 -1px 0 var(--vidro-fundo),
+  box-shadow:var(--vidro-relevo),
     0 20px 44px -28px color-mix(in srgb, var(--brand) 38%, transparent),
     var(--sh-2);
   /* O raio corta o conteúdo se a lista crescer, e lista de aba cresce: o
@@ -200,16 +191,44 @@ main{max-width:1280px; margin:0 auto; padding:var(--e-6) var(--e-6) var(--e-12);
   .topo-movel h1{font-size:15px; font-weight:var(--peso-forte); letter-spacing:-.02em;
     min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
   .topo-movel .sep{flex:1}
-  main{padding:var(--e-4) var(--e-4) calc(var(--rodape-alt) + var(--e-8))}
-  .rodapenav{display:grid; grid-template-columns:repeat(5,1fr); position:fixed; inset:auto 0 0 0;
-    z-index:40; height:var(--rodape-alt); background:var(--surface);
-    border-top:1px solid var(--line); padding-bottom:env(safe-area-inset-bottom)}
+  /* a barra deixou de encostar no fim da tela, então o respiro embaixo soma a
+     folga dela -- senão o último cartão fica escondido atrás do vidro */
+  main{padding:var(--e-4) var(--e-4)
+       calc(var(--rodape-alt) + var(--lateral-solta) + var(--e-8) + env(safe-area-inset-bottom))}
+  /* O MESMO VIDRO DA LATERAL, no lugar onde ele faz mais sentido: aqui o
+     conteúdo passa POR BAIXO de verdade, então o desfoque tem o que desfocar.
+     Na lateral foi preciso inventar uma luz atrás da placa; aqui a página
+     inteira é a luz.
+     A folga usa `--lateral-solta` porque é a mesma distância: duas peças
+     flutuantes na mesma tela precisam flutuar igual. Embaixo ela soma a área
+     segura do aparelho, senão a barra encosta no indicador do sistema. */
+  .rodapenav{display:grid; grid-template-columns:repeat(5,1fr); position:fixed; z-index:40;
+    inset:auto var(--lateral-solta)
+          calc(var(--lateral-solta) + env(safe-area-inset-bottom)) var(--lateral-solta);
+    height:var(--rodape-alt); border-radius:var(--raio-4);
+    border:1px solid var(--vidro-linha); background:var(--vidro-face);
+    backdrop-filter:var(--desfoque); -webkit-backdrop-filter:var(--desfoque);
+    box-shadow:var(--vidro-relevo), var(--sh-2);
+    /* o fundo do item selecionado é um retângulo; sem o recorte ele quadra as
+       quinas da barra */
+    overflow:hidden}
+  /* MEDIDO: de 360px para cima as cinco colunas saem iguais. Em 320px a barra
+     fica com 296px e "Transações" precisa de 62, então ela toma dos vizinhos e
+     as colunas saem 57/61/57/62/57. Nada é cortado, nada quebra linha e a
+     página não ganha rolagem -- é `1fr` fazendo o certo, e não o defeito de
+     `1fr` que o CLAUDE.md descreve, que é esticar a PÁGINA. Encolher a folga
+     só para 320px resolveria 5px de desalinhamento ao custo de um ponto de
+     quebra a mais para alguém lembrar. */
   .rodapenav .navitem{flex-direction:column; gap:3px; justify-content:center; padding:6px 2px;
     font-size:10.5px; font-weight:var(--peso-medio); border-radius:0; text-align:center}
   .rodapenav .navitem svg{width:20px; height:20px}
+  .rodapenav .navitem:hover{background:var(--vidro-brilho)}
   .rodapenav .navitem[aria-selected="true"]{background:none; color:var(--brand)}
-  .rodapenav .navitem[aria-selected="true"]::before{left:50%; top:0; transform:translateX(-50%);
-    width:26px; height:2.5px; border-radius:0 0 3px 3px}
+  /* Colado no topo, o marcador entrava na curva da quina e aparecia cortado no
+     primeiro e no último item. Seis pixels para baixo e raio cheio: passa
+     longe da curva e vira uma peça da barra. */
+  .rodapenav .navitem[aria-selected="true"]::before{left:50%; top:6px; transform:translateX(-50%);
+    width:26px; height:2.5px; border-radius:var(--raio-cheio)}
 }
 
 /* ---------- movimento ----------

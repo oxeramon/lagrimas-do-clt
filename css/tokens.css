@@ -93,6 +93,19 @@
      adesivo colado na frente do vidro; este acompanha a translucidez. Deriva
      de `--brand`, então troca de tema sozinho. */
   --brand-vidro:color-mix(in srgb, var(--brand) 26%, transparent);
+  /* A FACE e o RELEVO do vidro, num valor só. As duas peças que flutuam -- a
+     lateral e o rodapé do celular -- leem daqui, e por isso "o mesmo vidro" é
+     literalmente o mesmo valor, e não duas listas de camadas que alguém vai
+     ajustar pela metade um dia.
+     A face tem três camadas: o reflexo da quina de cima, o assentamento da
+     base e o corpo translúcido. Os dois reflexos morrem nos primeiros 22%:
+     indo mais fundo eles passam por cima do conteúdo e apagam realce, que é
+     informação e não enfeite. */
+  --vidro-face:
+    linear-gradient(157deg, color-mix(in srgb, var(--vidro-brilho) 80%, transparent) 0%, transparent 22%),
+    linear-gradient(0deg, color-mix(in srgb, var(--vidro-brilho) 40%, transparent) 0%, transparent 22%),
+    color-mix(in srgb, var(--vidro) 84%, transparent);
+  --vidro-relevo:inset 0 1px 0 var(--vidro-brilho), inset 0 -1px 0 var(--vidro-fundo);
   --s1:var(--serie-1); --s2:var(--serie-2); --s3:var(--serie-3); --s4:var(--serie-4); --s5:var(--serie-5);
   --good:var(--bom-500); --warn:var(--aviso-500); --critical:var(--grave-500);
   --good-soft:var(--bom-50); --warn-soft:var(--aviso-50); --critical-soft:var(--grave-50);
