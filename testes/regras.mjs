@@ -47,6 +47,11 @@ import { doBanco, paraBanco, paraCamel, paraSnake } from "../js/data/v2-reposito
 import { monogramaDe, contrasteSobre, doCatalogo } from "../js/ui/institution-catalog.js";
 import { raizesPadrao, filhasPadrao, quantasCategoriasPadrao } from "../js/ui/category-catalog.js";
 import { ABAS, idsDasAbas, grupoDaAba, abasDoRodape, abasDoMais } from "../js/ui/navigation.js";
+import { regraVigente, mesesDaVigencia, historicoDaMeta, pendenciasDaMeta,
+         todasAsPendencias, resumoDePendencias, simulaRegularizacao,
+         ordenaPendencias, paraOBanco,
+         APLICADA, PARCIAL, IGNORADA, PENDENTE }
+  from "../js/domain/competencias.js";
 import { indicadoresDeMetas, necessidadeMensal, necessidadeTotal, capacidadeMensal,
          capacidadeRestante, ritmoDaMeta, emRisco, cabeReservar, RITMO,
          temRegra, alocacaoDaRegra, faltouNaRegra, estadoDaRegra,
@@ -1461,6 +1466,180 @@ eq("a regra subiu depois da alocação: faltou a diferença nova",
    quantidade, e quantidade negativa não é informação, é um sinal trocado. */
 eq("alocado acima da regra não produz falta negativa",
   faltouNaRegra(comRegra({ regraValor:300 }), aloc({ valor:500 })), 0);
+
+/* ========================================================================
+   COMPETÊNCIAS DA REGRA · Modelo C
+   ------------------------------------------------------------------------
+   Contrato em `docs/CONTRATO_COMPETENCIAS.md`. O caso que dá sentido a
+   todos os outros é o primeiro: última execução em dezembro, a pessoa
+   volta em março, e o app mostra DUAS pendências em vez de reservar 1.500
+   sozinho.
+
+   Nada aqui guarda estado: "pendente" é a ausência de decisão num mês que
+   a vigência cobre, e é por isso que dá para testar com objetos soltos.
+   ======================================================================== */
+console.log("\ncompetências da regra");
+
+const metaR = (o) => ({
+  metaId: "m1", nome: "Meta", status: "ativa", prioridade: 2, prazo: null,
+  valorAlvo: 9000, reservado: 0, falta: 9000,
+  regraValor: 500, regraAtiva: true, regraDesde: "2025-12", ...o });
+const alocR = (comp, valor, planejado) => ({
+  id: "a-" + comp, metaId: "m1", origem: "regra", competencia: comp,
+  valor, valorPlanejado: planejado, criadoEm: "2026-03-12T10:00:00Z" });
+const decisaoR = (comp, planejado) => ({
+  id: "d-" + comp, metaId: "m1", competencia: comp, situacao: "ignorada",
+  valorPlanejado: planejado, decididaEm: "2026-03-10T10:00:00Z" });
+
+/* ---- 1 · dezembro tratado, volta em março: jan e fev PENDENTES --------- */
+const m1 = metaR({});
+const historico = historicoDaMeta(m1, [alocR("2025-12", 500, 500)], [], "2026-03");
+eq("1 · a vigência cobre dezembro a março", historico.length, 4);
+eq("1 · dezembro está aplicado",
+  historico.find((c) => c.competencia === "2025-12").estado, APLICADA);
+eq("1 · janeiro e fevereiro ficam PENDENTES",
+  historico.filter((c) => c.estado === PENDENTE).map((c) => c.competencia),
+  ["2026-03", "2026-02", "2026-01"]);
+/* A LINHA MAIS IMPORTANTE DO ARQUIVO: só jan e fev entram na lista de
+   decisões. Março é da automação, e pedir decisão sobre ele seria pedir
+   duas vezes a mesma coisa. */
+eq("1 · mas só jan e fev pedem decisão; março é da automação",
+  pendenciasDaMeta(m1, [alocR("2025-12", 500, 500)], [], "2026-03")
+    .map((c) => c.competencia), ["2026-01", "2026-02"]);
+eq("1 · e a soma delas é 1.000, NUNCA aplicada sozinha",
+  resumoDePendencias([m1], [alocR("2025-12", 500, 500)], [], "2026-03").planejado, 1000);
+
+/* ---- 2 · ignorar tira da lista, e não vira alocação ------------------- */
+const comIgnorada = pendenciasDaMeta(m1, [alocR("2025-12", 500, 500)],
+  [decisaoR("2026-01", 500)], "2026-03");
+eq("2 · a competência ignorada sai das pendências",
+  comIgnorada.map((c) => c.competencia), ["2026-02"]);
+eq("2 · mas continua no histórico, marcada",
+  historicoDaMeta(m1, [], [decisaoR("2026-01", 500)], "2026-03")
+    .find((c) => c.competencia === "2026-01").estado, IGNORADA);
+
+/* ---- 3 · parcial: coube menos do que a regra pedia -------------------- */
+const compParcial = historicoDaMeta(m1, [alocR("2026-01", 300, 500)], [], "2026-03")
+  .find((c) => c.competencia === "2026-01");
+eq("3 · coube 300 de 500: parcial", compParcial.estado, PARCIAL);
+eq("3 · e faltaram 200, DERIVADOS", compParcial.faltou, 200);
+eq("3 · coube tudo: aplicada, e faltou zero",
+  historicoDaMeta(m1, [alocR("2026-01", 500, 500)], [], "2026-03")
+    .find((c) => c.competencia === "2026-01").faltou, 0);
+
+/* ---- 4 · MUDAR A REGRA NÃO REESCREVE O PASSADO ------------------------
+   Janeiro aplicou 300 quando a regra era 500. Em março a regra vira 700.
+   O histórico de janeiro continua dizendo 500, porque é o que foi
+   decidido -- e se lesse a regra de hoje diria que faltaram 400. */
+const regraMudou = metaR({ regraValor: 700 });
+const jan = historicoDaMeta(regraMudou, [alocR("2026-01", 300, 500)], [], "2026-03")
+  .find((c) => c.competencia === "2026-01");
+eq("4 · o planejado de janeiro continua 500, não 700", jan.planejado, 500);
+eq("4 · e faltaram 200, não 400", jan.faltou, 200);
+/* mas uma competência SEM decisão mostra a regra de hoje: nunca houve uma
+   decisão de fevereiro para preservar */
+eq("4 · fevereiro, ainda pendente, mostra a regra de hoje",
+  historicoDaMeta(regraMudou, [alocR("2026-01", 300, 500)], [], "2026-03")
+    .find((c) => c.competencia === "2026-02").planejado, 700);
+
+/* ---- 5 · vigência: a regra não alcança o que veio antes dela ---------- */
+eq("5 · regra que começa em março não gera pendência de jan/fev",
+  pendenciasDaMeta(metaR({ regraDesde: "2026-03" }), [], [], "2026-03"), []);
+eq("5 · a vigência de março a março é um mês só",
+  mesesDaVigencia(metaR({ regraDesde: "2026-03" }), "2026-03"), ["2026-03"]);
+eq("5 · e olhada num mês ANTERIOR ao começo, não existe",
+  mesesDaVigencia(metaR({ regraDesde: "2026-03" }), "2026-01"), []);
+
+/* ---- 6 · regra desligada não gera competência nenhuma ----------------- */
+eq("6 · regra desligada não vigora",
+  regraVigente(metaR({ regraAtiva: false })), false);
+eq("6 · e não produz pendência nem do passado",
+  pendenciasDaMeta(metaR({ regraAtiva: false }), [], [], "2026-03"), []);
+eq("6 · meta arquivada também não reserva",
+  regraVigente(metaR({ status: "arquivada" })), false);
+eq("6 · nem meta concluída", regraVigente(metaR({ status: "concluida" })), false);
+eq("6 · regra sem vigência gravada não vale",
+  regraVigente(metaR({ regraDesde: null })), false);
+
+/* ---- 7 · SIMULAÇÃO SEQUENCIAL, nunca regra × meses --------------------
+   900 disponíveis, três pendências de 500. O contrato dá 500, 400 e zero --
+   e não 1.500. */
+const tres = todasAsPendencias([m1], [], [], "2026-04")
+  .filter((c) => c.competencia < "2026-04").slice(-3);
+const sim = simulaRegularizacao(tres, 900);
+eq("7 · são três pendências", sim.linhas.length, 3);
+eq("7 · a soma reservada é 900, não 1.500", sim.total, 900);
+eq("7 · e cada uma leva o que sobrou", sim.linhas.map((l) => l.reservar), [500, 400, 0]);
+eq("7 · uma fica sem nada, e a tela precisa dizer isso", sim.semNada, 1);
+eq("7 · o que faltou na segunda são 100", sim.linhas[1].faltara, 100);
+
+/* sem disponível nenhum, ninguém reserva -- e nenhuma linha de zero nasce */
+eq("7 · com zero disponível, nada é reservado",
+  simulaRegularizacao(tres, 0).total, 0);
+eq("7 · e o disponível negativo é tratado como zero, não como dívida",
+  simulaRegularizacao(tres, -500).total, 0);
+
+/* ---- 8 · a simulação respeita o que falta para a meta ----------------- */
+eq("8 · meta que só precisa de 120 não recebe os 500 da regra",
+  simulaRegularizacao(
+    todasAsPendencias([metaR({ falta: 120 })], [], [], "2026-02"), 9000).total, 120);
+
+/* ---- 9 · ORDEM DETERMINÍSTICA ----------------------------------------
+   Mesma entrada, mesma saída, sempre. Prioridade, depois prazo, depois a
+   competência mais antiga. */
+/* Os nomes contrariam a ordem alfabética DE PROPÓSITO: com "Alta" e "Media"
+   o desempate por nome daria o mesmo resultado que a prioridade, e o caso
+   passaria mesmo com a prioridade ignorada -- foi o que aconteceu na primeira
+   escrita, e o mutation testing pegou. */
+const alta  = metaR({ metaId:"A", nome:"Zebra",   prioridade:1, regraValor:500 });
+const media = metaR({ metaId:"B", nome:"Abacaxi", prioridade:2, regraValor:500 });
+const disputa = todasAsPendencias([media, alta], [], [], "2026-02")
+  .filter((c) => c.competencia === "2026-01");
+eq("9 · prioridade alta vem primeiro, mesmo entrando depois na lista",
+  disputa.map((c) => c.meta.metaId), ["A", "B"]);
+eq("9 · com 800, a alta leva 500 e a média leva 300",
+  simulaRegularizacao(disputa, 800).linhas.map((l) => l.reservar), [500, 300]);
+/* mesma prioridade: decide o prazo mais perto */
+const prazoPerto = metaR({ metaId:"C", nome:"Perto", prazo:"2026-06" });
+const prazoLonge = metaR({ metaId:"D", nome:"Longe", prazo:"2026-12" });
+eq("9 · empatada a prioridade, o prazo mais perto vem antes",
+  ordenaPendencias(todasAsPendencias([prazoLonge, prazoPerto], [], [], "2026-02")
+    .filter((c) => c.competencia === "2026-01")).map((c) => c.meta.metaId), ["C", "D"]);
+/* e sem prazo vai por último */
+eq("9 · sem prazo vai para o fim",
+  ordenaPendencias(todasAsPendencias([metaR({ metaId:"E", nome:"Sem", prazo:null }), prazoPerto],
+    [], [], "2026-02").filter((c) => c.competencia === "2026-01"))
+    .map((c) => c.meta.metaId), ["C", "E"]);
+/* dentro da mesma meta, a mais antiga primeiro */
+eq("9 · na mesma meta, a competência mais antiga primeiro",
+  todasAsPendencias([m1], [], [], "2026-03")
+    .filter((c) => c.competencia < "2026-03").map((c) => c.competencia),
+  ["2025-12", "2026-01", "2026-02"]);
+
+/* ---- 10 · o que vai para o banco é só o par ---------------------------- */
+eq("10 · o payload não leva número nenhum, só meta e competência",
+  paraOBanco(disputa.slice(0, 1)), [{ meta_id:"A", competencia:"2026-01" }]);
+
+/* ---- 11 · PENDÊNCIA NÃO É DINHEIRO -----------------------------------
+   O resumo conta decisões e soma regras. Ele nunca se mistura com saldo,
+   reservado ou disponível -- e estes casos existem para que somar vire
+   falha de teste, não decisão de tela. */
+const resumoPend = resumoDePendencias([m1], [], [], "2026-03");
+eq("11 · o resumo conta três competências", resumoPend.quantas, 3);
+eq("11 · e soma 1.500 de REGRA, que não é reservado", resumoPend.planejado, 1500);
+eq("11 · uma meta só, mesmo com três competências", resumoPend.metas, 1);
+/* o reservado da meta continua zero: pendência não reserva nada */
+eq("11 · e nada disso alterou o reservado da meta", m1.reservado, 0);
+
+/* ---- 12 · alocação manual não ocupa a competência --------------------- */
+eq("12 · manual com competência não conta como aplicação da regra",
+  historicoDaMeta(m1, [{ id:"x", metaId:"m1", origem:"manual", competencia:"2026-01",
+    valor:300, valorPlanejado:null }], [], "2026-03")
+    .find((c) => c.competencia === "2026-01").estado, PENDENTE);
+
+/* ---- 13 · vigência absurda não vira laço infinito --------------------- */
+eq("13 · uma vigência de mil anos é cortada em 61 meses",
+  mesesDaVigencia(metaR({ regraDesde: "1900-01" }), "2026-03").length, 61);
 
 console.log(`\n${ok} passaram, ${bad} falharam`);
 process.exit(bad ? 1 : 0);
