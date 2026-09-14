@@ -48,7 +48,9 @@ import { monogramaDe, contrasteSobre, doCatalogo } from "../js/ui/institution-ca
 import { raizesPadrao, filhasPadrao, quantasCategoriasPadrao } from "../js/ui/category-catalog.js";
 import { ABAS, idsDasAbas, grupoDaAba, abasDoRodape, abasDoMais } from "../js/ui/navigation.js";
 import { indicadoresDeMetas, necessidadeMensal, necessidadeTotal, capacidadeMensal,
-         capacidadeRestante, ritmoDaMeta, emRisco, cabeReservar, RITMO }
+         capacidadeRestante, ritmoDaMeta, emRisco, cabeReservar, RITMO,
+         temRegra, alocacaoDaRegra, faltouNaRegra, estadoDaRegra,
+         SEM_REGRA, REGRA_PENDENTE, REGRA_APLICADA, REGRA_PARCIAL }
   from "../js/domain/goals.js";
 import { saidasDoMes, entradasDoMes, resumoDoMes, estadoDoCompromisso,
          indiceDeLiquidacoes, chaveDe, mesesEmAtraso,
@@ -1388,6 +1390,77 @@ eq("H · com o pagamento junto, o consumo continua 300 e não 600",
   compraEPagamento.saidas.consumo, 300);
 eq("H · o caixa é só o pagamento: 300", compraEPagamento.saidas.realizado, 300);
 eq("H · a compra sozinha não tira nada do caixa", soCompra.saidas.realizado, 0);
+
+/* ========================================================================
+   A REGRA MENSAL DA META
+   ------------------------------------------------------------------------
+   O banco garante o que importa -- uma alocação por competência, e nunca
+   acima do disponível. O que se prova AQUI é a leitura: a tela lê `origem`
+   e `competencia` para decidir entre "aplicar" e "desfazer", e ler errado
+   oferece o botão de reservar num mês que já foi reservado.
+
+   E prova-se que "o que faltou" é DERIVADO. Se um dia alguém guardar essa
+   subtração numa coluna, estes casos continuam passando e o defeito entra
+   pela porta da frente -- por isso a fixture edita o valor da regra DEPOIS
+   da alocação, que é exatamente o instante em que a coluna mentiria.
+   ======================================================================== */
+console.log("\nregra mensal da meta");
+
+const comRegra = (o) => meta({ metaId:"m1", valorAlvo:5000, regraValor:500, regraAtiva:true, ...o });
+const aloc = (o) => ({ id:"a1", metaId:"m1", origem:"regra", competencia:"2026-09",
+  valor:500, data:"2026-09-10", ...o });
+
+eq("regra ativa com valor é regra", temRegra(comRegra({})), true);
+eq("valor sem `regraAtiva` NÃO é regra",
+  temRegra(meta({ regraValor:500, regraAtiva:false })), false);
+eq("ativa sem valor NÃO é regra (o par meio preenchido)",
+  temRegra(meta({ regraValor:null, regraAtiva:true })), false);
+eq("regra de zero não é regra", temRegra(meta({ regraValor:0, regraAtiva:true })), false);
+
+/* A alocação MANUAL nunca casa, e o caso decisivo é o de uma manual COM
+   competência preenchida: o banco só exige competência de quem vem da regra,
+   nada proíbe uma manual de ter uma. Casar por competência sozinha ofereceria
+   "Desfazer" sobre uma reserva que a pessoa fez à mão -- e desfazer apagaria
+   o que ela mesma guardou.
+   (O caso de competência nula não prova nada aqui: ele já não casaria pelo
+   mês, e passaria mesmo com o filtro de origem removido.) */
+eq("a manual do mesmo mês, mesmo com competência, não é a da regra",
+  alocacaoDaRegra([aloc({ origem:"manual" })], "m1", "2026-09"), null);
+eq("a manual sem competência também não é",
+  alocacaoDaRegra([aloc({ origem:"manual", competencia:null })], "m1", "2026-09"), null);
+eq("a alocação de regra de OUTRO mês não é a deste",
+  alocacaoDaRegra([aloc({ competencia:"2026-08" })], "m1", "2026-09"), null);
+eq("a alocação de regra de OUTRA meta não é a desta",
+  alocacaoDaRegra([aloc({ metaId:"m2" })], "m1", "2026-09"), null);
+eq("a alocação da regra do mês é encontrada",
+  alocacaoDaRegra([aloc({})], "m1", "2026-09")?.id, "a1");
+
+eq("sem regra não há estado de regra",
+  estadoDaRegra(meta({ metaId:"m1" }), [aloc({})], "2026-09").estado, SEM_REGRA);
+eq("com regra e sem alocação no mês: pendente",
+  estadoDaRegra(comRegra({}), [], "2026-09").estado, REGRA_PENDENTE);
+eq("coube inteiro: aplicada",
+  estadoDaRegra(comRegra({}), [aloc({ valor:500 })], "2026-09").estado, REGRA_APLICADA);
+eq("coube parte: parcial",
+  estadoDaRegra(comRegra({}), [aloc({ valor:300 })], "2026-09").estado, REGRA_PARCIAL);
+eq("e o que faltou é 200",
+  estadoDaRegra(comRegra({}), [aloc({ valor:300 })], "2026-09").faltou, 200);
+eq("coube inteiro: faltou zero, não `null`",
+  estadoDaRegra(comRegra({}), [aloc({ valor:500 })], "2026-09").faltou, 0);
+eq("pendente não é `faltou`: ainda não se tentou",
+  estadoDaRegra(comRegra({}), [], "2026-09").faltou, null);
+
+/* O que mais importa: a subtração é feita na hora da leitura. Regra de 500
+   aplicada por 300, e a pessoa depois baixa a regra para 300 -- não faltou
+   nada. Uma coluna `faltou = 200` continuaria dizendo 200. */
+eq("a regra baixou depois da alocação: não faltou nada",
+  faltouNaRegra(comRegra({ regraValor:300 }), aloc({ valor:300 })), 0);
+eq("a regra subiu depois da alocação: faltou a diferença nova",
+  faltouNaRegra(comRegra({ regraValor:800 }), aloc({ valor:300 })), 500);
+/* Alocar mais do que a regra pedia não vira "faltou negativo": faltar é uma
+   quantidade, e quantidade negativa não é informação, é um sinal trocado. */
+eq("alocado acima da regra não produz falta negativa",
+  faltouNaRegra(comRegra({ regraValor:300 }), aloc({ valor:500 })), 0);
 
 console.log(`\n${ok} passaram, ${bad} falharam`);
 process.exit(bad ? 1 : 0);

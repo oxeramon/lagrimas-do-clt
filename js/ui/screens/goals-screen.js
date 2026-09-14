@@ -18,11 +18,13 @@ import { esc } from "../../core/escape.js";
 import { money } from "../../core/money.js";
 import { PRIORIDADES, STATUS, rotuloDaPrioridade, indicadoresDeMetas,
          ordenaMetas, necessidadeMensal, emRisco, cabeReservar,
-         capacidadeMensal, ritmoDaMeta, rotuloDoRitmo, RITMO }
+         capacidadeMensal, ritmoDaMeta, rotuloDoRitmo, RITMO,
+         temRegra, estadoDaRegra, REGRA_PENDENTE, REGRA_PARCIAL }
   from "../../domain/goals.js";
 import { V2, dep, recarrega } from "./estado.js";
 import { listaDeOpcoes, confirmaEmDoisCliques, mostraErro, hojeISO, diaLegivel }
   from "./pecas.js";
+import { labelLong } from "../../core/dates.js";
 import * as v2 from "../../data/v2-repository.js";
 
 let metaEditando = null;
@@ -76,6 +78,14 @@ export function renderMetas(){
 
   $("listaMetas").innerHTML = ordenaMetas(V2.metas, capacidade())
     .map((m) => linhaDeMeta(m, ind.precisaPorMes)).join("");
+
+  /* Desfazer apaga uma linha do histórico, então vai em dois cliques como todo
+     o resto. Ele é ligado AQUI, e não por delegação, porque `confirmaEmDoisCliques`
+     guarda o estado armado no próprio fecho -- ligar no clique criaria um
+     ouvinte novo a cada clique, e o terceiro clique dispararia dois. */
+  for (const botao of $("listaMetas").querySelectorAll("[data-desfazregra]"))
+    confirmaEmDoisCliques(botao, "Desfazer",
+      () => desfazRegra(botao.getAttribute("data-desfazregra")), "Confirmar");
 }
 
 /* Só estes quatro viram etiqueta. `sem prazo` e `sem referência` não ganham
@@ -108,10 +118,43 @@ function linhaDeMeta(m, precisaPorMes){
     + '<span class="meta-pct num">' + m.percentual + '%</span>'
     + '</div>'
     + '<div class="barra"><span style="--frac:' + m.percentual + '%"></span></div>'
+    + blocoDaRegra(m)
     + '<div class="meta-acoes">'
     + '<button type="button" class="btn ghost sm" data-alocameta="' + esc(m.metaId) + '">Reservar</button>'
     + '<button type="button" class="btn ghost sm" data-editameta="' + esc(m.metaId) + '">Editar</button>'
     + '</div></div>';
+}
+
+/* A REGRA MENSAL no cartão da meta: uma frase e um botão, e sempre sobre o MÊS
+   EM FOCO -- o mesmo que o resto do app está mostrando.
+
+   Não existe botão para aplicar mês passado. A regra pertence ao mês que está
+   na tela, e um botão que aplicasse "os meses que faltaram" criaria reservas
+   que ninguém pediu, em datas que ninguém escolheu.
+
+   Ela é linha PRÓPRIA, e não mais um botão na barra de ações: três botões numa
+   linha já estouram a largura em 320px, e o texto aqui é longo demais para
+   caber ao lado dos outros dois. */
+function blocoDaRegra(m){
+  if (!temRegra(m) || m.status !== "ativa") return "";
+  const { estado, faltou } = estadoDaRegra(m, V2.alocacoes, V2.mes);
+  const mes = labelLong(V2.mes);
+
+  if (estado === REGRA_PENDENTE)
+    return '<div class="meta-regra"><span>Regra: ' + esc(money(m.regraValor))
+      + ' por mês</span><button type="button" class="btn ghost sm" data-aplicaregra="'
+      + esc(m.metaId) + '">Reservar ' + esc(mes) + '</button></div>';
+
+  /* Já aplicada. O que faltou é DERIVADO, e aparece porque muda a decisão:
+     coube 300 de 500, e os 200 que faltaram não voltam sozinhos. */
+  const rotulo = estado === REGRA_PARCIAL
+    ? "Coube " + money(Number(m.regraValor) - faltou) + " dos " + money(m.regraValor)
+      + " de " + mes
+    : money(m.regraValor) + " reservado em " + mes;
+  return '<div class="meta-regra' + (estado === REGRA_PARCIAL ? " parcial" : "") + '">'
+    + '<span>' + esc(rotulo) + '</span>'
+    + '<button type="button" class="btn ghost sm" data-desfazregra="' + esc(m.metaId)
+    + '">Desfazer</button></div>';
 }
 
 /* ---------------------------------------------------------- cadastro --*/
@@ -127,6 +170,9 @@ function abreMeta(id){
     PRIORIDADES.map((p) => ({ id: String(p.id), rotulo: p.rotulo })),
     String(m ? m.prioridade : 2), "");
   $("mt_status").innerHTML = listaDeOpcoes(STATUS, m ? m.status : "ativa", "");
+  /* Vazio significa SEM regra. Não há caixa de "ativar": um valor em branco
+     já diz tudo, e dois controles para um estado só é onde eles discordam. */
+  $("mt_regra").value = m && m.regraAtiva && m.regraValor ? m.regraValor : "";
   $("mt_obs").value = m ? (m.obs || "") : "";
   $("mtExcluir").hidden = !m;
   mostraErro($("mtErro"), "");
@@ -230,6 +276,46 @@ async function registraAlocacao(sinal){
   await recarrega();
 }
 
+/* --------------------------------------------------------- a regra --------
+   Aplicar é uma chamada ao banco, e não uma soma na tela. O banco é quem
+   decide quanto cabe, e é quem recusa a segunda aplicação do mesmo mês -- duas
+   abas abertas no mesmo app fariam a segunda reserva se quem decidisse fosse
+   um `if` daqui.
+
+   A tela só traduz a resposta. E ela traduz os TRÊS casos, porque são três
+   coisas diferentes para quem lê:
+     alocou tudo    a reserva do mês está feita
+     alocou parte   coube o que havia; o que faltou continua faltando
+     alocou nada    não havia saldo livre, e nenhuma linha foi criada */
+async function aplicaRegra(botao, metaId){
+  const m = (V2.metas || []).find((x) => x.metaId === metaId);
+  if (!m) return;
+  botao.disabled = true;
+  const r = await v2.aplicaRegraDeMeta(metaId, V2.mes);
+  botao.disabled = false;
+  if (r.erro) return dep.erro("Não deu para reservar. " + r.erro);
+
+  const { alocado, jaAplicada, disponivel } = r.dados;
+  if (jaAplicada) dep.toast("A regra deste mês já tinha sido aplicada.");
+  else if (alocado <= 0) dep.toast(
+    "Não há saldo livre para reservar agora"
+    + (disponivel > 0 ? " além de " + money(disponivel) + "." : "."));
+  else if (alocado < Number(m.regraValor)) dep.toast(
+    "Reservado " + money(alocado) + " dos " + money(m.regraValor)
+    + ": era o que havia livre.");
+  else dep.toast("Reservado " + money(alocado) + ".");
+  await recarrega();
+}
+
+/* Desfazer apaga a alocação DAQUELE mês, e só ela. As alocações manuais da
+   mesma meta ficam onde estão: elas não vieram da regra. */
+async function desfazRegra(metaId){
+  const r = await v2.desfazRegraDeMeta(metaId, V2.mes);
+  if (r.erro) return dep.erro("Não deu para desfazer. " + r.erro);
+  dep.toast(r.dados ? "Reserva do mês desfeita." : "Não havia reserva da regra neste mês.");
+  await recarrega();
+}
+
 export function ligaMetas(){
   $("btnNovaMeta")?.addEventListener("click", () => abreMeta(null));
   $("mt_alvo")?.addEventListener("input", mostraEquivalenteDaMeta);
@@ -240,11 +326,14 @@ export function ligaMetas(){
     if (editar) return abreMeta(editar.getAttribute("data-editameta"));
     const alocar = e.target.closest("[data-alocameta]");
     if (alocar) return abreAlocacao(alocar.getAttribute("data-alocameta"));
+    const aplicar = e.target.closest("[data-aplicaregra]");
+    if (aplicar) return aplicaRegra(aplicar, aplicar.getAttribute("data-aplicaregra"));
   });
 
   $("formMeta")?.addEventListener("submit", async (e) => {
     e.preventDefault();
     const btn = $("mtSalvar"); btn.disabled = true;
+    const regra = Number($("mt_regra").value) || 0;
     const r = await v2.salvaMeta({
       nome: $("mt_nome").value.trim(),
       valorAlvo: Number($("mt_alvo").value),
@@ -252,6 +341,12 @@ export function ligaMetas(){
       prioridade: Number($("mt_prioridade").value),
       status: $("mt_status").value,
       obs: $("mt_obs").value.trim(),
+      /* O banco cobra `regra_ativa => regra_valor is not null`. Mandar os dois
+         juntos, sempre, é o que impede o par meio preenchido -- limpar um e
+         esquecer o outro deixaria uma regra ativa sem valor, e o check
+         recusaria o salvamento inteiro sem a pessoa entender por quê. */
+      regraValor: regra > 0 ? regra : null,
+      regraAtiva: regra > 0,
     }, metaEditando);
     btn.disabled = false;
     if (r.erro) return mostraErro($("mtErro"), r.erro);

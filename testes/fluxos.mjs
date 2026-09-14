@@ -1066,6 +1066,152 @@ console.log("\nmetas");
 }
 
 /* ==================================================================
+   REGRA MENSAL DA META: idempotente, parcial e reversível
+   ==================================================================
+   Os três casos que a tela pode errar e o teste de unidade não alcança:
+   aplicar duas vezes no mesmo mês, aplicar com saldo curto, e desfazer.
+
+   O que se prova aqui, e que nenhuma asserção de número prova: a regra
+   continua sendo ENVELOPE. Aplicar não cria transação e não mexe em saldo
+   de conta -- ela é a mesma alocação de sempre, só marcada de onde veio.
+   ================================================================== */
+console.log("\nregra mensal da meta");
+{
+  const { p, erros } = await abreApp(1440);
+  await criaConta(p, "Conta Alfa", 700, true);
+
+  const criaMeta = async (nome, alvo, regra) => {
+    await p.click("#btnNovaMeta");
+    await p.waitForTimeout(250);
+    await p.fill("#mt_nome", nome);
+    await p.fill("#mt_alvo", String(alvo));
+    if (regra != null) await p.fill("#mt_regra", String(regra));
+    await p.waitForTimeout(120);
+    await p.click("#mtSalvar");
+    await p.waitForTimeout(650);
+  };
+  /* as duas metas não têm prazo nem prioridade diferente, então a ordem da
+     lista é a do nome -- A na primeira posição, B na segunda */
+  const cartao = (n) => p.locator(".meta-card").nth(n);
+
+  await vaiPara(p, "metas");
+  await p.waitForTimeout(250);
+  await criaMeta("Meta A", 5000, 500);
+
+  eq("a meta com regra mostra a linha da regra",
+    await p.locator(".meta-regra").count(), 1);
+  eq("e oferece o botão de reservar o mês",
+    await p.locator("[data-aplicaregra]").count(), 1);
+
+  /* APLICAR ------------------------------------------------------------- */
+  const saldoAntes = await p.evaluate(() =>
+    globalThis.__T.contas.reduce((s, c) => s + Number(c.saldo_inicial), 0));
+  await p.click("[data-aplicaregra]");
+  await p.waitForTimeout(750);
+  const aplicada = await p.evaluate(() => ({
+    reservado: document.getElementById("mtReservado").textContent.replace(/ /g, " "),
+    linhas: globalThis.__T.alocacoes_de_meta.length,
+    origem: globalThis.__T.alocacoes_de_meta[0]?.origem,
+    competencia: globalThis.__T.alocacoes_de_meta[0]?.competencia,
+    /* O INVARIANTE DE METAS. A regra não é exceção a ele. */
+    transacoes: globalThis.__T.transacoes.length,
+    saldos: globalThis.__T.contas.reduce((s, c) => s + Number(c.saldo_inicial), 0),
+    botao: document.querySelectorAll("[data-aplicaregra]").length,
+    desfazer: document.querySelectorAll("[data-desfazregra]").length,
+  }));
+  eq("aplicar a regra reserva os 500", aplicada.reservado, "R$ 500,00");
+  eq("e a alocação nasce marcada como vinda de regra", aplicada.origem, "regra");
+  eq("com a competência do mês em foco preenchida",
+    /^\d{4}-\d{2}$/.test(String(aplicada.competencia)), true);
+  eq("APLICAR A REGRA NÃO CRIA TRANSAÇÃO", aplicada.transacoes, 0);
+  eq("E NÃO MEXE NO SALDO DA CONTA", aplicada.saldos, saldoAntes);
+  eq("o botão de aplicar dá lugar ao de desfazer",
+    [aplicada.botao, aplicada.desfazer], [0, 1]);
+
+  /* IDEMPOTÊNCIA -------------------------------------------------------
+     O botão some depois de aplicado, então a segunda tentativa não tem porta
+     pela tela. Ela vai pela de trás, direto no cliente: a garantia é do
+     BANCO, e é justamente essa que a tela esconderia de um teste. */
+  await p.evaluate(async () => {
+    const a = globalThis.__T.alocacoes_de_meta[0];
+    await globalThis.__SB.rpc("aplica_regra_de_meta",
+      { p_meta: a.meta_id, p_competencia: a.competencia });
+  });
+  eq("aplicar de novo a mesma competência não cria segunda linha",
+    await p.evaluate(() => globalThis.__T.alocacoes_de_meta.length), 1);
+
+  /* PARCIAL -------------------------------------------------------------
+     Sobram 200 livres dos 700, e a regra da Meta B pede 500. Reserva 200:
+     não 500, que seria mentira, e não zero, que perderia o mês inteiro por
+     causa dos 300 que faltaram. */
+  await criaMeta("Meta B", 5000, 500);
+  await cartao(1).locator("[data-aplicaregra]").click();
+  await p.waitForTimeout(750);
+  const parcial = await p.evaluate(() => {
+    const metaB = globalThis.__T.metas.find((m) => m.nome === "Meta B");
+    const doMes = globalThis.__T.alocacoes_de_meta.find((a) => a.meta_id === metaB.id);
+    return {
+      valor: Number(doMes?.valor),
+      reservado: document.getElementById("mtReservado").textContent.replace(/ /g, " "),
+      disponivel: document.getElementById("mtDisponivel").textContent.replace(/ /g, " "),
+      parciais: document.querySelectorAll(".meta-regra.parcial").length,
+    };
+  });
+  eq("com 200 livres, a regra de 500 reserva 200", parcial.valor, 200);
+  eq("o reservado total vai a 700, o saldo livre inteiro", parcial.reservado, "R$ 700,00");
+  eq("e não sobra nada disponível", parcial.disponivel, "R$ 0,00");
+  eq("um cartão -- só um -- diz que coube apenas parte", parcial.parciais, 1);
+
+  /* NÃO RESERVA O QUE NÃO EXISTE ---------------------------------------
+     Com o disponível em zero, aplicar não cria linha nenhuma. Alocação de
+     zero não é informação, é ruído no histórico. */
+  await p.evaluate(async () => {
+    const metaA = globalThis.__T.metas.find((m) => m.nome === "Meta A");
+    await globalThis.__SB.rpc("aplica_regra_de_meta",
+      { p_meta: metaA.id, p_competencia: "2030-01" });
+  });
+  eq("sem disponível, nenhuma linha nova é criada",
+    await p.evaluate(() => globalThis.__T.alocacoes_de_meta.length), 2);
+
+  /* REVERSÍVEL, EM DOIS CLIQUES ---------------------------------------- */
+  const desfazerB = cartao(1).locator("[data-desfazregra]");
+  await desfazerB.click();
+  await p.waitForTimeout(200);
+  eq("o primeiro clique só arma", await desfazerB.textContent(), "Confirmar");
+  await desfazerB.click();
+  await p.waitForTimeout(750);
+  const desfeita = await p.evaluate(() => {
+    const metaA = globalThis.__T.metas.find((m) => m.nome === "Meta A");
+    return {
+      linhas: globalThis.__T.alocacoes_de_meta.length,
+      restanteEhDeA: globalThis.__T.alocacoes_de_meta[0]?.meta_id === metaA.id,
+      reservado: document.getElementById("mtReservado").textContent.replace(/ /g, " "),
+      voltouOBotao: document.querySelectorAll("[data-aplicaregra]").length,
+    };
+  });
+  eq("desfazer apaga a linha daquela meta", desfeita.linhas, 1);
+  eq("e não encosta na alocação da outra", desfeita.restanteEhDeA, true);
+  eq("o reservado volta para 500", desfeita.reservado, "R$ 500,00");
+  eq("e o botão de aplicar volta no cartão desfeito", desfeita.voltouOBotao, 1);
+
+  /* DESLIGAR A REGRA ----------------------------------------------------
+     Vazio significa sem regra. Não há caixa de "ativar" para discordar do
+     campo, que é onde os dois controles se contradiriam. */
+  await cartao(1).locator("[data-editameta]").click();
+  await p.waitForTimeout(350);
+  await p.fill("#mt_regra", "");
+  await p.click("#mtSalvar");
+  await p.waitForTimeout(750);
+  eq("apagar o valor tira a linha da regra do cartão",
+    await p.locator(".meta-regra").count(), 1);
+  eq("e some com o botão de aplicar daquele cartão",
+    await cartao(1).locator("[data-aplicaregra]").count(), 0);
+
+  eq("nenhum erro de JavaScript no caminho da regra", erros, []);
+  await p.close();
+}
+
+/* ==================================================================
    ESTORNO: dinheiro que voltou, pela tela
    ==================================================================
    O contrato da 010 existia e não tinha botão. Estes casos provam que o botão
@@ -1283,10 +1429,38 @@ console.log("\nrolagem lateral");
   await p.click("#formReceita button[type=submit]");
   await p.waitForTimeout(400);
 
+  /* Metas entra COM uma meta que tem regra: a linha da regra é peça larga --
+     uma frase de dinheiro mais um botão -- e é justamente o tipo de coisa que
+     cabe no monitor e estoura em 320px. Nome longo de propósito: o `1fr` do
+     cartão cresce até o filho mais largo. */
+  await vaiPara(p, "metas");
+  await p.waitForTimeout(150);
+  await p.click("#btnNovaMeta");
+  await p.waitForTimeout(250);
+  await p.fill("#mt_nome", "Meta de Nome Razoavelmente Longo Para Medir");
+  await p.fill("#mt_alvo", "12345.67");
+  await p.fill("#mt_regra", "987.65");
+  await p.click("#mtSalvar");
+  await p.waitForTimeout(600);
+  /* e a segunda fica APLICADA: os dois estados da linha têm textos de
+     tamanhos diferentes, e medir só um deixa o outro sem prova */
+  await p.click("#btnNovaMeta");
+  await p.waitForTimeout(250);
+  await p.fill("#mt_nome", "Outra Meta de Nome Igualmente Longo Para Medir");
+  await p.fill("#mt_alvo", "23456.78");
+  await p.fill("#mt_regra", "876.54");
+  await p.click("#mtSalvar");
+  await p.waitForTimeout(600);
+  await p.locator(".meta-card").nth(1).locator("[data-aplicaregra]").click();
+  await p.waitForTimeout(700);
+  eq("as duas linhas de regra estão na tela, uma pendente e uma aplicada",
+    [await p.locator("[data-aplicaregra]").count(),
+     await p.locator("[data-desfazregra]").count()], [1, 1]);
+
   for (const largura of [320, 360, 390, 768, 1366, 1440]){
     await p.setViewportSize({ width: largura, height: 900 });
     for (const aba of ["painel", "mes", "contas", "cartoes", "assinaturas",
-                       "grupos", "transacoes", "receitas"]){
+                       "grupos", "transacoes", "receitas", "metas"]){
       await vaiPara(p, aba);
       await p.waitForTimeout(120);
       eq(`sem rolagem lateral em ${largura}px na aba ${aba}`,

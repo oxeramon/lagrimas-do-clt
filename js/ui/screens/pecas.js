@@ -43,12 +43,13 @@ export function listaDeOpcoes(lista, selecionado, vazio){
 
 /* Dois cliques no mesmo botão, e volta sozinho em 4s. Igual ao resto do app:
    `confirm()` do navegador não combina com nada e é fácil de errar sem ler. */
-export function confirmaEmDoisCliques(botao, rotuloNormal, aoConfirmar){
+export function confirmaEmDoisCliques(botao, rotuloNormal, aoConfirmar, rotuloArmado){
+  const confirmar = rotuloArmado || "Confirmar exclusão";
   let armado = false, relogio = null;
   botao.addEventListener("click", async () => {
     if (!armado){
       armado = true;
-      botao.textContent = "Confirmar exclusão";
+      botao.textContent = confirmar;
       botao.classList.add("perigo");
       relogio = setTimeout(() => {
         armado = false; botao.textContent = rotuloNormal; botao.classList.remove("perigo");

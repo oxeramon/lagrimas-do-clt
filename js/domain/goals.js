@@ -215,3 +215,48 @@ export function ordenaMetas(metas, capacidade){
    de tratar. */
 export const cabeReservar = (saldoLivre, reservado) =>
   Math.max(0, cent(Number(saldoLivre || 0) - Number(reservado || 0)));
+
+/* ------------------------------------------------- a regra mensal ---------
+   "Reservar R$ X por mês". O banco garante uma alocação por competência e o
+   teto do disponível; o que mora aqui é a LEITURA: esta meta tem regra, e o
+   mês em foco já foi aplicado?
+
+   `docs/CONTRATO_SOBRA.md`, "Alocação recorrente". */
+export const temRegra = (meta) =>
+  !!meta && meta.regraAtiva === true && Number(meta.regraValor || 0) > 0;
+
+/* A alocação que a regra criou naquela competência, se existir. `origem` e
+   `competencia` são do banco: alocação manual tem `origem = 'manual'` e
+   competência nula, e por isso nunca casa aqui. */
+export function alocacaoDaRegra(alocacoes, metaId, competencia){
+  return (alocacoes || []).find((a) =>
+    a.metaId === metaId && a.origem === "regra" && a.competencia === competencia) || null;
+}
+
+/* O QUE FALTOU da regra naquele mês, DERIVADO -- regra menos alocado.
+   Não existe coluna para isto, e não deve existir: guardar "faltou 200" é
+   guardar uma subtração, e ela mentiria no instante em que alguém editasse o
+   valor da regra.
+
+   `null` quando não há regra ou quando a competência não foi aplicada: nesse
+   caso não faltou nada, simplesmente ainda não se tentou. Zero quando coube
+   inteiro, e a tela não tem o que dizer. */
+export function faltouNaRegra(meta, alocacao){
+  if (!temRegra(meta) || !alocacao) return null;
+  return Math.max(0, cent(Number(meta.regraValor) - Number(alocacao.valor || 0)));
+}
+
+/* O ESTADO DA REGRA no mês em foco, num valor só, porque a tela precisa dos
+   três juntos para escrever uma frase e escolher um botão. */
+export const SEM_REGRA = "sem_regra";
+export const REGRA_PENDENTE = "pendente";
+export const REGRA_APLICADA = "aplicada";
+export const REGRA_PARCIAL = "parcial";
+
+export function estadoDaRegra(meta, alocacoes, competencia){
+  if (!temRegra(meta)) return { estado: SEM_REGRA, alocacao: null, faltou: null };
+  const alocacao = alocacaoDaRegra(alocacoes, meta.metaId, competencia);
+  if (!alocacao) return { estado: REGRA_PENDENTE, alocacao: null, faltou: null };
+  const faltou = faltouNaRegra(meta, alocacao);
+  return { estado: faltou > 0 ? REGRA_PARCIAL : REGRA_APLICADA, alocacao, faltou };
+}

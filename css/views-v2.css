@@ -459,6 +459,17 @@
 
 .meta-acoes{ display:flex; gap:var(--e-2); flex-wrap:wrap }
 
+/* A REGRA MENSAL: linha própria entre a barra e os botões. Ela é discreta de
+   propósito -- é um lembrete do plano, não um alerta -- e `flex-wrap` deixa o
+   botão descer em vez de espremer a frase, que é o que acontece em 320px. */
+.meta-regra{ display:flex; align-items:center; gap:var(--e-2); flex-wrap:wrap;
+  margin-bottom:var(--e-3); font-size:12px; color:var(--ink-3) }
+.meta-regra span{ min-width:0 }
+/* Parcial não é erro, é informação: coube menos do que a regra pedia. Aviso,
+   nunca grave -- nada quebrou, e o dinheiro que faltava simplesmente não
+   estava lá. */
+.meta-regra.parcial span{ color:var(--warn) }
+
 @media (max-width:600px){
   /* em 320px o percentual e o selo disputam a linha com o nome; deixá-los
      quebrar é melhor do que espremer os três */

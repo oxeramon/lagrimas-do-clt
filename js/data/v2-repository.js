@@ -415,3 +415,35 @@ export const alocaNaMeta = (p) => consulta(
 
 export const removeAlocacao = (id) =>
   consulta(bancoV2().from("alocacoes_de_meta").delete().eq("id", id), "alocação");
+
+/* A REGRA MENSAL da meta. Duas funções do banco, e por um motivo:
+   "reservar R$ X por mês" precisa de um teto (o disponível), de um limite
+   (uma vez por competência) e de um valor de volta (quanto coube de fato).
+   Nada disso sobrevive a ser feito em três consultas separadas daqui, onde
+   duas abas abertas fariam a segunda reserva do mesmo mês.
+
+   `aplicaRegraDeMeta` devolve `{ alocado, jaAplicada, disponivel }`:
+     alocado     o que foi reservado agora, 0 quando não coube nada
+     jaAplicada  a competência já tinha a alocação da regra; nada mudou
+     disponivel  quanto havia de saldo livre no momento da tentativa
+   Ver `docs/CONTRATO_SOBRA.md`, "Alocação recorrente". */
+export const aplicaRegraDeMeta = async (metaId, competencia) => {
+  const r = await consulta(bancoV2().rpc("aplica_regra_de_meta", {
+    p_meta: metaId, p_competencia: competencia,
+  }), "regra da meta");
+  if (r.erro) return r;
+  /* `OUT` múltiplo volta como lista de uma linha */
+  const linha = Array.isArray(r.dados) ? r.dados[0] : r.dados;
+  return { erro: null, dados: {
+    alocado: Number(linha?.alocado || 0),
+    jaAplicada: !!linha?.jaAplicada,
+    disponivel: Number(linha?.disponivel || 0),
+  } };
+};
+
+/* Desfazer é apagar a alocação DAQUELA competência, e só ela. Devolve `true`
+   quando havia o que desfazer. */
+export const desfazRegraDeMeta = (metaId, competencia) => consulta(
+  bancoV2().rpc("desfaz_regra_de_meta", {
+    p_meta: metaId, p_competencia: competencia,
+  }), "regra da meta");

@@ -1045,8 +1045,15 @@
         <select id="mt_prioridade"></select></div>
       <div class="field"><label for="mt_status">Situação</label>
         <select id="mt_status"></select></div>
+      <div class="field"><label for="mt_regra">Reservar por mês (opcional, R$)</label>
+        <input type="number" id="mt_regra" step="0.01" min="0.01" inputmode="decimal"></div>
       <div class="field full"><label for="mt_obs">Observação</label>
         <input id="mt_obs" autocomplete="off"></div>
+      <!-- A regra não roda sozinha: não há agendador, e quem aplica é a pessoa,
+           pelo botão do cartão da meta. Dizer isso aqui evita a espera de algo
+           que nunca vai acontecer. -->
+      <p class="hint full" id="mtRegraAviso">Com um valor aqui, a meta ganha um botão para reservar esse
+        valor no mês. Ela não reserva sozinha, e nunca reserva mais do que há livre.</p>
       <p class="hint full" id="mtEquivalente" hidden></p>
       <p class="hint full" id="mtErro" role="alert" hidden></p>
     </div>

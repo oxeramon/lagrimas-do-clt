@@ -178,7 +178,10 @@ function metasResolvidas(){
              falta: Math.max(Number(m.valor_alvo) - reservado, 0),
              alocacoes: alocs.length,
              percentual: Math.min(Math.round(reservado * 100 / Number(m.valor_alvo)), 100),
-             meses_ate_prazo: meses };
+             meses_ate_prazo: meses,
+             /* a regra vem CRUA da tabela: a view so repassa as duas colunas */
+             regra_valor: m.regra_valor == null ? null : Number(m.regra_valor),
+             regra_ativa: m.regra_ativa === true };
   });
 }
 
@@ -188,6 +191,10 @@ const linhasDe = (t) => t === "saldos_de_conta" ? saldos()
                       : t === "assinaturas_resolvidas" ? assinaturasResolvidas()
                       : (T[t] || []);
 
+/* O cliente dublado tambem fica em globalThis.__SB. E a unica forma de um
+   teste provar uma garantia do BANCO que a tela esconde: depois de aplicar a
+   regra do mes, o botao some, e sem uma porta de tras nao da para tentar a
+   segunda aplicacao pela qual a idempotencia responde. */
 export function createClient(){
   const consulta = (tabela) => {
     const filtros = [];
@@ -474,6 +481,49 @@ export function createClient(){
         }).reduce((s,x) => s + Number(x.saldo), 0);
         return Promise.resolve({ data: livre, error:null });
       }
+      /* A REGRA MENSAL DA META, espelhando a 016. O duble reproduz os DOIS
+         tetos e o limite do alvo, porque e exatamente isso que a tela nao
+         pode decidir sozinha: se ele alocasse a regra inteira sempre, a tela
+         concordaria com um banco que recusa. */
+      if (nome === "aplica_regra_de_meta"){
+        const m = T.metas.find(x => x.id === a.p_meta);
+        if (!m) return Promise.resolve({ data:null, error:{ message:"meta: não encontrada" } });
+        if (!m.regra_ativa) return Promise.resolve({ data:null,
+          error:{ message:"meta: esta meta não tem regra mensal ligada" } });
+        if (m.status !== "ativa") return Promise.resolve({ data:null,
+          error:{ message:"meta: só meta ativa reserva por regra" } });
+
+        const jaAplicada = T.alocacoes_de_meta.some(x =>
+          x.meta_id === a.p_meta && x.competencia === a.p_competencia && x.origem === "regra");
+        const livre = saldos().filter(s => {
+          const c = T.contas.find(x => x.id === s.conta_id);
+          return !c || (c.liquidez || "livre") === "livre";
+        }).reduce((s,x) => s + Number(x.saldo), 0);
+        const reservado = T.alocacoes_de_meta.reduce((s,x) => s + Number(x.valor), 0);
+        const disponivel = Math.round((livre - reservado) * 100) / 100;
+        const vazio = (al) => ({ data:[{ alocado:0, ja_aplicada:al, disponivel }], error:null });
+
+        if (jaAplicada) return Promise.resolve(vazio(true));
+        if (!(disponivel > 0)) return Promise.resolve(vazio(false));
+        const naMeta = T.alocacoes_de_meta.filter(x => x.meta_id === a.p_meta)
+                        .reduce((s,x) => s + Number(x.valor), 0);
+        /* nem acima do disponivel, nem acima do que falta para o alvo */
+        const quanto = Math.min(Number(m.regra_valor), disponivel,
+                                Math.max(0, Number(m.valor_alvo) - naMeta));
+        if (!(quanto > 0)) return Promise.resolve(vazio(false));
+        T.alocacoes_de_meta.push({ id:uid(), user_id:"u1", meta_id:a.p_meta,
+          valor:quanto, data:a.p_competencia + "-01", competencia:a.p_competencia,
+          origem:"regra", obs:"Regra mensal" });
+        return Promise.resolve({ data:[{ alocado:quanto, ja_aplicada:false, disponivel }], error:null });
+      }
+      /* Desfazer APAGA a linha da regra daquele mes, e so ela. As manuais
+         ficam: elas nao vieram da regra. */
+      if (nome === "desfaz_regra_de_meta"){
+        const antes = T.alocacoes_de_meta.length;
+        T.alocacoes_de_meta = T.alocacoes_de_meta.filter(x => !(
+          x.meta_id === a.p_meta && x.competencia === a.p_competencia && x.origem === "regra"));
+        return Promise.resolve({ data: T.alocacoes_de_meta.length < antes, error:null });
+      }
       if (nome === "estorna_transacao"){
         const o = T.transacoes.find(x => x.id === a.p_transacao);
         if (!o) return Promise.resolve({ data:null, error:{ message:"estorno: transação não encontrada" } });
@@ -533,7 +583,9 @@ export function createClient(){
       getSession:()=>Promise.resolve({ data:{ session:{ user:{ id:"u1" } } } }),
       signInWithPassword:()=>Promise.resolve({ error:null }),
       signOut:()=>Promise.resolve({}) } };
-}`;
+}
+
+globalThis.__SB = createClient();`;
 
 /* ------------------------------------------------------------ navegador --*/
 const nav = chromium ? await chromium.launch({ executablePath: CHROMIUM }) : null;
