@@ -3,9 +3,10 @@
  * Só var(). Nenhuma cor literal, nenhum segundo bloco escuro: o tema sai de
  * `tokens.css` e nada aqui precisa saber em qual deles está.
  *
- * O vidro aparece em quatro lugares e em mais nenhum: barra de filtro, folha,
- * lente do topo e o botão flutuante. São os que ficam POR CIMA do conteúdo, e
- * é essa a informação que o desfoque passa.
+ * O vidro aparece em cinco lugares e em mais nenhum: barra de filtro, folha,
+ * lente do topo, botão flutuante e a lateral (esta em `base.css`). São os que
+ * FLUTUAM, e é essa a informação que o desfoque passa: a peça está solta do
+ * resto, não empilhada no meio dele.
  */
 
 /* ==================================================================
