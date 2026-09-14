@@ -187,6 +187,34 @@ const DB = {
     { id: "lq1", tipo: "fixa", item_id: "fx:f0", competencia: "2026-09",
       transacao_id: "t5", valor: 1333, criado_em: "2026-09-05T12:00:00Z" },
   ],
+
+  /* METAS, e as três com regra de propósito: a linha da regra tem TRÊS
+     estados visuais -- pendente, aplicada e parcial -- e a prévia existe para
+     olhar os três lado a lado, na mesma tela, na largura mais apertada. Uma
+     meta só mostraria um estado e esconderia os outros dois. */
+  metas: [
+    { id: "mt1", nome: "Viagem de fim de ano", valor_alvo: 6000, prazo: "2026-12-20",
+      prioridade: 1, cor: "", icone: "", status: "ativa", obs: "", ordem: 10,
+      criado_em: "2026-06-01T12:00:00Z", regra_valor: 500, regra_ativa: true },
+    { id: "mt2", nome: "Reserva de emergência", valor_alvo: 12000, prazo: null,
+      prioridade: 2, cor: "", icone: "", status: "ativa", obs: "", ordem: 20,
+      criado_em: "2026-06-01T12:00:00Z", regra_valor: 800, regra_ativa: true },
+    { id: "mt3", nome: "Troca do notebook", valor_alvo: 4000, prazo: "2027-03-31",
+      prioridade: 2, cor: "", icone: "", status: "ativa", obs: "", ordem: 30,
+      criado_em: "2026-06-01T12:00:00Z", regra_valor: 900, regra_ativa: true },
+  ],
+  alocacoes_de_meta: [
+    /* mt1: a regra do mês coube inteira -> linha "aplicada" */
+    { id: "al1", meta_id: "mt1", valor: 500, data: "2026-09-01",
+      competencia: "2026-09", origem: "regra", obs: "Regra mensal" },
+    /* e uma manual antiga, para o histórico não nascer vazio */
+    { id: "al2", meta_id: "mt1", valor: 700, data: "2026-08-12",
+      competencia: null, origem: "manual", obs: "" },
+    /* mt3: coube 300 dos 900 -> linha "parcial", a que pinta de aviso */
+    { id: "al3", meta_id: "mt3", valor: 300, data: "2026-09-01",
+      competencia: "2026-09", origem: "regra", obs: "Regra mensal" },
+    /* mt2 fica SEM alocação de regra neste mês -> linha "pendente", com botão */
+  ],
 };
 
 /* A view do banco soma; aqui o dublê precisa entregar o MESMO número. Calcular
@@ -199,6 +227,40 @@ DB.saldos_de_conta = DB.contas.map(c => ({
     .filter(t => t.conta_id === c.id && (t.status === "realizada" || t.status === "conciliada"))
     .reduce((v, t) => v + (t.tipo === "saida" ? -t.valor : t.valor), c.saldo_inicial),
 }));
+
+/* O hoje do gerador, no mesmo formato do app. A view do banco conta os meses
+   até o prazo a partir de `current_date`, e a prévia precisa da mesma régua --
+   uma data fixa aqui faria "meses até o prazo" apodrecer sozinha. */
+const HOJE_ISO = new Date().toISOString().slice(0, 10);
+
+/* `metas_resolvidas` é VIEW no banco: reservado, falta e percentual são
+   derivados. Aqui também, pelo mesmo motivo dos saldos -- digitar o reservado
+   seria digitar um número que o banco nunca produziria a partir das alocações
+   ao lado, e a prévia passaria a mostrar uma conta que não existe. */
+DB.metas_resolvidas = DB.metas.map((m) => {
+  const alocs = DB.alocacoes_de_meta.filter((a) => a.meta_id === m.id);
+  const reservado = alocs.reduce((s, a) => s + Number(a.valor), 0);
+  let meses = null;
+  if (m.prazo){
+    const hoje = new Date(HOJE_ISO + "T00:00:00Z");
+    const fim = new Date(m.prazo + "T00:00:00Z");
+    meses = Math.max(1, (fim.getUTCFullYear() - hoje.getUTCFullYear()) * 12
+                      + (fim.getUTCMonth() - hoje.getUTCMonth()) + 1);
+  }
+  return { meta_id: m.id, user_id: "u1", nome: m.nome, valor_alvo: m.valor_alvo,
+    prazo: m.prazo, prioridade: m.prioridade, cor: m.cor, icone: m.icone,
+    status: m.status, obs: m.obs, ordem: m.ordem, criado_em: m.criado_em,
+    reservado, falta: Math.max(m.valor_alvo - reservado, 0),
+    alocacoes: alocs.length,
+    percentual: Math.min(Math.round(reservado * 100 / m.valor_alvo), 100),
+    meses_ate_prazo: meses,
+    regra_valor: m.regra_valor, regra_ativa: m.regra_ativa };
+});
+
+/* o saldo LIVRE que o banco calcula por função: só conta de liquidez livre */
+const SALDO_LIVRE = DB.saldos_de_conta
+  .filter((s) => s.liquidez === "livre")
+  .reduce((v, s) => v + Number(s.saldo), 0);
 
 
 
@@ -277,10 +339,18 @@ function createClient(){
   };
   return {
     from: (t) => resp(__DB[t] ?? []),
-    /* as RPCs da 004 não têm como rodar sem banco; a prévia diz isso em vez de
-       fingir que deu certo */
-    rpc: () => Promise.resolve({ data: null,
-      error: { message: "transferência: a prévia não fala com o banco" } }),
+    /* saldo_livre_do_usuario é a UNICA que responde, e precisa responder: sem
+       ela carregaMetas falha inteira e a tela de Metas nasce vazia -- que e
+       justamente a tela que a previa costuma ser aberta para olhar. O valor vem
+       calculado das contas de liquidez livre, nao digitado.
+       As outras nao tem como rodar sem banco, e a previa diz isso em vez de
+       fingir que deu certo.
+       (Sem crase neste comentario: ele mora dentro do template do dublê, e uma
+       crase aqui fecharia o literal no meio.) */
+    rpc: (nome) => nome === "saldo_livre_do_usuario"
+      ? Promise.resolve({ data: ${JSON.stringify(SALDO_LIVRE)}, error: null })
+      : Promise.resolve({ data: null,
+          error: { message: "a prévia não fala com o banco" } }),
     auth: {
       onAuthStateChange: (cb) => { cb("SIGNED_IN", { user: { id: "u1" } });
         return { data: { subscription: { unsubscribe(){} } } }; },
@@ -328,9 +398,25 @@ const RE_IMPORT = /^import\s*\{([^}]*)\}\s*from\s*["'](\.[^"']+)["'];?\s*$/gm;
    sabe quais são, porque já lê os `export` de cada módulo para detectar
    colisão. */
 const RE_NAMESPACE = /^import\s*\*\s*as\s+([A-Za-z_$][\w$]*)\s*from\s*["'](\.[^"']+)["'];?\s*$/gm;
+/* REEXPORTAÇÃO: `export { a, b } from "./x.js"`. No escopo único ela não faz
+   nada -- `a` e `b` já estão soltos ali -- então some. O que ela ainda vale é
+   como ARESTA: quem reexporta depende de quem declara, e sem seguir essa aresta
+   o módulo de origem podia nem entrar na prévia.
+   `[^}]*` atravessa quebra de linha de propósito: a lista de `v2-screens.js`
+   ocupa três linhas, e exigir uma só seria exigir que o código se deformasse
+   para caber na ferramenta. */
+const RE_REEXPORT = /^export\s*\{([^}]*)\}\s*from\s*["'](\.[^"']+)["'];?\s*$/gm;
 
-const exportadosDe = (rel) => [...leModulo(rel)
-  .matchAll(/^export\s+(?:async\s+)?(?:const|let|function)\s+([A-Za-z_$][\w$]*)/gm)].map((m) => m[1]);
+const exportadosDe = (rel) => {
+  const fonte = leModulo(rel);
+  const proprios = [...fonte
+    .matchAll(/^export\s+(?:async\s+)?(?:const|let|function)\s+([A-Za-z_$][\w$]*)/gm)].map((m) => m[1]);
+  /* o que o módulo reexporta também é exportado POR ele: quem faz
+     `import * as x` desse módulo espera esses nomes no namespace */
+  const repassados = [...fonte.matchAll(RE_REEXPORT)]
+    .flatMap((m) => m[1].split(",").map((n) => n.trim()).filter(Boolean));
+  return [...proprios, ...repassados];
+};
 
 /* percorre o grafo em profundidade, dependência antes de quem depende */
 function ordena(relInicial, vistos = new Set(), ordem = []){
@@ -346,20 +432,45 @@ function ordena(relInicial, vistos = new Set(), ordem = []){
     const alvo = normalize(join(base, m[2]));
     ordena(alvo, vistos, ordem);
   }
+  for (const m of fonte.matchAll(RE_REEXPORT)){
+    const alvo = normalize(join(base, m[2]));
+    ordena(alvo, vistos, ordem);
+  }
   ordem.push(relInicial);
   return ordem;
+}
+
+/* UM APELIDO DE NAMESPACE, UMA DECLARAÇÃO SÓ.
+   Sete telas fazem `import * as v2 from ".../v2-repository.js"`. Traduzindo
+   cada uma para `const v2 = {…}` saem sete `const v2` no mesmo escopo, e a
+   prévia morre em "Identifier 'v2' has already been declared" -- sem passar
+   pela checagem de colisão, que lê o FONTE e lá só existe `import`.
+   A primeira tradução vale e as outras somem. Isso é seguro porque `ordena`
+   já garantiu que o módulo de origem vem antes de todos que o importam.
+   Dois apelidos iguais apontando para módulos DIFERENTES seriam outra coisa,
+   e aí o gerador para: o objeto emitido serviria a um e mentiria para o
+   outro. */
+const namespacesEmitidos = new Map();
+function declaraNamespace(apelido, alvo, rel){
+  const jaEmitido = namespacesEmitidos.get(apelido);
+  if (jaEmitido && jaEmitido !== alvo){
+    console.error("FALHA: o apelido `" + apelido + "` aponta para " + jaEmitido
+      + " e para " + alvo + " (em " + rel + "). No escopo único da prévia só cabe "
+      + "um dos dois. Use apelidos diferentes.");
+    process.exit(1);
+  }
+  if (jaEmitido) return "/* namespace `" + apelido + "` já declarado acima */";
+  namespacesEmitidos.set(apelido, alvo);
+  return "const " + apelido + " = { " + exportadosDe(alvo).join(", ") + " };";
 }
 
 function achata(fonte, rel){
   const base = dirname(rel);
   /* o namespace é reconstruído como objeto literal apontando para os nomes que
-     já vão estar soltos no escapo único */
-  const semNamespace = fonte.replace(RE_NAMESPACE, (_, apelido, caminho) => {
-    const alvo = normalize(join(base, caminho));
-    const nomes = exportadosDe(alvo);
-    return "const " + apelido + " = { " + nomes.join(", ") + " };";
-  });
-  const semImport = semNamespace.replace(RE_IMPORT, "");
+     já vão estar soltos no escopo único */
+  const semNamespace = fonte.replace(RE_NAMESPACE, (_, apelido, caminho) =>
+    declaraNamespace(apelido, normalize(join(base, caminho)), rel));
+  const semImport = semNamespace.replace(RE_IMPORT, "").replace(RE_REEXPORT, "");
   if (/^\s*export\s+(default|\{)/m.test(semImport)){
     console.error("FALHA: " + rel + " usa `export default` ou `export {}`, que o "
       + "achatamento da prévia não sabe resolver. Use `export const` / `export function`.");
@@ -379,36 +490,85 @@ const doIndex = [...html.matchAll(RE_IMPORT), ...html.matchAll(RE_NAMESPACE)]
 const ordem = [];
 for (const rel of doIndex) ordena(rel, new Set(ordem.map(x => x)), ordem);
 
-/* Nome de topo repetido vira colisão no escopo único. A checagem olha TODO
-   nome declarado na margem, e não só o exportado: dois módulos tinham um
-   `const sb` privado cada, e o resultado era uma prévia que nem abria, com
-   "Identifier 'sb' has already been declared". Nome privado colide igual. */
+/* NOME DE TOPO REPETIDO, e as duas espécies dele.
+   No escopo único, dois `const cent` viram
+   "Identifier 'cent' has already been declared" e a prévia nem abre. Mas as
+   duas espécies de nome repetido não são o mesmo problema:
+
+   PRIVADO. Quatro módulos de domínio têm um `const cent` só deles, e isso é
+   BOM: helper de arredondamento é detalhe interno, e obrigar nome único no
+   projeto inteiro seria piorar o código de produção para agradar uma
+   ferramenta de inspeção local. O gerador RENOMEIA essas cópias, cada uma com
+   o sufixo do módulo onde mora. Ninguém de fora as chama -- é o que "privado"
+   quer dizer -- então renomear não alcança nenhuma outra linha.
+
+   EXPORTADO. Aí o nome é a API: dois módulos exportando `carregaMetas` são
+   dois nomes que se confundem de verdade, para quem lê e para quem importa.
+   Esse continua parando o gerador, porque o conserto é no projeto, não aqui.
+   (Foi assim que `carregaMetas` do estado virou `carregaMetasEAlocacoes`.) */
 const RE_TOPO = /^(?:export\s+)?(?:async\s+)?(?:const|let|var|function)\s+([A-Za-z_$][\w$]*)/gm;
-const donoDe = new Map();
+
+const exportadosPorModulo = new Map(ordem.map((rel) => [rel, new Set(exportadosDe(rel))]));
+/* index.html não exporta nada, mas também não pode ser renomeado: ele é o app,
+   e o que está na margem dele é o escopo de destino. Conta como público. */
+const ehPublico = (rel, nome) => rel === "index.html" || exportadosPorModulo.get(rel).has(nome);
+
+const quemDeclara = new Map();
 for (const rel of [...ordem, "index.html"]){
   const fonte = rel === "index.html" ? html : leModulo(rel);
   for (const m of fonte.matchAll(RE_TOPO)){
-    if (donoDe.has(m[1])){
-      console.error("FALHA: `" + m[1] + "` é declarado na margem de " + donoDe.get(m[1])
-        + " e de " + rel + ". No achatamento da prévia os dois caem no mesmo escopo. "
-        + "Renomeie um dos dois.");
-      process.exit(1);
-    }
-    donoDe.set(m[1], rel);
+    if (!quemDeclara.has(m[1])) quemDeclara.set(m[1], []);
+    const donos = quemDeclara.get(m[1]);
+    if (!donos.includes(rel)) donos.push(rel);
   }
 }
 
-const embutidos = ordem.map(rel =>
-  "/* ===== " + rel + " ===== */\n" + achata(leModulo(rel), rel)).join("\n");
+/* `js/domain/reversal.js` -> `reversal`; o sufixo diz de onde o nome veio, que
+   é o que torna a prévia gerada legível quando alguém vai depurar nela. */
+const sufixoDe = (rel) => rel.replace(/^js\//, "").replace(/\.js$/, "").replace(/[^A-Za-z0-9]+/g, "_");
+
+const renomeios = new Map(ordem.map((rel) => [rel, new Map()]));
+for (const [nome, donos] of quemDeclara){
+  if (donos.length < 2) continue;
+  const publicos = donos.filter((rel) => ehPublico(rel, nome));
+  if (publicos.length > 1){
+    console.error("FALHA: `" + nome + "` é EXPORTADO por " + publicos.join(" e ")
+      + ". No achatamento da prévia os dois caem no mesmo escopo, e renomear um "
+      + "exportado aqui esconderia um nome ambíguo no projeto. Renomeie no código.");
+    process.exit(1);
+  }
+  for (const rel of donos)
+    if (!ehPublico(rel, nome)) renomeios.get(rel).set(nome, nome + "$" + sufixoDe(rel));
+}
+
+/* A troca é textual, e o cuidado está no que ela NÃO pode pegar: acesso a
+   propriedade (`x.cent`), nome colado em outro nome (`centavos`) e chave de
+   objeto em forma curta (`{ cent }`), que renomeada mudaria a chave e não só
+   a referência. As três ficam de fora pelos contornos abaixo. */
+function renomeiaPrivados(fonte, rel){
+  let saida = fonte;
+  for (const [de, para] of renomeios.get(rel)){
+    const re = new RegExp("(?<![.\\w$])" + de + "(?![\\w$])(?!\\s*[:,}])", "g");
+    const curto = new RegExp("[{,]\\s*" + de + "\\s*[,}]");
+    if (curto.test(fonte)){
+      console.error("FALHA: `" + de + "` em " + rel + " aparece como chave curta de objeto, "
+        + "e o gerador precisaria renomeá-lo por causa de uma colisão. Renomeie no código.");
+      process.exit(1);
+    }
+    saida = saida.replace(re, para);
+  }
+  return saida;
+}
+
+const embutidos = ordem.map((rel) =>
+  "/* ===== " + rel + " ===== */\n" + renomeiaPrivados(achata(leModulo(rel), rel), rel)).join("\n");
 
 /* O index.html também importa por namespace (`import * as v1 from ...`), e ele
    precisa do mesmo tratamento que os módulos: sem isto sobrava um import de
    verdade no arquivo gerado, e o navegador tentava buscá-lo por file:// -- que
    é exatamente o que a prévia existe para evitar. */
-const namespacesDoIndex = [...html.matchAll(RE_NAMESPACE)].map(([, apelido, caminho]) => {
-  const alvo = normalize(caminho.replace(/^\.\//, ""));
-  return "const " + apelido + " = { " + exportadosDe(alvo).join(", ") + " };";
-}).join("\n");
+const namespacesDoIndex = [...html.matchAll(RE_NAMESPACE)].map(([, apelido, caminho]) =>
+  declaraNamespace(apelido, normalize(caminho.replace(/^\.\//, "")), "index.html")).join("\n");
 
 const corpo = html
   .replace(IMPORT, stub)
