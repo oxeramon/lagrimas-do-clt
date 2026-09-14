@@ -1400,6 +1400,90 @@ console.log("\nnavegação");
 /* ==================================================================
    7. ROLAGEM LATERAL: mobile é primeira classe
    ================================================================== */
+/* ==================================================================
+   CAMPO COM SUGESTÃO: clicar na opção tem que preencher o campo
+   ==================================================================
+   O DEFEITO QUE ISTO PEGA, e que esteve no ar:
+
+   A opção da lista é um <button>. Apertar o mouse sobre ela tirava o foco do
+   campo; o `focusin` concluía "saiu do campo" e fechava a lista -- ANTES do
+   mouseup. Sem opção sob o cursor, o clique caía no diálogo e o handler da
+   opção nunca rodava. A lista fechava e o campo continuava VAZIO.
+
+   Nenhum teste pegava porque todos preenchem com `fill()`, que digita direto e
+   nunca abre a lista. Este clica, que é o que uma pessoa faz.
+
+   Vale para os quatro campos com `data-lista` (credor, descrição, pessoa e o
+   cartão da conta fixa), e o <select> escrito à mão entra junto: ele divide o
+   mesmo popup, e o conserto mexeu no popup.
+   ================================================================== */
+console.log("\ncampo com sugestão");
+{
+  const { p, erros } = await abreApp(1440);
+
+  /* primeiro uma dívida digitada, só para existir um credor a sugerir */
+  await vaiPara(p, "dividas");
+  await p.waitForTimeout(200);
+  await p.click("#novaDivida");
+  await p.waitForTimeout(300);
+  await p.fill("#f_credor", "Banco Exemplo");
+  await p.fill("#f_desc", "Compra Exemplo");
+  await p.fill("#f_valor", "120");
+  await p.fill("#f_mes", "2026-09");
+  await p.click("#salvarDivida");
+  await p.waitForTimeout(500);
+
+  /* agora a segunda, escolhendo o credor PELA LISTA */
+  await p.click("#novaDivida");
+  await p.waitForTimeout(300);
+  await p.click("#f_credor");
+  await p.waitForTimeout(300);
+
+  const aberta = await p.evaluate(() => ({
+    visivel: !document.querySelector(".selpop").hidden,
+    opcoes: [...document.querySelectorAll(".selpop .selop")].map((o) => o.getAttribute("data-v")),
+  }));
+  eq("a lista de credores abre ao focar o campo", aberta.visivel, true);
+  eq("e traz o credor que já existe", aberta.opcoes, ["Banco Exemplo"]);
+
+  await p.locator(".selpop .selop").first().click();
+  await p.waitForTimeout(300);
+  const depois = await p.evaluate(() => ({
+    valor: document.getElementById("f_credor").value,
+    visivel: !document.querySelector(".selpop").hidden,
+    /* o foco NÃO pode ter ido para o botão da opção: quem digita um credor
+       continua digitando depois de olhar a lista */
+    focoNoCampo: document.activeElement === document.getElementById("f_credor"),
+  }));
+  eq("CLICAR NA OPÇÃO PREENCHE O CAMPO", depois.valor, "Banco Exemplo");
+  eq("e fecha a lista", depois.visivel, false);
+  eq("o foco continua no campo, não vai para a opção", depois.focoNoCampo, true);
+
+  /* O <select> escrito à mão divide o mesmo popup. Se o conserto o tivesse
+     quebrado, seria aqui. */
+  await p.click("#f_meio");
+  await p.waitForTimeout(300);
+  eq("a lista do select também abre",
+    await p.evaluate(() => !document.querySelector(".selpop").hidden), true);
+  await p.locator('.selpop .selop[data-v="Pix"]').click();
+  await p.waitForTimeout(300);
+  eq("e clicar na opção troca o valor do select",
+    await p.evaluate(() => document.getElementById("f_meio").value), "Pix");
+
+  /* e a dívida escolhida pela lista salva com o credor certo */
+  await p.fill("#f_desc", "Outra Compra");
+  await p.fill("#f_valor", "80");
+  await p.fill("#f_mes", "2026-09");
+  await p.click("#salvarDivida");
+  await p.waitForTimeout(500);
+  eq("a dívida salva guarda o credor escolhido na lista",
+    await p.evaluate(() => globalThis.__T.dividas.map((d) => d.credor)),
+    ["Banco Exemplo", "Banco Exemplo"]);
+
+  eq("nenhum erro de JavaScript no campo com sugestão", erros, []);
+  await p.close();
+}
+
 console.log("\nrolagem lateral");
 {
   const { p } = await abreApp(1440);

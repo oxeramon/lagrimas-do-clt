@@ -224,7 +224,17 @@ export function createClient(){
         }
         T[tabela] = (T[tabela]||[]).concat(arr);
         const pr = Promise.resolve({ data:arr, error:null });
-        return { select:()=>({ then:(a,b)=>pr.then(a,b) }), single:()=>pr, then:(a,b)=>pr.then(a,b) };
+        /* single() devolve a LINHA, nao a lista de uma linha -- e o que o
+           PostgREST faz, e o que o app espera ao ler o id recem-criado.
+           E select() precisa continuar oferecendo single(): a V1 salva divida
+           com insert(...).select(...).single(), e sem este elo o encadeamento
+           morria em "single is not a function". Nenhum teste via, porque
+           nenhum chegava a salvar uma divida pela tela.
+           (Sem crase: este comentario mora dentro do template do duble.) */
+        const um = Promise.resolve({ data:arr[0]||null, error:null });
+        const apos = { single:()=>um, maybeSingle:()=>um, then:(a,b)=>pr.then(a,b) };
+        return { select:()=>apos, single:()=>um, maybeSingle:()=>um,
+                 then:(a,b)=>pr.then(a,b) };
       },
       update:(x)=>({ eq:(k,v)=>{ (T[tabela]||[]).forEach(r=>{ if(r[k]===v) Object.assign(r,x); });
         return Promise.resolve({ data:null, error:null }); } }),

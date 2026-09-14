@@ -3674,6 +3674,26 @@ document.addEventListener("mousedown", (e) => {
   if (!perto(e.target, ".selpop")){ fechaSel(); fechaCombo(); }
 });
 
+/* A LISTA NÃO ROUBA O FOCO, e sem isto o campo com sugestão não funcionava.
+   A opção é um <button>, e apertar o mouse sobre ela tirava o foco do campo.
+   O `focusin` logo abaixo vê um alvo que não é `[data-lista]`, conclui "saiu do
+   campo" e fecha a lista -- ANTES do `mouseup`. Aí não há mais opção sob o
+   cursor, o clique cai no diálogo, e o handler abaixo nunca roda: a lista
+   fechava e o campo continuava vazio.
+
+   A ordem medida, com a lista de credores aberta:
+
+     mousedown -> .txt      lista visível
+     focusout  -> INPUT
+     focusin   -> .selop    fecha a lista
+     mouseup   -> .field    lista JÁ escondida
+     click     -> DIALOG    a opção nem é o alvo
+
+   `preventDefault` no mousedown impede só o foco, não o clique. E manter o
+   foco no campo é o certo por si: quem está digitando um credor continua
+   digitando depois de olhar a lista. Vale para o <select> pelo mesmo motivo. */
+popSel.addEventListener("mousedown", (e) => { e.preventDefault(); });
+
 popSel.addEventListener("click", (e) => {
   const op = perto(e.target, "[data-v]");
   if (!op) return;
