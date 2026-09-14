@@ -125,7 +125,17 @@ const REGRAS = [
   ["critico", "telefone", /\(?\b\d{2}\)?[\s-]?9\d{4}[\s-]?\d{4}\b/, "valor"],
   ["critico", "CEP", /\b\d{5}-\d{3}\b/, "valor"],
   ["critico", "placa de veículo", /\b[A-Z]{3}-?\d[A-Z0-9]\d{2}\b/, "valor"],
-  ["critico", "cartão completo", /\b(?:\d[ -]?){13,16}\b/, "valor"],
+  /* O último caractere é obrigatoriamente DÍGITO. Sem isso, `\d[ -]?` deixa o
+     16º passo comer o espaço que vem depois, e o trecho acusado sai com um
+     espaço no fim -- o que basta para nenhuma exceção ANCORADA casar com ele.
+     Foi o que aconteceu com o carimbo de versão de migração numa mensagem de
+     commit: "20260912230851 significa" virava o trecho "20260912230851 ", e a
+     exceção de `^...$` do PERMITIDO não reconhecia o próprio formato que ela
+     existe para liberar. Em arquivo o defeito se escondia, porque lá o carimbo
+     vem entre crases e a crase não é separador.
+     Cartão continua casando igual, com espaço, com hífen ou sem nada: o que
+     muda é só onde o trecho termina. */
+  ["critico", "cartão completo", /\b(?:\d[ -]?){12,15}\d\b/, "valor"],
   ["critico", "e-mail pessoal", /[\w.+-]+@(?!pelo-seu-email|example\.|exemplo\.)[\w-]+\.[a-z]{2,}/i, "valor"],
 
 ];
