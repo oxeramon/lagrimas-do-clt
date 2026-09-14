@@ -65,30 +65,101 @@ export function necessidadeMensal(meta){
   return cent(falta / meses);
 }
 
-/* --------------------------------------------------- meta em risco --------
-   Duas perguntas diferentes, e a segunda vale para TODAS as metas ao mesmo
-   tempo -- por isso ela não mora aqui dentro, e sim em `disponibilidade`.
+/* ------------------------------------------------ capacidade mensal -------
+   O que o MÊS produz e que pode, em princípio, virar reserva. É fluxo, e não
+   se confunde com `disponibilidade`, que é estoque. `docs/CONTRATO_SOBRA.md`.
 
-   Aqui: esta meta pede mais por mês do que costuma sobrar? */
-export function emRisco(meta, sobraMensal){
+   `null` quando não há referência: mês sem entrada nenhuma não produz zero,
+   produz um número que ainda não dá para saber. Zero marcaria toda meta com
+   prazo em risco no primeiro minuto de uso, e alarme que toca sozinho ensina
+   a ignorar alarme. */
+export function capacidadeMensal(sobra){
+  if (!sobra || sobra.semReferencia) return null;
+  return Math.max(0, cent(sobra.projetada));
+}
+
+/* Quanto as metas com prazo pedem por mês, somadas. Meta sem prazo não entra:
+   ela não pede ritmo. */
+export function necessidadeTotal(metas){
+  return cent((metas || [])
+    .filter((m) => m.status === "ativa")
+    .reduce((s, m) => s + (necessidadeMensal(m) || 0), 0));
+}
+
+/* O que ainda cabe depois do que já foi prometido. Negativo é o sinal do
+   CONJUNTO, e ele existe porque cada meta pode caber sozinha sem que todas
+   caibam juntas. */
+export function capacidadeRestante(capacidade, necessidade){
+  if (capacidade == null) return null;
+  return cent(capacidade - cent(necessidade || 0));
+}
+
+/* -------------------------------------------------------- ritmo da meta ---
+   Cinco estados, cada um com fundamento objetivo, avaliados NESTA ordem: a
+   primeira regra que casa vence. Nenhum corte sai de porcentagem inventada.
+
+     concluída       não há ritmo a julgar
+     sem prazo       sem prazo não existe necessidade mensal
+     sem referência  julgar sem base é alarme falso
+     em risco        o mês não produz o que ESTA meta sozinha pede
+     atenção         cabe ela; não cabem todas
+     no ritmo        cabe sozinha e cabe no conjunto
+
+   PRAZO PRÓXIMO NÃO É RISCO. Meta que vence mês que vem com o valor inteiro
+   reservado está concluída. O que cria risco é a conta não fechar. */
+export const RITMO = {
+  CONCLUIDA:      "concluida",
+  SEM_PRAZO:      "sem_prazo",
+  SEM_REFERENCIA: "sem_referencia",
+  EM_RISCO:       "em_risco",
+  ATENCAO:        "atencao",
+  NO_RITMO:       "no_ritmo",
+};
+
+const ROTULO_DO_RITMO = {
+  concluida:      "Concluída",
+  sem_prazo:      "Sem prazo",
+  sem_referencia: "Sem referência",
+  em_risco:       "Em risco",
+  atencao:        "Atenção",
+  no_ritmo:       "No ritmo",
+};
+export const rotuloDoRitmo = (r) => ROTULO_DO_RITMO[r] || r;
+
+export function ritmoDaMeta(meta, capacidade, necessidadeDoConjunto){
+  if (!meta) return RITMO.SEM_REFERENCIA;
+  const falta = cent(meta.falta ?? (Number(meta.valorAlvo || 0) - Number(meta.reservado || 0)));
+  if (meta.status === "concluida" || falta <= 0) return RITMO.CONCLUIDA;
+  if (meta.prazo == null) return RITMO.SEM_PRAZO;
+  if (capacidade == null) return RITMO.SEM_REFERENCIA;
+
   const precisa = necessidadeMensal(meta);
-  if (precisa === null || precisa === 0) return false;
-  /* sem referência de sobra, não há como afirmar risco -- e afirmar sem base é
-     alarme falso, que ensina a ignorar o alarme */
-  if (sobraMensal == null) return false;
-  return precisa > cent(sobraMensal);
+  if (precisa > cent(capacidade)) return RITMO.EM_RISCO;
+  if (cent(necessidadeDoConjunto || 0) > cent(capacidade)) return RITMO.ATENCAO;
+  return RITMO.NO_RITMO;
+}
+
+/* --------------------------------------------------- meta em risco --------
+   Só um atalho para o estado, e a única definição de risco do projeto: esta
+   meta pede por mês mais do que o mês produz. O parâmetro é CAPACIDADE, e não
+   sobra crua -- foi assim que o contrato ficou, e misturar os dois voltaria a
+   comparar um envelope com um extrato. */
+export function emRisco(meta, capacidade){
+  return ritmoDaMeta(meta, capacidade, 0) === RITMO.EM_RISCO;
 }
 
 /* ------------------------------------------------------ indicadores -------
    O topo da tela. Meta arquivada fica fora de tudo: ela é histórico, não plano
    de hoje -- mesma regra da assinatura pausada. */
-export function indicadoresDeMetas(metas, saldoLivre, sobraMensal){
+export function indicadoresDeMetas(metas, saldoLivre, capacidade){
   const vivas = (metas || []).filter((m) => m.status !== "arquivada");
   const ativas = vivas.filter((m) => m.status === "ativa");
   const alvo = cent(ativas.reduce((s, m) => s + Number(m.valorAlvo || 0), 0));
   const reservado = cent(vivas.reduce((s, m) => s + Number(m.reservado || 0), 0));
   const falta = cent(ativas.reduce((s, m) => s + Number(m.falta || 0), 0));
   const disp = disponibilidade(saldoLivre, reservado);
+  const precisaPorMes = necessidadeTotal(ativas);
+  const ritmos = ativas.map((m) => ritmoDaMeta(m, capacidade, precisaPorMes));
 
   return {
     quantas: ativas.length,
@@ -101,19 +172,34 @@ export function indicadoresDeMetas(metas, saldoLivre, sobraMensal){
     saldoLivre: disp.livre,
     disponivel: disp.disponivel,
     estourado: disp.estourado,
-    emRisco: ativas.filter((m) => emRisco(m, sobraMensal)).length,
+    emRisco: ritmos.filter((r) => r === RITMO.EM_RISCO).length,
+    emAtencao: ritmos.filter((r) => r === RITMO.ATENCAO).length,
+    noRitmo: ritmos.filter((r) => r === RITMO.NO_RITMO).length,
     /* quanto seria preciso guardar por mês para dar conta de tudo que tem
        prazo. Metas sem prazo não entram: elas não pedem ritmo. */
-    precisaPorMes: cent(ativas.reduce((s, m) => s + (necessidadeMensal(m) || 0), 0)),
+    precisaPorMes,
+    capacidade: capacidade ?? null,
+    /* negativo aqui é o sinal do conjunto: cabem uma a uma e não cabem juntas */
+    capacidadeRestante: capacidadeRestante(capacidade, precisaPorMes),
   };
+}
+
+/* A meta ativa de prazo mais perto. Sem prazo não concorre: ela não tem
+   "próxima" nenhuma. `null` quando não há candidata, e a tela esconde a linha
+   em vez de escrever um travessão que não quer dizer nada. */
+export function proximaMeta(metas){
+  const comPrazo = (metas || [])
+    .filter((m) => m.status === "ativa" && m.prazo && Number(m.falta || 0) > 0);
+  if (!comPrazo.length) return null;
+  return comPrazo.slice().sort((a, b) => String(a.prazo).localeCompare(String(b.prazo)))[0];
 }
 
 /* A ordem da lista: em risco primeiro, depois por prioridade, depois por prazo.
    Quem abre a tela de Metas quer ver o que está apertado, não o alfabeto. */
-export function ordenaMetas(metas, sobraMensal){
+export function ordenaMetas(metas, capacidade){
   return (metas || []).slice().sort((a, b) => {
-    const ra = emRisco(a, sobraMensal) ? 0 : 1;
-    const rb = emRisco(b, sobraMensal) ? 0 : 1;
+    const ra = emRisco(a, capacidade) ? 0 : 1;
+    const rb = emRisco(b, capacidade) ? 0 : 1;
     if (ra !== rb) return ra - rb;
     if (a.prioridade !== b.prioridade) return Number(a.prioridade) - Number(b.prioridade);
     /* sem prazo vai para o fim: prazo é o que cria urgência */

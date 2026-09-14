@@ -114,13 +114,24 @@
             <span class="eyebrow">Já aconteceu</span>
             <div class="pr-linha"><span>Entrou</span><strong id="pnEntradasReal">—</strong></div>
             <div class="pr-linha"><span>Saiu</span><strong id="pnSaidasReal">—</strong></div>
-            <div class="pr-linha total"><span>Resultado do mês</span><strong id="pnResultado">—</strong></div>
+            <div class="pr-linha total"><span>Sobra realizada</span><strong id="pnResultado">—</strong></div>
           </div>
           <div class="pr-col">
             <span class="eyebrow">Ainda falta</span>
             <div class="pr-linha"><span>A receber</span><strong id="pnAReceber">—</strong></div>
             <div class="pr-linha"><span>A pagar</span><strong id="pnAPagar">—</strong></div>
-            <div class="pr-linha total"><span>Sobra projetada</span><strong id="pnSobra">—</strong></div>
+            <div class="pr-linha total"><span>Sobra prevista</span><strong id="pnSobraPrevista">—</strong></div>
+          </div>
+          <!-- SOBRA É FLUXO, SALDO É ESTOQUE, e as duas linhas desta coluna são
+               uma de cada. Elas não se somam: `docs/CONTRATO_SOBRA.md`.
+               Até aqui a coluna do meio dizia "Sobra projetada" para
+               `saldo + previstas`, que é o saldo do dia 30 e não o que o mês
+               produziu. Com 10.000 em conta e um mês que entra e sai 3.000,
+               aquilo dizia "sobra 10.000"; o mês sobrou zero. -->
+          <div class="pr-col">
+            <span class="eyebrow">O mês fecha em</span>
+            <div class="pr-linha"><span>Sobra do mês</span><strong id="pnSobraProjetada">—</strong></div>
+            <div class="pr-linha"><span>Saldo no fim</span><strong id="pnSaldoProjetado">—</strong></div>
           </div>
           <div class="pr-col">
             <span class="eyebrow">Nas contas agora</span>
@@ -159,6 +170,8 @@
             <span class="eyebrow">Metas</span>
             <div class="pr-linha"><span>Reservado</span><strong id="pbReservado">—</strong></div>
             <div class="pr-linha"><span>Livre de promessa</span><strong id="pbDisponivel">—</strong></div>
+            <div class="pr-linha"><span>Precisa por mês</span><strong id="pbPorMes">—</strong></div>
+            <p class="hint" id="pbProximaMeta" hidden></p>
             <p class="hint" id="pbMetas" hidden></p>
           </div>
           <div class="pr-col" id="blocoCompartilhado" hidden>
@@ -1578,7 +1591,7 @@ import { ligaTelasV2, carregaV2, renderV2, atualizaFiltrosDeTela, V2,
          registraFonteDaV1, renderCalendario }
   from "./js/ui/v2-screens.js";
 import { proximaAVencer, vencidas } from "./js/domain/cards.js";
-import { indicadoresDeMetas } from "./js/domain/goals.js";
+import { indicadoresDeMetas, capacidadeMensal, proximaMeta } from "./js/domain/goals.js";
 import { indicadoresDeAssinaturas, proximasCobrancas } from "./js/domain/subscriptions.js";
 import { chaveDe, resumoDoMes } from "./js/domain/reconciliation.js";
 
@@ -2485,17 +2498,36 @@ function renderBlocosDoPainel(){
   /* --- metas ---
      Reservado e disponível são LEITURAS DO MESMO DINHEIRO, e por isso nunca
      aparecem somados: os dois juntos dariam o saldo contado duas vezes. */
-  const indMt = indicadoresDeMetas(V2.metas, V2.saldoLivre, null);
+  const indMt = indicadoresDeMetas(V2.metas, V2.saldoLivre, capacidadeMensal(V2.sobra));
   $("blocoMetas").hidden = indMt.quantas === 0 && indMt.reservado === 0;
   if (!$("blocoMetas").hidden){
     $("pbReservado").textContent = money(indMt.reservado);
     $("pbDisponivel").textContent = money(indMt.disponivel);
+    $("pbPorMes").textContent = indMt.precisaPorMes > 0 ? money(indMt.precisaPorMes) : "—";
+
+    /* A meta mais próxima, com a data. Some quando não há nenhuma com prazo:
+       linha vazia com travessão não informa nada. */
+    const prox = proximaMeta(V2.metas);
+    const linhaProx = $("pbProximaMeta");
+    linhaProx.hidden = !prox;
+    if (prox) linhaProx.textContent =
+      "Mais próxima: " + prox.nome + ", " + money(prox.falta) + " até " + diaLegivel(prox.prazo) + ".";
+
     const aviso = $("pbMetas");
-    /* o estouro vem primeiro e sem piada: é dinheiro prometido que já saiu */
-    aviso.hidden = !indMt.estourado && indMt.quantas === 0;
-    aviso.className = indMt.estourado ? "hint alerta" : "hint";
-    if (!aviso.hidden) aviso.textContent = indMt.estourado
-      ? "Você reservou mais do que tem livre em conta."
+    /* Três avisos, e um de cada vez, na ordem em que doem: dinheiro prometido
+       que já saiu, meta que não fecha sozinha, metas que não cabem juntas. */
+    const grave = indMt.estourado;
+    const risco = indMt.emRisco > 0;
+    const aperto = indMt.capacidadeRestante != null && indMt.capacidadeRestante < 0;
+    aviso.hidden = !grave && !risco && !aperto && indMt.quantas === 0;
+    aviso.className = (grave || risco) ? "hint alerta" : "hint";
+    if (!aviso.hidden) aviso.textContent =
+      grave ? "Você reservou mais do que tem livre em conta."
+      : risco ? (indMt.emRisco === 1
+          ? "1 meta pede por mês mais do que o mês sobra."
+          : indMt.emRisco + " metas pedem por mês mais do que o mês sobra.")
+      : aperto ? "Juntas, as metas pedem " + money(indMt.precisaPorMes)
+          + " por mês, e o mês sobra " + money(indMt.capacidade) + "."
       : indMt.quantas === 1 ? "1 meta ativa." : indMt.quantas + " metas ativas.";
   }
 
@@ -2545,9 +2577,20 @@ function renderPrevistoRealizado(){
 
   $("pnAReceber").textContent = money(r.aindaEntra);
   $("pnAPagar").textContent   = money(r.aindaSai);
-  const sobra = $("pnSobra");
-  sobra.textContent = money(r.sobraProjetada);
-  sobra.className = r.sobraProjetada < 0 ? "ruim" : "";
+  const prevista = $("pnSobraPrevista");
+  prevista.textContent = money(r.sobra.prevista);
+  prevista.className = r.sobra.prevista < 0 ? "ruim" : "";
+
+  const projetada = $("pnSobraProjetada");
+  projetada.textContent = money(r.sobra.projetada);
+  projetada.className = r.sobra.projetada < 0 ? "ruim" : "";
+  const saldoFim = $("pnSaldoProjetado");
+  saldoFim.textContent = money(r.saldoProjetado);
+  saldoFim.className = r.saldoProjetado < 0 ? "ruim" : "";
+
+  /* A sobra fica disponível para as telas da V2, que não alcançam os
+     compromissos da V1. É daqui que sai a capacidade mensal das metas. */
+  V2.sobra = r.sobra;
 
   $("pnSaldoContas").textContent = money(ind.total);
   $("pnDisponivel").textContent  = money(ind.disponivel);
@@ -2556,11 +2599,16 @@ function renderPrevistoRealizado(){
   /* Aderência: quanto do que o mês devia pagar já saiu do papel. Só aparece
      quando há compromisso, porque 0 de 0 não é 0% -- é pergunta sem sentido. */
   const barra = $("pnAderenciaBarra"), texto = $("pnAderencia");
-  const temAderencia = r.saidas.aderencia !== null;
+  /* `aderencia` mora na RAIZ do resumo, e não em `saidas`. Esta linha lia
+     `r.saidas.aderencia`, que é `undefined` -- e `undefined !== null` é
+     verdadeiro, então a barra aparecia SEMPRE, escrevendo "NaN%" em cima dela.
+     Nenhum teste pegava: a expressão compila, a propriedade existe noutro
+     lugar, e nenhuma prova de navegador lia esse texto. */
+  const temAderencia = r.aderencia !== null;
   barra.hidden = texto.hidden = !temAderencia;
   if (temAderencia){
-    barra.querySelector("i").style.width = (r.saidas.aderencia * 100).toFixed(1) + "%";
-    texto.textContent = pct(r.saidas.aderencia) + " dos compromissos do mês já resolvidos ("
+    barra.querySelector("i").style.width = (r.aderencia * 100).toFixed(1) + "%";
+    texto.textContent = pct(r.aderencia) + " dos compromissos do mês já resolvidos ("
       + money(r.saidas.liquidado + r.saidas.pagoSemMovimento) + " de "
       + money(r.saidas.comprometido) + ").";
   }
@@ -2576,8 +2624,9 @@ function renderPrevistoRealizado(){
       + "não saiu de nenhuma conta aqui, e também não falta mais pagar.";
   }
 
-  $("pnNota").textContent = "As três colunas não se somam. A renda base fica fora da "
-    + "projeção: sem lançamento para marcar, não dá para saber se ela já caiu.";
+  $("pnNota").textContent = "Sobra é o que o mês produz; saldo é o que existe na conta. "
+    + "As colunas não se somam. A renda base fica fora da projeção: sem lançamento "
+    + "para marcar, não dá para saber se ela já caiu.";
 }
 
 function renderPainel(){

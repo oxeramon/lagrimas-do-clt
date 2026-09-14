@@ -47,8 +47,19 @@ async function criaConta(p, nome, saldo, primeira){
 const painel = (p) => p.evaluate(() => {
   const t = (id) => (document.getElementById(id).textContent || "").replace(/\u00a0/g, " ");
   return { entrou:t("pnEntradasReal"), saiu:t("pnSaidasReal"), resultado:t("pnResultado"),
-           aReceber:t("pnAReceber"), aPagar:t("pnAPagar"), sobra:t("pnSobra"),
+           aReceber:t("pnAReceber"), aPagar:t("pnAPagar"),
+           /* SOBRA É FLUXO, SALDO É ESTOQUE, e o painel mostra os dois com
+              nomes diferentes desde que `pnSobra` foi aposentado -- ele dizia
+              "sobra" para `saldo + previstas`, que é o saldo do dia 30.
+              `docs/CONTRATO_SOBRA.md`. */
+           sobraPrevista:t("pnSobraPrevista"),
+           sobraProjetada:t("pnSobraProjetada"),
+           saldoProjetado:t("pnSaldoProjetado"),
            saldo:t("pnSaldoContas"),
+           /* A barra de aderência lia `r.saidas.aderencia`, que é `undefined`:
+              ela aparecia sempre e escrevia "NaN%". Compilava, e nenhuma prova
+              lia este texto -- por isso ele passou a ser lido aqui. */
+           aderencia: document.getElementById("pnAderencia").hidden ? "" : t("pnAderencia"),
            /* o terceiro estado: marcado como pago SEM lançamento em conta */
            semMovimento: document.getElementById("pnSemMovimento").hidden ? "" : t("pnSemMovimento") };
 });
@@ -215,9 +226,15 @@ console.log("\nponte: pagar e receber");
   const pAntes = await painel(p);
   eq("o painel começa sem nada realizado", [pAntes.entrou, pAntes.saiu],
     ["R$ 0,00", "R$ 0,00"]);
+  eq("a aderência nunca escreve NaN", pAntes.aderencia.includes("NaN"), false);
   eq("com o compromisso inteiro no 'a pagar'", pAntes.aPagar, "R$ 200,00");
-  eq("e a sobra projetada é o saldo menos o que falta pagar",
-    [pAntes.saldo, pAntes.sobra], ["R$ 1.000,00", "R$ 800,00"]);
+  eq("e o saldo do fim do mês é o de hoje menos o que falta pagar",
+    [pAntes.saldo, pAntes.saldoProjetado], ["R$ 1.000,00", "R$ 800,00"]);
+  /* A SOBRA é outra pergunta: o que o MÊS produz. Nada entrou e faltam 200 a
+     pagar, então o mês está negativo em 200 -- e isso não tem relação com os
+     1.000 que já estavam na conta antes de o mês começar. */
+  eq("e a sobra do mês é −200, sem o saldo que já existia",
+    [pAntes.sobraPrevista, pAntes.sobraProjetada], ["-R$ 200,00", "-R$ 200,00"]);
 
   await p.click("#listaMes [data-liquidar]");
   await p.waitForTimeout(300);
@@ -266,8 +283,10 @@ console.log("\nponte: pagar e receber");
   /* A sobra projetada NÃO se mexe: o dinheiro saiu da conta e saiu da lista de
      compromissos ao mesmo tempo. Se ela mudasse, alguém estaria contando duas
      vezes -- é a forma mais curta de enunciar o contrato inteiro. */
-  eq("CASO B · a sobra projetada não se mexe ao pagar",
-    pDepois.sobra, pAntes.sobra);
+  eq("CASO B · a sobra do mês não se mexe ao pagar",
+    pDepois.sobraProjetada, pAntes.sobraProjetada);
+  eq("CASO B · nem o saldo do fim do mês",
+    pDepois.saldoProjetado, pAntes.saldoProjetado);
   /* Pago pela ponte é LIQUIDADO, e liquidado não é "pago sem movimento". Os
      dois somem do previsto, então só esta linha separa um do outro -- sem ela,
      perder o vínculo passaria despercebido. */
@@ -358,8 +377,10 @@ console.log("\nponte: pagar e receber");
   const prDepois = await painel(p);
   eq("recebida, ela vira entrada e sai do 'a receber'",
     [prDepois.entrou, prDepois.aReceber], ["R$ 300,00", "R$ 0,00"]);
-  eq("CASO D · a sobra projetada não se mexe ao receber",
-    prDepois.sobra, prAntes.sobra);
+  eq("CASO D · a sobra do mês não se mexe ao receber",
+    prDepois.sobraProjetada, prAntes.sobraProjetada);
+  eq("CASO D · nem o saldo do fim do mês",
+    prDepois.saldoProjetado, prAntes.saldoProjetado);
 
   await vaiPara(p, "contas");
   await p.waitForTimeout(250);

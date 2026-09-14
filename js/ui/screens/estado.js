@@ -30,6 +30,13 @@ export const V2 = {
      tela: é ele que o gatilho usa para decidir o que aceitar, e dois
      cálculos diferentes discordariam. */
   metas: [], alocacoes: [], saldoLivre: 0,
+  /* A SOBRA DO MÊS, publicada pelo Painel. Ela nasce da V1 (compromissos e
+     receitas do mês), que mora no `index.html`, e as telas da V2 precisam dela
+     para falar de capacidade -- `docs/CONTRATO_SOBRA.md`.
+
+     `null` enquanto o Painel não rodou, e `null` NÃO é zero: sem referência
+     nenhuma meta é julgada, que é o contrário de julgar todas como em risco. */
+  sobra: null,
   mes: HOJE, carregado: false, erro: null, erroPonte: null,
 };
 

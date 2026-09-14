@@ -17,7 +17,8 @@ import { $ } from "../../core/dom.js";
 import { esc } from "../../core/escape.js";
 import { money } from "../../core/money.js";
 import { PRIORIDADES, STATUS, rotuloDaPrioridade, indicadoresDeMetas,
-         ordenaMetas, necessidadeMensal, emRisco, cabeReservar }
+         ordenaMetas, necessidadeMensal, emRisco, cabeReservar,
+         capacidadeMensal, ritmoDaMeta, rotuloDoRitmo, RITMO }
   from "../../domain/goals.js";
 import { V2, dep, recarrega } from "./estado.js";
 import { listaDeOpcoes, confirmaEmDoisCliques, mostraErro, hojeISO, diaLegivel }
@@ -27,12 +28,18 @@ import * as v2 from "../../data/v2-repository.js";
 let metaEditando = null;
 let metaAlocando = null;
 
-/* Quanto costuma sobrar por mês. Sem essa referência não há como afirmar que
-   uma meta está em risco -- e afirmar sem base é alarme falso, que ensina a
-   ignorar o alarme. Hoje a referência não existe, então vem `null` e nenhuma
-   meta é marcada em risco por ritmo. O estouro do reservado continua sendo
-   avisado, porque esse não depende de estimativa. */
-const sobraMensal = () => null;
+/* A CAPACIDADE MENSAL: o que o mês produz e pode virar reserva. Ela vem da
+   sobra publicada pelo Painel, porque nasce da V1 -- compromissos e receitas
+   do mês -- e esta tela não alcança a V1. `docs/CONTRATO_SOBRA.md`.
+
+   Vem `null` enquanto o Painel não rodou, ou num mês sem entrada nenhuma, e
+   `null` NÃO é zero: sem referência nenhuma meta é julgada. Zero marcaria
+   TODA meta com prazo em risco no primeiro minuto de uso, e alarme que toca
+   sozinho ensina a ignorar alarme.
+
+   O estouro do reservado continua sendo avisado em qualquer caso: aquele não
+   depende de estimativa nenhuma -- é dinheiro prometido que já saiu. */
+const capacidade = () => capacidadeMensal(V2.sobra);
 
 export function renderMetas(){
   const tem = (V2.metas || []).length > 0;
@@ -40,7 +47,7 @@ export function renderMetas(){
   if ($("metasConteudo")) $("metasConteudo").hidden = !tem;
   if (!tem) return;
 
-  const ind = indicadoresDeMetas(V2.metas, V2.saldoLivre, sobraMensal());
+  const ind = indicadoresDeMetas(V2.metas, V2.saldoLivre, capacidade());
 
   $("mtLivre").textContent      = money(ind.saldoLivre);
   $("mtReservado").textContent  = money(ind.reservado);
@@ -53,19 +60,32 @@ export function renderMetas(){
   /* O aviso do estouro é UM, não um por meta: a causa é a mesma para todas.
      E ele não tem piada -- o dinheiro prometido não está mais lá. */
   const aviso = $("mtAviso");
-  aviso.hidden = !ind.estourado;
+  const semBase = ind.capacidade == null && ind.quantas > 0;
+  const aperto = ind.capacidadeRestante != null && ind.capacidadeRestante < 0;
+  aviso.hidden = !ind.estourado && !aperto && !semBase;
   if (ind.estourado) aviso.textContent =
     "Você reservou " + money(ind.reservado) + " e tem " + money(ind.saldoLivre)
     + " livre em conta. O dinheiro prometido saiu depois da promessa: reveja as metas.";
+  else if (aperto) aviso.textContent =
+    "Juntas, as metas pedem " + money(ind.precisaPorMes) + " por mês, e o mês sobra "
+    + money(ind.capacidade) + ". Uma de cada vez cabe; todas ao mesmo tempo, não.";
+  else if (semBase) aviso.textContent =
+    "Ainda não dá para dizer se as metas estão no ritmo: este mês não tem nenhuma "
+    + "entrada registrada, e sem isso não há com o que comparar.";
   aviso.classList.toggle("alerta", ind.estourado);
 
-  $("listaMetas").innerHTML = ordenaMetas(V2.metas, sobraMensal())
-    .map(linhaDeMeta).join("");
+  $("listaMetas").innerHTML = ordenaMetas(V2.metas, capacidade())
+    .map((m) => linhaDeMeta(m, ind.precisaPorMes)).join("");
 }
 
-function linhaDeMeta(m){
+/* Só estes quatro viram etiqueta. `sem prazo` e `sem referência` não ganham
+   nenhuma: não há o que afirmar, e etiqueta em toda meta de um app
+   recém-instalado é ruído em vez de aviso. */
+const COM_ETIQUETA = new Set([RITMO.EM_RISCO, RITMO.ATENCAO, RITMO.NO_RITMO, RITMO.CONCLUIDA]);
+
+function linhaDeMeta(m, precisaPorMes){
   const precisa = necessidadeMensal(m);
-  const risco = emRisco(m, sobraMensal());
+  const ritmo = ritmoDaMeta(m, capacidade(), precisaPorMes);
   const concluida = m.status === "concluida";
   const arquivada = m.status === "arquivada";
 
@@ -83,7 +103,8 @@ function linhaDeMeta(m){
     + '<div class="meta-topo">'
     + '<div style="min-width:0"><b class="nome">' + esc(m.nome) + '</b>'
     + '<span class="meta-sub">' + esc(sub) + '</span></div>'
-    + (risco ? '<span class="pill sit-parcial">em risco</span>' : "")
+    + (COM_ETIQUETA.has(ritmo) && !arquivada
+        ? '<span class="pill ritmo-' + ritmo + '">' + esc(rotuloDoRitmo(ritmo)) + '</span>' : "")
     + '<span class="meta-pct num">' + m.percentual + '%</span>'
     + '</div>'
     + '<div class="barra"><span style="--frac:' + m.percentual + '%"></span></div>'
@@ -137,7 +158,7 @@ function abreAlocacao(metaId){
   if (!m) return;
   metaAlocando = m;
 
-  const ind = indicadoresDeMetas(V2.metas, V2.saldoLivre, sobraMensal());
+  const ind = indicadoresDeMetas(V2.metas, V2.saldoLivre, capacidade());
   const cabe = cabeReservar(V2.saldoLivre, ind.reservado);
 
   $("alTitulo").textContent = "Reservar para " + m.nome;

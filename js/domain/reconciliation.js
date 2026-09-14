@@ -126,22 +126,51 @@ export function entradasDoMes({ receitas, transacoes, liquidacoes, mes }){
 
 /* ----------------------------------------------------------------- resumo --
    Os números que o Painel mostra lado a lado. Repare no que NÃO existe aqui:
-   nenhum campo que some previsto com realizado. */
+   nenhum campo que some previsto com realizado.
+
+   SOBRA É FLUXO, SALDO É ESTOQUE, e este resumo devolve os dois com nomes que
+   dizem qual é qual. O contrato está em `docs/CONTRATO_SOBRA.md`.
+
+   Existia aqui um campo `sobraProjetada` que valia `saldo + previstas`. A
+   expressão estava certa e o nome errado: aquilo é o SALDO do dia 30, não o
+   que o mês produziu. Com 10.000 em conta e um mês que entra 3.000 e sai
+   3.000, ele dizia "sobra projetada 10.000"; o mês sobrou zero.
+
+   O nome foi APOSENTADO em vez de reaproveitado. Reaproveitar mudaria o
+   sentido de um número sem mudar o nome dele, e é assim que um defeito
+   atravessa uma revisão sem ninguém ver. Quem lia `sobraProjetada` agora
+   quebra, e quebrar é a intenção. */
 export function resumoDoMes(entrada){
   const s = saidasDoMes(entrada);
   const e = entradasDoMes(entrada);
+
+  const realizada = e.realizado - s.realizado;
+  const prevista = e.previsto - s.previsto;
+
+  /* Sem NENHUMA entrada no mês, nem realizada nem prevista, a sobra não é
+     zero: é desconhecida. Zero afirmaria "este mês não produz nada"; num app
+     recém-instalado a verdade é "ainda não sei". A diferença decide se toda
+     meta com prazo nasce marcada em risco no primeiro minuto de uso. */
+  const semReferencia = e.realizado === 0 && e.previsto === 0;
+
   return {
     saidas: s,
     entradas: e,
     /* o que já aconteceu de verdade, pelas transações */
-    resultadoRealizado: e.realizado - s.realizado,
+    resultadoRealizado: realizada,
     /* o que ainda deve acontecer, pelo planejamento */
     aindaEntra: e.previsto,
     aindaSai: s.previsto,
-    /* Sobra projetada: o que está na conta hoje, mais o que ainda entra, menos
-       o que ainda sai. Usa o SALDO, não as entradas realizadas -- elas já estão
-       dentro do saldo, e somá-las de novo seria contar duas vezes. */
-    sobraProjetada: (Number(entrada.saldoEmContas) || 0) + e.previsto - s.previsto,
+
+    /* A SOBRA DO MÊS, nas três leituras que não se confundem. */
+    sobra: { realizada, prevista, projetada: realizada + prevista, semReferencia },
+
+    /* O SALDO no fim do mês. Parte do saldo de HOJE e soma só o que ainda
+       FALTA acontecer: o realizado do mês já está dentro do saldo, e somá-lo
+       de novo contaria duas vezes. Por isso é `prevista`, e nunca
+       `projetada`. */
+    saldoProjetado: (Number(entrada.saldoEmContas) || 0) + prevista,
+
     /* aderência: quanto do previsto do mês já virou movimento */
     aderencia: s.comprometido > 0 ? (s.liquidado + s.pagoSemMovimento) / s.comprometido : null,
   };

@@ -47,6 +47,9 @@ import { doBanco, paraBanco, paraCamel, paraSnake } from "../js/data/v2-reposito
 import { monogramaDe, contrasteSobre, doCatalogo } from "../js/ui/institution-catalog.js";
 import { raizesPadrao, filhasPadrao, quantasCategoriasPadrao } from "../js/ui/category-catalog.js";
 import { ABAS, idsDasAbas, grupoDaAba, abasDoRodape, abasDoMais } from "../js/ui/navigation.js";
+import { indicadoresDeMetas, necessidadeMensal, necessidadeTotal, capacidadeMensal,
+         capacidadeRestante, ritmoDaMeta, emRisco, cabeReservar, RITMO }
+  from "../js/domain/goals.js";
 import { saidasDoMes, entradasDoMes, resumoDoMes, estadoDoCompromisso,
          indiceDeLiquidacoes, chaveDe, mesesEmAtraso,
          ABERTO, LIQUIDADO, PAGO_SEM_MOVIMENTO } from "../js/domain/reconciliation.js";
@@ -655,10 +658,18 @@ eq("resultado realizado é entradas menos saídas do movimento",
   resumo.resultadoRealizado, 500);
 eq("ainda entra é só a receita não recebida", resumo.aindaEntra, 200);
 eq("ainda sai é só o compromisso aberto", resumo.aindaSai, 420);
-/* 2000 + 200 − 420. O saldo JÁ contém a entrada de 1.000: somá-la de novo
-   seria contar duas vezes. */
-eq("sobra projetada parte do saldo, não das entradas já realizadas",
-  resumo.sobraProjetada, 1780);
+/* 2000 + 200 − 420. O SALDO projetado parte do saldo de hoje e soma só o que
+   ainda falta: o realizado do mês já está dentro do saldo, e somá-lo de novo
+   contaria duas vezes. */
+eq("saldo projetado parte do saldo e soma só o previsto",
+  resumo.saldoProjetado, 1780);
+/* A SOBRA é outra coisa: o que o MÊS produz, sem o que já estava na conta. */
+eq("sobra realizada é o resultado do movimento", resumo.sobra.realizada, 500);
+eq("sobra prevista é o que ainda falta acontecer", resumo.sobra.prevista, -220);
+eq("sobra projetada é realizada mais prevista, e NÃO inclui o saldo",
+  resumo.sobra.projetada, 280);
+eq("com entrada no mês, há referência para julgar capacidade",
+  resumo.sobra.semReferencia, false);
 eq("prevista não entra em movimento nenhum", resumo.saidas.realizado, 500);
 /* 500 liquidado de 920 comprometido */
 eq("aderência é o quanto do mês já virou pagamento",
@@ -700,10 +711,10 @@ eq("CASO A · o pagamento da fatura não é consumo novo",
     transacoes: [{ id:"p1", contaId:"ct1", tipo:"saida",
                    natureza:"pagamento_de_fatura", status:"realizada", valor:100 }],
   }).saidas.consumo, 0);
-/* o saldo já caiu os 100 do pagamento; a sobra projetada não os desconta de
-   novo, e a compra no cartão não a afeta porque ainda não é caixa */
-eq("CASO A · a sobra projetada não conta a compra nem o pagamento duas vezes",
-  comCartao.sobraProjetada, 1000);
+/* o saldo já caiu os 100 do pagamento; o saldo projetado não os desconta de
+   novo, e a compra no cartão não o afeta porque ainda não é caixa */
+eq("CASO A · o saldo projetado não conta a compra nem o pagamento duas vezes",
+  comCartao.saldoProjetado, 1000);
 
 console.log("\natraso");
 
@@ -1241,6 +1252,142 @@ eq("toda semana tem sete dias",
   gradeDoMes("2026-09").every((s) => s.length === 7), true);
 eq("os dias de fora do mês vêm marcados",
   gradeDoMes("2026-09")[0].some((d) => !d.noMes), true);
+
+/* ========================================================================
+   SOBRA, CAPACIDADE E RITMO DAS METAS
+   ------------------------------------------------------------------------
+   Contrato em `docs/CONTRATO_SOBRA.md`. As oito letras abaixo são as
+   regressões que fecham as três confusões que este bloco existe para
+   impedir: somar estoque com fluxo, marcar risco sem base, e contar o mesmo
+   real duas vezes quando ele troca de estado.
+
+   O domínio de metas não tinha NENHUM caso aqui antes -- só prova de
+   navegador. `necessidadeMensal` e `emRisco` decidem se a tela pinta uma
+   meta de vermelho, e vermelho sem base é o defeito mais caro de um app de
+   dinheiro: ele ensina a ignorar o aviso.
+   ======================================================================== */
+console.log("\nsobra, capacidade e ritmo");
+
+const meta = (o) => ({ status:"ativa", valorAlvo:0, reservado:0, prazo:null,
+  mesesAtePrazo:null, ...o,
+  falta: o.falta ?? Math.max(0, Number(o.valorAlvo || 0) - Number(o.reservado || 0)) });
+
+/* ---- A · reservar não move saldo ---------------------------------------
+   O erro que o contrato de Metas existe para impedir, agora com número. */
+const indA = indicadoresDeMetas([meta({ valorAlvo:5000, reservado:2000 })], 10000, null);
+eq("A · reservar 2.000 não mexe no saldo livre", indA.saldoLivre, 10000);
+eq("A · o reservado é 2.000", indA.reservado, 2000);
+eq("A · e o disponível não reservado vira 8.000", indA.disponivel, 8000);
+eq("A · saldo e reservado NUNCA se somam: 10.000, e não 12.000",
+  indA.saldoLivre + 0, 10000);
+eq("A · reservado dentro do livre não é estouro", indA.estourado, false);
+eq("A · reservado acima do livre é estouro, e a tela avisa uma vez só",
+  indicadoresDeMetas([meta({ valorAlvo:5000, reservado:2000 })], 1500, null).estourado, true);
+eq("A · o que ainda cabe reservar nunca é negativo",
+  cabeReservar(1500, 2000), 0);
+
+/* ---- B · capacidade restante ------------------------------------------- */
+const sobraB = { realizada:400, prevista:600, projetada:1000, semReferencia:false };
+eq("B · capacidade mensal é a sobra projetada do mês",
+  capacidadeMensal(sobraB), 1000);
+const metasB = [meta({ valorAlvo:3600, reservado:0, prazo:"2027-03", mesesAtePrazo:10 }),
+                meta({ valorAlvo:2400, reservado:0, prazo:"2027-09", mesesAtePrazo:10 })];
+eq("B · necessidade total das metas é 360 + 240", necessidadeTotal(metasB), 600);
+eq("B · capacidade restante é 1.000 − 600", capacidadeRestante(1000, 600), 400);
+eq("B · e ela aparece no indicador, sem virar outro nome",
+  indicadoresDeMetas(metasB, 99999, capacidadeMensal(sobraB)).capacidadeRestante, 400);
+
+/* ---- C · meta em risco, com base objetiva ------------------------------ */
+const metaC = meta({ valorAlvo:7200, reservado:0, prazo:"2027-03", mesesAtePrazo:6 });
+eq("C · a meta precisa de 1.200 por mês", necessidadeMensal(metaC), 1200);
+eq("C · com capacidade de 800, ela está em risco", ritmoDaMeta(metaC, 800, 1200), RITMO.EM_RISCO);
+eq("C · e `emRisco` concorda com o estado", emRisco(metaC, 800), true);
+
+/* ---- D · meta no ritmo ------------------------------------------------- */
+const metaD = meta({ valorAlvo:3000, reservado:0, prazo:"2027-03", mesesAtePrazo:6 });
+eq("D · a meta precisa de 500 por mês", necessidadeMensal(metaD), 500);
+eq("D · com capacidade de 800, ela está no ritmo", ritmoDaMeta(metaD, 800, 500), RITMO.NO_RITMO);
+eq("D · e NÃO está em risco", emRisco(metaD, 800), false);
+/* o estado do conjunto: cabe sozinha, não cabem todas */
+eq("D · duas iguais cabem uma a uma e não cabem juntas: atenção",
+  ritmoDaMeta(metaD, 800, 1000), RITMO.ATENCAO);
+
+/* PRAZO PRÓXIMO NÃO É RISCO. O que cria risco é a conta não fechar. */
+eq("meta que vence já, com tudo reservado, está concluída e não em risco",
+  ritmoDaMeta(meta({ valorAlvo:1000, reservado:1000, prazo:"2026-10", mesesAtePrazo:1 }), 0, 0),
+  RITMO.CONCLUIDA);
+eq("meta sem prazo não tem ritmo a julgar",
+  ritmoDaMeta(meta({ valorAlvo:1000, reservado:0 }), 800, 0), RITMO.SEM_PRAZO);
+eq("sem prazo, a necessidade mensal é null e não zero",
+  necessidadeMensal(meta({ valorAlvo:1000, reservado:0 })), null);
+/* Sem referência, ninguém é marcado. Zero de capacidade marcaria TODA meta com
+   prazo no primeiro minuto de uso. */
+const sobraVazia = { realizada:0, prevista:0, projetada:0, semReferencia:true };
+eq("mês sem entrada nenhuma não tem capacidade zero: tem capacidade desconhecida",
+  capacidadeMensal(sobraVazia), null);
+eq("e nenhuma meta é marcada sem referência",
+  ritmoDaMeta(metaC, capacidadeMensal(sobraVazia), 0), RITMO.SEM_REFERENCIA);
+eq("nem por `emRisco`", emRisco(metaC, capacidadeMensal(sobraVazia)), false);
+/* meses até o prazo é pelo menos 1: meta que vence este mês pede o valor
+   inteiro agora, não uma divisão por zero */
+eq("meta que vence este mês pede o valor inteiro",
+  necessidadeMensal(meta({ valorAlvo:1000, reservado:0, prazo:"2026-09", mesesAtePrazo:0 })), 1000);
+
+/* ---- F · transferência não muda a sobra do mês -------------------------- */
+const baseFG = { compromissos: [], receitas: [], liquidacoes: [], pagos: {}, mes: MES,
+                 saldoEmContas: 1000 };
+const fSemTransferencia = resumoDoMes({ ...baseFG,
+  transacoes: [{ id:"e1", contaId:"ct1", tipo:"entrada", natureza:"normal",
+                 status:"realizada", valor:3000 }] });
+const fComTransferencia = resumoDoMes({ ...baseFG,
+  transacoes: [
+    { id:"e1", contaId:"ct1", tipo:"entrada", natureza:"normal", status:"realizada", valor:3000 },
+    /* as duas pernas do MESMO dinheiro mudando de gaveta */
+    { id:"tr1", contaId:"ct1", transferenciaId:"g1", tipo:"saida",   natureza:"transferencia", status:"realizada", valor:700 },
+    { id:"tr2", contaId:"ct2", transferenciaId:"g1", tipo:"entrada", natureza:"transferencia", status:"realizada", valor:700 },
+  ] });
+eq("F · transferência não mexe na sobra realizada",
+  fComTransferencia.sobra.realizada, fSemTransferencia.sobra.realizada);
+eq("F · nem na projetada", fComTransferencia.sobra.projetada, fSemTransferencia.sobra.projetada);
+eq("F · nem no saldo projetado", fComTransferencia.saldoProjetado, fSemTransferencia.saldoProjetado);
+eq("F · nem no consumo do mês", fComTransferencia.saidas.consumo, fSemTransferencia.saidas.consumo);
+
+/* ---- G · pagar um compromisso não muda o resultado projetado ------------
+   Só troca de coluna: sai do previsto, entra no realizado. Se o projetado se
+   mexesse, o mesmo compromisso estaria sendo contado duas vezes -- ou
+   nenhuma. */
+const compG = [{ id:"dg", valor:420 }];
+const antesG = resumoDoMes({ compromissos: compG, receitas: [{ id:"rg", valor:2000 }],
+  transacoes: [], liquidacoes: [], pagos: {}, mes: MES, saldoEmContas: 1000 });
+const depoisG = resumoDoMes({ compromissos: compG, receitas: [{ id:"rg", valor:2000 }],
+  transacoes: [{ id:"tg", contaId:"ct1", tipo:"saida", natureza:"normal",
+                 status:"realizada", valor:420 }],
+  liquidacoes: [{ itemId:"dg", competencia:MES, valor:420 }],
+  pagos: { [MES]: { dg: true } }, mes: MES, saldoEmContas: 1000 });
+eq("G · antes de pagar, os 420 estão no previsto", antesG.aindaSai, 420);
+eq("G · depois de pagar, o previsto zera", depoisG.aindaSai, 0);
+eq("G · e os 420 aparecem no realizado", depoisG.saidas.realizado, 420);
+eq("G · a sobra PROJETADA do mês não se mexe: só trocou de coluna",
+  depoisG.sobra.projetada, antesG.sobra.projetada);
+eq("G · e o comprometido do mês continua o mesmo",
+  depoisG.saidas.comprometido, antesG.saidas.comprometido);
+
+/* ---- H · pagar a fatura não duplica consumo ---------------------------- */
+const soCompra = resumoDoMes({ ...baseFG, saldoEmContas: 0,
+  transacoes: [{ id:"h1", contaId:null, faturaId:"f1", tipo:"saida",
+                 natureza:"normal", status:"realizada", valor:300 }] });
+const compraEPagamento = resumoDoMes({ ...baseFG, saldoEmContas: 0,
+  transacoes: [
+    { id:"h1", contaId:null, faturaId:"f1", tipo:"saida", natureza:"normal",
+      status:"realizada", valor:300 },
+    { id:"h2", contaId:"ct1", tipo:"saida", natureza:"pagamento_de_fatura",
+      status:"realizada", valor:300 },
+  ] });
+eq("H · a compra sozinha consome 300", soCompra.saidas.consumo, 300);
+eq("H · com o pagamento junto, o consumo continua 300 e não 600",
+  compraEPagamento.saidas.consumo, 300);
+eq("H · o caixa é só o pagamento: 300", compraEPagamento.saidas.realizado, 300);
+eq("H · a compra sozinha não tira nada do caixa", soCompra.saidas.realizado, 0);
 
 console.log(`\n${ok} passaram, ${bad} falharam`);
 process.exit(bad ? 1 : 0);

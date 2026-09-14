@@ -360,6 +360,18 @@
    junto, como nos outros -- cor sozinha nunca decide. */
 .pill.sit-parcial{background:var(--brand-soft); color:var(--brand)}
 
+/* RITMO DA META · uma cor por estado, e cada estado tem regra escrita em
+   `docs/CONTRATO_SOBRA.md`. Nenhuma sai de porcentagem inventada:
+     em risco  a meta sozinha pede mais do que o mês produz
+     atenção   ela cabe sozinha, e as metas juntas não cabem
+     no ritmo  cabe sozinha e cabe no conjunto
+   `sem prazo` e `sem referência` não ganham etiqueta: não há o que afirmar, e
+   etiqueta em toda meta de um app recém-instalado é ruído, não aviso. */
+.pill.ritmo-em_risco{background:var(--critical-soft); color:var(--critical)}
+.pill.ritmo-atencao{background:var(--warn-soft); color:var(--warn)}
+.pill.ritmo-no_ritmo{background:var(--good-soft); color:var(--good)}
+.pill.ritmo-concluida{background:var(--good-soft); color:var(--good)}
+
 /* Total, pago e falta lado a lado. `auto-fit` com mínimo pequeno porque em
    320px três colunas fixas estouram a largura; aqui elas empilham sozinhas. */
 .fatura-saldo{display:grid; gap:var(--e-2);
