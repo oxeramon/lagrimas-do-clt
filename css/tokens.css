@@ -75,12 +75,24 @@
   --brand:var(--petroleo-700); --brand-ink:var(--marfim-0); --brand-soft:var(--petroleo-100);
   --apoio:var(--cobalto-500); --apoio-soft:var(--cobalto-100);
 
-  /* Vidro: translúcido discreto, e só onde flutua sobre conteúdo -- barra,
-     folha, modal, lente. Card comum NÃO leva vidro: vinte superfícies
-     borradas viram sopa, e o efeito perde o sentido de "está por cima". */
+  /* Vidro: translúcido discreto, e só onde a peça FLUTUA -- barra, folha,
+     modal, lente, botão flutuante e a lateral. Card comum NÃO leva vidro:
+     vinte superfícies borradas viram sopa, e o efeito perde o sentido de
+     "está solto do resto". */
   --vidro:color-mix(in srgb, var(--marfim-0) 72%, transparent);
   --vidro-linha:color-mix(in srgb, var(--pedra-900) 8%, transparent);
   --desfoque:saturate(150%) blur(14px);
+  /* As duas bordas internas que dão CORPO ao vidro. Sem elas a peça é um
+     retângulo translúcido; com elas a luz bate em cima e a base assenta, e é
+     isso que o olho lê como espessura. `--vidro-brilho` é claro nos DOIS
+     temas: reflexo escuro não existe. Inverter a luz junto com o fundo é o
+     que faz uma peça de vidro virar um buraco no tema escuro. */
+  --vidro-brilho:color-mix(in srgb, var(--marfim-0) 75%, transparent);
+  --vidro-fundo:color-mix(in srgb, var(--pedra-900) 6%, transparent);
+  /* Fundo de item selecionado SOBRE vidro. `--brand-soft` é opaco e vira um
+     adesivo colado na frente do vidro; este acompanha a translucidez. Deriva
+     de `--brand`, então troca de tema sozinho. */
+  --brand-vidro:color-mix(in srgb, var(--brand) 26%, transparent);
   --s1:var(--serie-1); --s2:var(--serie-2); --s3:var(--serie-3); --s4:var(--serie-4); --s5:var(--serie-5);
   --good:var(--bom-500); --warn:var(--aviso-500); --critical:var(--grave-500);
   --good-soft:var(--bom-50); --warn-soft:var(--aviso-50); --critical-soft:var(--grave-50);
@@ -90,6 +102,10 @@
 
   /* ---------- 3. COMPONENTE ---------- */
   --lateral-larg:232px;
+  /* O quanto a lateral fica SOLTA da borda da janela, nos quatro lados. A
+     coluna do grid soma isto duas vezes, então mexer aqui não estreita o
+     painel: afasta ele. */
+  --lateral-solta:12px;
   --rodape-alt:60px;
   --nav-raio:var(--raio-2);
   --ico-check:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='3.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M20 6L9 17l-5-5'/%3E%3C/svg%3E");
@@ -114,6 +130,9 @@
   --apoio:var(--cobalto-300); --apoio-soft:#152740;
   --vidro:color-mix(in srgb, var(--noite-900) 72%, transparent);
   --vidro-linha:color-mix(in srgb, var(--noite-50) 10%, transparent);
+  /* O brilho continua CLARO aqui, só mais fraco: é luz, e luz não inverte. */
+  --vidro-brilho:color-mix(in srgb, var(--noite-50) 13%, transparent);
+  --vidro-fundo:color-mix(in srgb, var(--noite-950) 45%, transparent);
   --s1:var(--serie-1-d); --s2:var(--serie-2-d); --s3:var(--serie-3-d);
   --s4:var(--serie-4-d); --s5:var(--serie-5-d);
   --warn:var(--aviso-500-d);

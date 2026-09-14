@@ -81,22 +81,76 @@ main{max-width:1160px; margin:0 auto; padding:22px 20px 72px}
 
 
 /* ---------- casca: lateral no desktop, rodapé no celular ---------- */
-.app{display:grid; grid-template-columns:var(--lateral-larg) 1fr; min-height:100vh}
+/* A primeira coluna reserva a largura da lateral MAIS a folga dos dois lados.
+   Sem a soma, soltar o painel o estreitaria em 24px, e a conta apareceria como
+   "Assinaturas" quebrando linha em vez de como uma decisão de layout. */
+.app{display:grid; min-height:100vh;
+  grid-template-columns:calc(var(--lateral-larg) + var(--lateral-solta) * 2) 1fr}
+/* A LUZ QUE O VIDRO REFRATA. `backdrop-filter` desfoca o que está atrás, e
+   atrás da lateral só havia fundo chapado: desfocar uma cor sólida não produz
+   nada, e a placa virava plástico leitoso. Estes dois brilhos são o que o
+   desfoque amassa.
+
+   A camada ocupa EXATAMENTE o retângulo da placa, mesmo raio e mesma folga.
+   Deixá-la ocupar a coluna inteira punha cor na folga em volta, e ali ela não
+   é luz ambiente: é uma faixa colorida solta na página. Some no celular junto
+   com a lateral. */
+.app::before{content:""; position:fixed; z-index:0; pointer-events:none;
+  inset:var(--lateral-solta) auto var(--lateral-solta) var(--lateral-solta);
+  width:var(--lateral-larg); border-radius:var(--raio-4);
+  background:
+    radial-gradient(125% 50% at 14% 4%, color-mix(in srgb, var(--brand) 46%, transparent), transparent 66%),
+    radial-gradient(100% 44% at 88% 96%, color-mix(in srgb, var(--apoio) 34%, transparent), transparent 68%)}
 /* A coluna de conteúdo precisa poder ser menor que o que há dentro dela. Sem
    isto o `1fr` vira "o tamanho do filho mais largo": a tabela da Projeção
    esticava a página inteira em vez de rolar dentro do .tablewrap, e no celular
    bastavam os quatro botões do topo para a página ganhar rolagem lateral. */
 .app > div{min-width:0}
 
-.lateral{position:sticky; top:0; align-self:start; height:100vh; display:flex; flex-direction:column;
-  gap:var(--e-1); padding:var(--e-5) var(--e-3); background:var(--surface);
-  border-right:1px solid var(--line)}
+/* A LATERAL É UMA PLACA DE VIDRO SOLTA, e não uma parede colada na janela.
+   Três coisas fazem o efeito, e tirar qualquer uma derruba as outras duas:
+
+   1. a folga nos quatro lados, que é o que deixa ver que ela FLUTUA;
+   2. o desfoque do que está atrás, que é o que faz o material ser vidro e não
+      plástico translúcido;
+   3. as duas bordas internas -- luz em cima, assentamento embaixo -- que dão
+      espessura. Sem elas sobra um retângulo leitoso.
+
+   Os dois `linear-gradient` por cima do `--vidro` são o reflexo: um no canto
+   de cima, outro assentando na base. É o que faz a peça parecer curva em vez
+   de reta. O de cima morre nos primeiros 22% de propósito -- indo mais fundo
+   ele passava por cima dos primeiros itens e apagava o realce do selecionado,
+   que é informação e não enfeite. */
+.lateral{position:sticky; top:var(--lateral-solta); align-self:start; z-index:1;
+  margin:var(--lateral-solta); height:calc(100vh - var(--lateral-solta) * 2);
+  display:flex; flex-direction:column; gap:var(--e-1);
+  padding:var(--e-5) var(--e-3);
+  border:1px solid var(--vidro-linha); border-radius:var(--raio-4);
+  background:linear-gradient(157deg,
+      color-mix(in srgb, var(--vidro-brilho) 80%, transparent) 0%,
+      transparent 22%),
+    linear-gradient(0deg,
+      color-mix(in srgb, var(--vidro-brilho) 40%, transparent) 0%,
+      transparent 22%),
+    color-mix(in srgb, var(--vidro) 84%, transparent);
+  backdrop-filter:var(--desfoque);
+  -webkit-backdrop-filter:var(--desfoque);
+  box-shadow:inset 0 1px 0 var(--vidro-brilho),
+    inset 0 -1px 0 var(--vidro-fundo),
+    0 20px 44px -28px color-mix(in srgb, var(--brand) 38%, transparent),
+    var(--sh-2);
+  /* O raio corta o conteúdo se a lista crescer, e lista de aba cresce: o
+     recorte com rolagem própria é o que impede um item de vazar por baixo do
+     canto arredondado numa janela baixa. */
+  overflow:hidden auto; overscroll-behavior:contain}
 .lateral .marca{display:flex; align-items:center; gap:var(--e-2); padding:0 var(--e-2) var(--e-5)}
 .lateral .marca h1{font-size:16px; letter-spacing:-.02em; font-weight:var(--peso-forte)}
 .lateral nav{display:flex; flex-direction:column; gap:2px}
-.lateral .sep{flex:1}
+.lateral .sep{flex:1; min-height:var(--e-5)}
+/* Sobre vidro a linha opaca de `--line` vira um traço colado na frente; a de
+   vidro pertence à peça. */
 .lateral .rodape{display:flex; flex-direction:column; gap:2px; padding-top:var(--e-3);
-  border-top:1px solid var(--line)}
+  border-top:1px solid var(--vidro-linha)}
 
 .navitem{appearance:none; border:0; background:none; font:inherit; font-size:13.5px; font-weight:var(--peso-medio);
   color:var(--ink-2); cursor:pointer; text-align:left; width:100%;
@@ -112,6 +166,18 @@ main{max-width:1160px; margin:0 auto; padding:22px 20px 72px}
 .navitem[aria-selected="true"]::before{content:""; position:absolute; left:calc(var(--e-3) * -1); top:50%; transform:translateY(-50%);
   width:3px; height:18px; border-radius:0 3px 3px 0; background:var(--brand)}
 
+/* Os itens DENTRO do vidro. Fundo opaco aqui vira adesivo colado na frente da
+   placa: o desfoque continua atrás, mas o item não participa dele, e a peça
+   inteira deixa de parecer um material só. Estes três seletores existem para
+   isso, e valem só na lateral -- no rodapé do celular a superfície é opaca e
+   o fundo opaco é o certo. */
+.lateral .navitem:hover{background:var(--vidro-brilho)}
+.lateral .navitem[aria-selected="true"]{background:var(--brand-vidro)}
+/* Encostado na borda o marcador brigava com o canto arredondado. Quatro pixels
+   para dentro e raio cheio: ele passa a ser uma peça do painel. */
+.lateral .navitem[aria-selected="true"]::before{left:calc(var(--e-3) * -1 + 4px);
+  border-radius:var(--raio-cheio)}
+
 /* rodapé fixo do celular: 5 itens, o limite recomendado */
 .rodapenav{display:none}
 
@@ -121,6 +187,9 @@ main{max-width:1280px; margin:0 auto; padding:var(--e-6) var(--e-6) var(--e-12);
 @media (max-width:900px){
   .app{grid-template-columns:1fr}
   .lateral{display:none}
+  /* a luz existe para o vidro da lateral; sem ela, seria uma mancha verde no
+     canto de um app que não tem mais nada ali */
+  .app::before{display:none}
   /* o mesmo respiro da marca na lateral. Com quatro botões de ação a 12px a
      barra passava 3px da tela num aparelho de 360px, e a página inteira ganhava
      rolagem lateral por causa do topo. */
