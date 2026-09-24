@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" id="metaTema" content="#f4f6fc">
+<meta name="theme-color" id="metaTema" content="#f7f5f1">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Lágrimas do CLT">
 <meta name="robots" content="noindex, nofollow">
@@ -28,7 +28,7 @@
   var escuro = p === "escuro"
     || (p !== "claro" && matchMedia("(prefers-color-scheme: dark)").matches);
   document.documentElement.dataset.tema = escuro ? "escuro" : "claro";
-  document.getElementById("metaTema").content = escuro ? "#101525" : "#f4f6fc";
+  document.getElementById("metaTema").content = escuro ? "#151c1b" : "#f7f5f1";
 })();
 </script>
 
@@ -313,10 +313,10 @@
           <p class="hint" id="calAtraso" hidden></p>
         </div>
 
-        <div id="calGrade" class="cal-grade" hidden></div>
+        <div id="calGrade" hidden></div>
         <div id="calAgenda" class="cal-agenda" hidden></div>
-        <div id="calDia" class="cal-dia" hidden></div>
-        <div id="calSemDia" class="cal-dia" hidden></div>
+        <div id="calDia" class="cal-detalhe" hidden></div>
+        <div id="calSemDia" class="cal-detalhe" hidden></div>
       </div>
 
       <div class="hero">
@@ -3456,7 +3456,7 @@ function aplicaTema(p){
   const escuro = escuroCom(p);
   /* a mesma conta que o script do <head> faz antes da primeira pintura */
   document.documentElement.dataset.tema = escuro ? "escuro" : "claro";
-  $("metaTema").content = escuro ? "#101525" : "#f4f6fc";
+  $("metaTema").content = escuro ? "#151c1b" : "#f7f5f1";
   $("icoTema").innerHTML = ICO_TEMA[p];
   $("icoTemaM").innerHTML = ICO_TEMA[p];
   $("rotTema").textContent = ROT_TEMA[p];

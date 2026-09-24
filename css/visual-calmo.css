@@ -133,3 +133,211 @@ dialog:not(.folha){border-color:var(--line);border-radius:24px;background:var(--
   .lateral,.rodapenav,.topo-movel,.folha .corpo,.filtros,.seletor-visao,.selpop,.cal{background:var(--surface);backdrop-filter:none;-webkit-backdrop-filter:none;border-color:var(--ink-2)}
   .lateral nav::before,.rodapenav::before{background:var(--brand-soft);backdrop-filter:none;-webkit-backdrop-filter:none;border-color:var(--brand)}
 }
+
+/* Caderno financeiro: uma superfície de leitura e linhas de dados. O vidro
+   continua nos controles que se movem sobre o conteúdo. */
+:root{
+  --bg:#f7f5f1;--surface:#fffefa;--surface-2:#f4f1eb;--surface-3:#eae6de;
+  --ink:#21302e;--ink-2:#52605c;--ink-3:#687671;
+  --line:#dfded6;--line-strong:#bfc9c1;
+  --brand:#245e59;--brand-ink:#fffefa;--brand-soft:#e7f1ed;
+  --apoio:#b17948;--apoio-soft:#f3e9dc;
+  --sh-1:none;--sh-2:0 14px 38px color-mix(in srgb,var(--ink) 8%,transparent);
+  --r:15px;--r-lg:17px;--nav-raio:12px;
+}
+:root[data-tema="escuro"]{
+  --bg:#151c1b;--surface:#1d2825;--surface-2:#26332f;--surface-3:#33423c;
+  --ink:#f1f3ed;--ink-2:#cbd7ce;--ink-3:#aebeb4;
+  --line:#3a4a41;--line-strong:#66776d;
+  --brand:#a5d8c2;--brand-ink:#112620;--brand-soft:#29443a;
+  --apoio:#e2b481;--apoio-soft:#4b392d;
+  --sh-1:none;--sh-2:0 14px 38px color-mix(in srgb,#000 28%,transparent);
+}
+body{background:var(--bg)}
+.app::before{background:radial-gradient(90% 70% at 40% 18%,var(--brand-soft),transparent 72%)}
+main{max-width:1360px;padding:38px 48px 76px}
+.stack{gap:22px}
+.lateral{border-radius:18px}
+.lateral .marca{padding-bottom:17px;border-bottom:1px solid var(--vidro-linha);margin-bottom:6px}
+.grupo-nav{letter-spacing:.08em;margin-top:18px}
+.page-intro{margin-bottom:23px}
+.page-intro h2{font-size:clamp(28px,3vw,38px)}
+
+/* Título e valor formam um cabeçalho editorial. Os números secundários seguem
+   na mesma linha de leitura, separados por traços em vez de mini cartões. */
+.lente,.hero,.tile.hero{
+  background:transparent;border:0;border-bottom:1px solid var(--line-strong);
+  border-radius:0;box-shadow:none;padding:5px 0 24px;overflow:visible;
+}
+.lente::after,.hero::before,.tile.hero::before{display:none}
+.lente h2,.eyebrow{font-size:11px;letter-spacing:.08em;color:var(--ink-3)}
+.lente .numerao,.hero .fig.big{
+  font-family:inherit;font-size:clamp(36px,4.2vw,60px);font-weight:500;
+  letter-spacing:-.055em;line-height:1.06;margin:7px 0 0;
+  font-variant-numeric:tabular-nums;
+}
+.hero .fig.mid{font-size:clamp(23px,2.4vw,32px);font-weight:500;letter-spacing:-.035em}
+.lente .piada{font-size:13px;margin:8px 0 0;max-width:65ch}
+.fatias{display:flex;flex-wrap:wrap;gap:0;margin-top:24px;border-top:1px solid var(--line)}
+.fatia{display:flex;flex:1 1 155px;flex-direction:column;gap:4px;min-width:0;
+  padding:15px 18px 0 0;border:0;border-radius:0;background:transparent;box-shadow:none}
+.fatia + .fatia{padding-left:18px;border-left:1px solid var(--line)}
+.fatia b{font-family:inherit;font-size:clamp(16px,1.5vw,21px);font-weight:500;
+  letter-spacing:-.025em;line-height:1.2;overflow:visible;text-overflow:clip;
+  font-variant-numeric:tabular-nums}
+.fatia span{font-size:12px;margin:0;color:var(--ink-3);order:-1}
+.hero-grid{align-items:end}
+.hero-grid > div:last-child{text-align:right}
+.kpis{display:flex;flex-wrap:wrap;gap:0;border-bottom:1px solid var(--line)}
+.kpi{flex:1 1 165px;padding:6px 20px 21px 0;border:0;border-radius:0;background:transparent;box-shadow:none}
+.kpi + .kpi{padding-left:20px;border-left:1px solid var(--line)}
+.kpi .v{font-size:clamp(19px,2vw,27px);font-weight:500;letter-spacing:-.035em}
+.kpi .d{line-height:1.35}
+
+/* Secções abertas, com uma única borda quando a região precisa agrupar ações. */
+.card{border:0;border-radius:0;background:transparent;box-shadow:none}
+.card-h{padding:0 0 13px;border-bottom:1px solid var(--line-strong);align-items:center}
+.card-h h2,.titulo-secao,.titulo-card{font-size:17px;font-weight:500;letter-spacing:-.025em;color:var(--ink)}
+.titulo-card{padding-bottom:12px;margin-bottom:12px;border-bottom:1px solid var(--line)}
+.linha-acoes{min-height:44px;gap:10px}
+.linha-acoes .titulo-secao{margin-right:8px}
+.btn.primary{background:var(--brand);border-color:var(--brand);box-shadow:none;border-radius:10px}
+.btn.primary:hover{background:color-mix(in srgb,var(--brand) 88%,var(--ink));box-shadow:none}
+.btn.ghost{border-radius:10px}
+.vazio{background:transparent;border:1px dashed var(--line-strong);border-radius:12px;padding:48px 22px}
+
+/* Contas, cartões e movimentos passam a ser linhas com hierarquia clara. */
+.contas-grade{display:block;border-top:1px solid var(--line)}
+.conta-card{display:grid;grid-template-columns:44px minmax(0,1fr) auto;align-items:center;
+  gap:16px;border:0;border-bottom:1px solid var(--line);border-radius:0;
+  background:transparent;box-shadow:none;padding:17px 4px}
+.conta-card:hover{transform:none;background:var(--surface-2);box-shadow:none}
+.conta-card .saldo{font-family:inherit;font-size:21px;margin:0;text-align:right}
+.conta-card .nome{font-size:15px}
+.conta-card{grid-template-columns:44px minmax(0,1fr)}
+.conta-card > span:last-child{display:grid;grid-template-columns:minmax(0,1fr) auto;
+  column-gap:16px;align-items:center}
+.conta-card .nome,.conta-card .meta{grid-column:1;display:block}
+.conta-card .saldo{grid-column:2;grid-row:1 / 3;align-self:center}
+.selo{border-radius:11px}
+.cartao-card{border:0;border-top:1px solid var(--line);border-radius:0;background:transparent;margin:0}
+.cartao-topo{padding:16px 4px;border-bottom:1px solid var(--line)}
+.cartao-faturas{padding-left:58px}
+.fatura-linha{padding:12px 4px}
+.assinatura-linha{border:0;border-bottom:1px solid var(--line);background:transparent;padding:16px 4px}
+.assinatura-linha:first-child{border-top:1px solid var(--line);border-radius:0}
+.assinatura-linha:last-child{border-radius:0}
+.barra-filtro,.filtros{position:relative;top:auto;padding:11px 0;margin:0;
+  border:0;border-top:1px solid var(--line);border-bottom:1px solid var(--line);
+  border-radius:0;background:transparent;box-shadow:none;backdrop-filter:none;-webkit-backdrop-filter:none}
+.barra-filtro .campo{flex:1 1 132px}
+.barra-filtro .campo.cresce{flex:3 1 225px}
+.linhas{border:0;border-radius:0;background:transparent;gap:0}
+.lanc{border-bottom:1px solid var(--line);background:transparent}
+.lanc .vlr,.cal-ev .vlr{font-family:inherit;font-weight:500}
+.dia-cab{padding-top:7px;border-bottom:1px solid var(--line-strong)}
+
+/* Planejamento: linhas em vez de uma grade de 18 cartões. */
+.dgrid{display:block;padding:0}
+.dcard-wrap{border-bottom:1px solid var(--line)}
+.dcard{padding:18px 40px 18px 3px;border:0;border-radius:0;background:transparent;box-shadow:none;gap:9px}
+.dcard:hover{background:var(--surface-2)}
+.dcard-wrap .dcard .topo{padding-right:0}
+.dcard .saldo{font-size:17px;font-weight:500}
+.dcard .prog{height:3px;max-width:340px}
+.dcard .pes{max-width:550px}
+.dcard-edit{top:13px;right:3px;width:34px;height:34px}
+.dcard-wrap.com-acao .dcard{border-radius:0}
+.dcard-acao{border:0;border-radius:0;background:transparent;padding:0 3px 12px}
+.meta-card{border:0;border-top:1px solid var(--line);border-radius:0;box-shadow:none;padding:18px 0;margin:0}
+.meta-card .barra{max-width:550px;height:4px}
+.meta-regra{max-width:650px;border-radius:8px}
+.pend-item{min-width:0;max-width:100%;overflow:hidden}
+.pend-marca{min-width:0;max-width:100%;overflow:hidden}
+.pend-txt{display:block;flex:1;min-width:0;overflow:hidden}
+.pend-txt b{max-width:100%}
+#metasConteudo > .card{padding:0;margin-bottom:20px}
+#metasConteudo > .card .lente{padding-bottom:18px}
+#p-metas > .hero{display:flex;align-items:center;gap:20px}
+#p-metas > .hero h2{font-size:30px;letter-spacing:-.04em}
+#p-metas > .hero .hint{margin:2px 0 0}
+
+/* Comparações usam barras proporcionais sobre a mesma régua. */
+.pirulitos{gap:0}
+.pirulito{grid-template-columns:minmax(100px,24%) minmax(0,1fr) auto;gap:16px;
+  min-height:42px;border-bottom:1px solid var(--line)}
+.pirulito:last-child{border-bottom:0}
+.pirulito .rot{font-size:13px}
+.pirulito .talo{height:5px;background:var(--surface-3);border-radius:5px}
+.pirulito .talo::before,.pirulito .bola{display:none}
+.pirulito .haste{top:0;height:5px;transform:none;border-radius:5px}
+.pirulito .val{font-family:inherit;font-size:13px;font-weight:500;color:var(--ink)}
+#contasConteudo > .card{padding-top:12px}
+
+/* Calendário mensal: o contêiner externo não participa da grade de sete
+   colunas do pequeno seletor de datas. Cada semana ocupa toda a largura. */
+#calendarioCard{padding:0}
+#calendarioCard .lente{margin-bottom:20px}
+#calGrade{display:block}
+#calGrade[hidden],#calAgenda[hidden],#calDia[hidden],#calSemDia[hidden]{display:none}
+.cal-detalhe{margin-top:25px;padding-top:15px;border-top:1px solid var(--line-strong)}
+.cal-detalhe .sub-titulo{font-size:15px;font-weight:500;margin:0 0 5px}
+.cal-detalhe > .hint{margin:0 0 8px}
+.cal-cab{margin-top:0;border-bottom:1px solid var(--line);padding-bottom:7px}
+.cal-semana{gap:0;margin:0;border-bottom:1px solid var(--line)}
+.cal-cel{aspect-ratio:auto;min-height:94px;border:0;border-right:1px solid var(--line);
+  border-radius:0;background:transparent;align-items:flex-start;padding:10px}
+.cal-cel:last-child{border-right:0}
+.cal-cel:hover{background:var(--surface-2)}
+.cal-cel.hoje{border:0;border-right:1px solid var(--line);box-shadow:inset 0 2px var(--brand)}
+.cal-cel.aberto{border:0;border-right:1px solid var(--line);background:var(--brand-soft)}
+.cal-cel .num{font-family:inherit;font-size:14px}
+.cal-cel .pt{width:6px;height:6px}
+.cal-agenda{margin-top:12px}
+.cal-bloco{margin:0}
+.cal-bloco h3{padding:16px 0 7px;margin:0;border-bottom:1px solid var(--line-strong)}
+.cal-ev{padding:14px 3px}
+
+/* Painel inicial: resultado em faixa própria, números restantes na régua. */
+#painelV2 .pr-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0;padding:0 18px 16px}
+#painelV2 .pr-col{border:0;border-top:1px solid var(--line);border-radius:0;background:transparent;box-shadow:none;padding:14px 18px 0 0}
+#painelV2 .pr-col:nth-child(3){grid-column:1/-1;grid-row:1;background:transparent;
+  border:0;border-bottom:1px solid var(--line-strong);padding:14px 0 20px;margin-bottom:5px}
+#painelV2 .pr-col:nth-child(3) .pr-linha:first-of-type strong{color:var(--brand);font-size:clamp(28px,3vw,40px)}
+#painelV2 .pr-col:nth-child(3) .pr-linha:last-child{color:var(--ink-2)}
+
+@media(max-width:900px){main{padding:24px 20px calc(var(--rodape-alt) + 55px + env(safe-area-inset-bottom))}}
+@media(max-width:680px){
+  main{padding:21px 17px calc(var(--rodape-alt) + 52px + env(safe-area-inset-bottom))}
+  .stack{gap:18px}
+  .lente,.hero{padding-bottom:19px}
+  .lente .numerao,.hero .fig.big{font-size:clamp(34px,9vw,49px)}
+  .fatias{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));margin-top:18px}
+  .fatia{display:flex;flex-direction:column;align-items:flex-start;gap:3px;padding:12px 12px 8px 0;border:0;border-bottom:1px solid var(--line)}
+  .fatia + .fatia{padding-left:0;border-left:0}
+  .fatia:nth-child(even){padding-left:12px;border-left:1px solid var(--line)}
+  .fatia span{text-align:left;order:-1}
+  .fatia b{font-size:17px;white-space:normal;overflow-wrap:anywhere}
+  .kpis{display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}
+  .kpi,.kpi + .kpi{padding:9px 8px 13px 0;border:0;border-bottom:1px solid var(--line)}
+  .kpi:nth-child(even){padding-left:12px;border-left:1px solid var(--line)}
+  .kpi .v{font-size:21px}
+  .hero-grid > div:last-child{text-align:left !important}
+  .conta-card{grid-template-columns:40px minmax(0,1fr);gap:12px}
+  .conta-card > span:last-child{grid-template-columns:1fr}
+  .conta-card .saldo{grid-column:1;grid-row:3;text-align:left;font-size:19px;margin:5px 0}
+  .pirulito{grid-template-columns:minmax(76px,31%) minmax(0,1fr) auto;gap:8px}
+  .pirulito .val{font-size:12px}
+  .cal-cel{min-height:56px;padding:5px}
+  .cal-cel .num{font-size:12px}
+  .cal-cel .marcas{gap:1px}
+  .cartao-faturas{padding-left:0}
+  #p-metas > .hero{flex-wrap:wrap}
+  #painelV2 .pr-grid{grid-template-columns:1fr}
+  #painelV2 .pr-col:nth-child(3){grid-column:1}
+}
+@media(max-width:370px){
+  .fatia b{font-size:15px}
+  .pirulito{grid-template-columns:minmax(68px,30%) minmax(0,1fr) auto}
+  .cal-cel{min-height:43px;padding:3px}
+}

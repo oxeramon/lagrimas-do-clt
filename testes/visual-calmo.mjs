@@ -30,6 +30,19 @@ for (const largura of [1440, 900, 600, 390, 320]){
     }, aba.id);
     if (!resultado.painel || resultado.largura > 1 || !resultado.lente)
       falhas.push(`${largura}px ${aba.id}: ${JSON.stringify(resultado)}`);
+    if (aba.id === "mes"){
+      await p.locator("#btnVisaoMes").click();
+      const grade = await p.evaluate(() => {
+        const raiz = document.getElementById("calGrade");
+        const semanas = [...raiz.querySelectorAll(".cal-semana")];
+        const largura = raiz.getBoundingClientRect().width;
+        return { largura, semanas:semanas.length,
+          celulas:semanas.every(s => s.children.length === 7),
+          alinhadas:semanas.every(s => Math.abs(s.getBoundingClientRect().width - largura) < 2) };
+      });
+      if (!grade.largura || !grade.semanas || !grade.celulas || !grade.alinhadas)
+        falhas.push(`${largura}px calendário: ${JSON.stringify(grade)}`);
+    }
   }
   if (largura === 390){
     await p.locator("#navm-mais").click();
