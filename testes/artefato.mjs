@@ -72,7 +72,7 @@ eq("o index.html está na raiz do artefato", noDisco.includes("index.html"), tru
 /* O que fica de fora por definição: o CDN do supabase-js e as fontes. Elas não
    entram no artefato, e o teste registra isso em vez de deixar implícito. */
 eq("as dependências externas são as duas conhecidas, e nenhuma a mais",
-  grafo.externos, ["https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm"]);
+  grafo.externos, ["https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.1/+esm"]);
 
 console.log("\n3. o servidor: 200 no que é do site, 404 no resto");
 

@@ -61,6 +61,9 @@ jobs:
       - name: Conferir as regras de cálculo
         run: node testes/regras.mjs
 
+      - name: Conferir backup e restauração
+        run: node testes/backup.mjs
+
       - name: Listar o que será publicado
         # O registro do que foi ao ar fica no log da execução, não na memória
         # de quem publicou.

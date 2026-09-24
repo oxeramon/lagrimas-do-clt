@@ -803,11 +803,17 @@
       </div>
 
       <div class="card">
-        <div class="card-h"><h2>Backup</h2></div>
+        <div class="card-h"><h2>Backup e restauração</h2></div>
         <div class="formgrid">
           <div class="field full">
-            <p class="hint">Baixa um CSV com todas as parcelas mês a mês, para abrir no Excel. Vale fazer uma vez por mês.</p>
-            <div><button class="btn" id="exportBtn">Baixar CSV</button></div>
+            <p class="hint">O JSON contém todos os seus registros financeiros. Guarde-o em local privado. Restaure somente em uma conta vazia; se ocorrer qualquer erro, o banco cancela a operação inteira.</p>
+            <div class="imp-acoes">
+              <button class="btn primary" id="backupCompletoBtn" type="button">Baixar backup integral</button>
+              <label class="btn" for="restaurarBackupArquivo">Restaurar em conta vazia…</label>
+              <input type="file" id="restaurarBackupArquivo" accept=".json,application/json" hidden>
+            </div>
+            <p class="hint" id="backupStatus" role="status"></p>
+            <p class="hint">Para consultar parcelas no Excel: <button class="btn" id="exportBtn" type="button">Exportar projeção CSV</button></p>
           </div>
         </div>
       </div>
@@ -1601,7 +1607,7 @@
 </dialog>
 
 <script type="module">
-import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm";
+import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.1/+esm";
 
 /* ====================================================================
    MÓDULOS DO PROJETO
@@ -1634,6 +1640,7 @@ import { faturaDaCompra } from "./js/domain/billing.js";
 import { indicadoresDeContas } from "./js/domain/accounts.js";
 import { ligaNavegacao, vaiParaAba } from "./js/ui/navigation.js";
 import { ligaSupabase } from "./js/data/client.js";
+import { ligaTelaBackup } from "./js/ui/screens/backup-screen.js";
 import * as v1 from "./js/data/v1-repository.js";
 import { entra, sai, observaSessao, sessaoAtual } from "./js/data/session.js";
 import { ligaTelasV2, carregaV2, renderV2, atualizaFiltrosDeTela, V2,
@@ -4879,6 +4886,8 @@ $("importResumo").addEventListener("click", async (e) => {
 });
 
 /* exportar CSV */
+ligaTelaBackup(carregar);
+
 $("exportBtn").addEventListener("click", () => {
   const fim = fimGeral();
   if (!fim){ toast("Nada para exportar"); return; }

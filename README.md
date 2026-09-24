@@ -13,7 +13,7 @@ e sem dependência de conta corporativa.
 | **Receitas** | o que entra além da renda base: recorrente ou uma vez só |
 | **Dívidas** | tudo que está parcelado e as contas fixas |
 | **Projeção** | 12 meses de compromisso contra a renda de cada mês |
-| **Ajustes** | renda base, credores, categorias, instituições, importação e backup |
+| **Ajustes** | renda base, credores, categorias, instituições, importação e backup integral |
 
 ### Duas metades que se ligam, e nunca se somam
 
@@ -100,7 +100,7 @@ escolha fica guardada no navegador, não no banco, então vale por aparelho.
 
 | Camada | Onde fica | Custo |
 |---|---|---|
-| Tela (HTML, CSS, JS) | GitHub Pages | grátis |
+| Tela (HTML, CSS, JS) | GitHub Pages, artefato de GitHub Actions | grátis |
 | Banco de dados e login | Supabase | grátis |
 | Ping diário anti-pausa | GitHub Actions | grátis |
 
@@ -130,7 +130,7 @@ Tempo estimado: 40 a 60 minutos. Faça na ordem.
 1. Abra o arquivo `supabase/bootstrap/schema.sql`.
 2. No Supabase, vá em **SQL Editor → New query**, cole o arquivo inteiro e clique em **Run**.
 3. No fim deve aparecer:
-   `Banco pronto: 24 tabelas, 6 views, 37 funções, 31 gatilhos, 24 policies, RLS em todas.`
+   Confira o inventário exibido pelo script. O banco ativo já recebeu migrações posteriores ao arquivo de bootstrap; antes de uma instalação nova, regenere e valide o bootstrap contra o banco.
 
 Se der erro no meio, o banco ficou pela metade. Não tente emendar: apague o
 projeto, crie outro e comece de novo. Em projeto vazio isso não custa nada, e o
@@ -199,7 +199,7 @@ lagrimas-do-clt/
         └── keepalive.yml
 ```
 
-3. Em **Settings → Pages → Build and deployment**, escolha **Deploy from a branch**, branch `main`, pasta `/ (root)`, e salve.
+3. Em **Settings → Pages → Build and deployment**, escolha **GitHub Actions** como origem. O workflow publica apenas HTML, CSS e JS; os arquivos internos continuam públicos no repositório, mas não são servidos no Pages.
 4. Em 1 a 2 minutos o site fica no ar em `https://SEU-USUARIO.github.io/lagrimas-do-clt/`.
 
 ### 7. Liberar o endereço no Supabase
@@ -231,7 +231,7 @@ Abra o endereço no navegador do celular, faça login e use **Adicionar à tela 
 4. Na aba **Dívidas**, confira o card **Credores** e preencha o contato de quem você precisa avisar.
 5. Apague os lançamentos de exemplo que a carga inicial criou. Eles têm
    "Exemplo" no nome e existem só para a primeira tela não vir vazia.
-6. Baixe o CSV uma vez por mês, em Ajustes → Backup.
+6. Baixe o backup integral JSON em Ajustes e guarde-o em local privado. O CSV é uma projeção para Excel e não permite restaurar o sistema.
 
 ---
 
@@ -249,13 +249,15 @@ Abra o endereço no navegador do celular, faça login e use **Adicionar à tela 
 
 **Pausa por inatividade.** O plano gratuito do Supabase pausa o projeto após cerca de 7 dias de baixa atividade, e sair da pausa é manual. O ping diário resolve, mas ele é um elo a mais: se o workflow parar, o banco pausa. Confira a aba Actions se o site der erro de conexão.
 
-**Nada é infalível.** São três serviços gratuitos encadeados. O CSV mensal é a sua garantia. Sem ele, um problema no Supabase significa recomeçar.
+**Nada é infalível.** São três serviços gratuitos encadeados. Guarde backups integrais fora do GitHub. A restauração exige o schema atualizado e uma conta de destino vazia; teste o procedimento antes de depender dele. O CSV mensal não é um backup.
 
 **Um só usuário.** O banco está preparado para múltiplos usuários (cada um vê só o que é seu), mas o cadastro está desativado. Para liberar outra pessoa, crie o usuário manualmente no painel.
 
 ---
 
 ## Estrutura do banco
+
+O banco atual tem 25 tabelas públicas, incluindo `ping`, e 6 views. A lista abaixo descreve os grupos funcionais, não é o inventário completo.
 
 | Tabela | Conteúdo |
 |---|---|
