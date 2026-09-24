@@ -21,6 +21,8 @@ name: publicar no Pages
 on:
   push:
     branches: [main]
+  pull_request:
+    branches: [main]
   workflow_dispatch:
 
 # O mínimo que o deploy oficial do Pages precisa, e nada além:
@@ -73,12 +75,15 @@ jobs:
           echo "total: $(find _site -type f | wc -l) arquivo(s)"
 
       - uses: actions/configure-pages@v5
+        if: github.event_name != 'pull_request'
 
       - uses: actions/upload-pages-artifact@v3
+        if: github.event_name != 'pull_request'
         with:
           path: _site
 
   publicar:
+    if: github.event_name != 'pull_request'
     needs: construir
     runs-on: ubuntu-latest
     environment:
