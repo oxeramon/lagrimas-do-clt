@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" id="metaTema" content="#FFFFFF">
+<meta name="theme-color" id="metaTema" content="#f4f6fc">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Lágrimas do CLT">
 <meta name="robots" content="noindex, nofollow">
@@ -28,13 +28,14 @@
   var escuro = p === "escuro"
     || (p !== "claro" && matchMedia("(prefers-color-scheme: dark)").matches);
   document.documentElement.dataset.tema = escuro ? "escuro" : "claro";
-  document.getElementById("metaTema").content = escuro ? "#141B19" : "#FFFFFF";
+  document.getElementById("metaTema").content = escuro ? "#101525" : "#f4f6fc";
 })();
 </script>
 
 <link rel="stylesheet" href="./css/tokens.css">
 <link rel="stylesheet" href="./css/base.css">
 <link rel="stylesheet" href="./css/views-v2.css">
+<link rel="stylesheet" href="./css/visual-calmo.css">
 </head>
 <body>
 
@@ -100,6 +101,7 @@
     <div id="erroBanner" class="notice" hidden></div>
 
     <section class="panel" id="p-painel" role="tabpanel" aria-labelledby="nav-painel">
+      <header class="page-intro"><p class="eyebrow">Visão geral</p><h2>Seu mês, sem ruído.</h2><p>O que aconteceu, o que ainda vem e quanto fica livre.</p></header>
       <!-- A V2 entra no Painel como bloco SEPARADO e rotulado. Misturar com os
            números da V1 contaria o mesmo dinheiro duas vezes: lá são
            compromissos e previsão, aqui é o que está na conta hoje. -->
@@ -108,7 +110,7 @@
            previsto e entra no realizado; ele conta de um lado só. -->
       <div class="card" id="painelV2" hidden style="margin-bottom:var(--e-4)">
         <div class="card-h"><h2>Previsto e realizado em <span id="pnMes">—</span></h2>
-          <button class="btn ghost sm" id="btnVerContas">Ver contas</button></div>
+          <button class="btn ghost sm" id="btnVerContas" aria-label="Ver contas">Contas ↗</button></div>
         <div class="pr-grid">
           <div class="pr-col">
             <span class="eyebrow">Já aconteceu</span>
@@ -3454,7 +3456,7 @@ function aplicaTema(p){
   const escuro = escuroCom(p);
   /* a mesma conta que o script do <head> faz antes da primeira pintura */
   document.documentElement.dataset.tema = escuro ? "escuro" : "claro";
-  $("metaTema").content = escuro ? "#141B19" : "#FFFFFF";
+  $("metaTema").content = escuro ? "#101525" : "#f4f6fc";
   $("icoTema").innerHTML = ICO_TEMA[p];
   $("icoTemaM").innerHTML = ICO_TEMA[p];
   $("rotTema").textContent = ROT_TEMA[p];

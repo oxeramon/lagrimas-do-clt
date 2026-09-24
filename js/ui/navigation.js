@@ -93,6 +93,26 @@ export const quandoTrocarDeAba = (fn) => { aoTrocar.push(fn); };
 /* os quatro lugares de onde uma aba pode ser acionada ou marcada */
 const alvosDe = (id) => [$("nav-" + id), $("navm-" + id), $("navs-" + id), $("nav-" + id + "M")];
 
+/* A lente é uma única peça que acompanha a aba escolhida. A posição vem do
+   botão real, inclusive quando a largura do celular ou o texto muda. */
+function posicionaLente(nav, ativo){
+  if (!nav || !ativo || !nav.getClientRects().length) return;
+  const origem = nav.getBoundingClientRect();
+  const alvo = ativo.getBoundingClientRect();
+  nav.style.setProperty("--lens-left", `${alvo.left - origem.left + nav.scrollLeft}px`);
+  nav.style.setProperty("--lens-top", `${alvo.top - origem.top + nav.scrollTop}px`);
+  nav.style.setProperty("--lens-width", `${alvo.width}px`);
+  nav.style.setProperty("--lens-height", `${alvo.height}px`);
+  nav.style.setProperty("--lens-opacity", "1");
+}
+
+function atualizaLentes(){
+  const lateral = document.querySelector(".lateral nav[role='tablist']");
+  const movel = document.querySelector("nav.rodapenav");
+  posicionaLente(lateral, lateral?.querySelector('.navitem[aria-selected="true"]'));
+  posicionaLente(movel, movel?.querySelector('.navitem[aria-selected="true"]'));
+}
+
 /* o mesmo estado alimenta a lateral, o rodapé, a folha "Mais" e o atalho do
    topo; um só lugar decide quem está selecionado */
 export function vaiParaAba(destino){
@@ -106,6 +126,7 @@ export function vaiParaAba(destino){
      senão o rodapé não mostra onde a pessoa está */
   const noMais = abasDoMais().some((a) => a.id === destino);
   $("navm-mais")?.setAttribute("aria-selected", String(noMais));
+  requestAnimationFrame(atualizaLentes);
 
   /* re-dispara a animação de entrada do painel que acabou de aparecer */
   const p = $("p-" + destino);
@@ -152,7 +173,22 @@ export function ligaNavegacao(){
   /* antes de ligar os cliques, os botões precisam existir */
   montaLateral();
   montaRodapeMovel();
+  for (const nav of [document.querySelector(".lateral nav[role='tablist']"), document.querySelector("nav.rodapenav")]){
+    nav?.addEventListener("pointermove", (e) => {
+      const vidro = nav.closest(".lateral") || nav;
+      const caixa = vidro.getBoundingClientRect();
+      vidro.style.setProperty("--glx", `${e.clientX - caixa.left}px`);
+      vidro.style.setProperty("--gly", `${e.clientY - caixa.top}px`);
+    });
+    nav?.addEventListener("pointerleave", () => {
+      const vidro = nav.closest(".lateral") || nav;
+      vidro.style.removeProperty("--glx");
+      vidro.style.removeProperty("--gly");
+    });
+  }
+  window.addEventListener("resize", atualizaLentes);
   for (const { id } of ABAS)
     for (const el of alvosDe(id))
       el?.addEventListener("click", () => vaiParaAba(id));
+  vaiParaAba("painel");
 }
