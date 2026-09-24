@@ -362,9 +362,9 @@ function createClient(){
 }
 `;
 
-const IMPORT = 'import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm";';
+const IMPORT = /import \{ createClient \} from "https:\/\/cdn\.jsdelivr\.net\/npm\/@supabase\/supabase-js@2(?:\.\d+){0,2}\/\+esm";/;
 const html = readFileSync(ENTRADA, "utf8");
-if (!html.includes(IMPORT)) {
+if (!IMPORT.test(html)) {
   console.error("FALHA: não achei a linha de import do supabase-js no index.html.");
   process.exit(1);
 }
