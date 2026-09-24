@@ -47,7 +47,8 @@ import { doBanco, paraBanco, paraCamel, paraSnake } from "../js/data/v2-reposito
 import { monogramaDe, contrasteSobre, doCatalogo } from "../js/ui/institution-catalog.js";
 import { raizesPadrao, filhasPadrao, quantasCategoriasPadrao } from "../js/ui/category-catalog.js";
 import { ABAS, idsDasAbas, grupoDaAba, abasDoRodape, abasDoMais } from "../js/ui/navigation.js";
-import { erroLegivel } from "../js/data/client.js";
+import { erroLegivel, ligaSupabase, tokenAindaNaoValido } from "../js/data/client.js";
+import { carregaTudoV1 } from "../js/data/v1-repository.js";
 import { regraVigente, mesesDaVigencia, historicoDaMeta, pendenciasDaMeta,
          todasAsPendencias, resumoDePendencias, simulaRegularizacao,
          ordenaPendencias, paraOBanco,
@@ -1643,26 +1644,46 @@ eq("13 · uma vigência de mil anos é cortada em 61 meses",
   mesesDaVigencia(metaR({ regraDesde: "1900-01" }), "2026-03").length, 61);
 
 /* ========================================================================
-   ERRO DE RELÓGIO NÃO É SESSÃO VENCIDA
+   TOKEN RECÉM-EMITIDO NÃO PROVA ERRO NO RELÓGIO DO APARELHO
    ------------------------------------------------------------------------
    O PostgREST recusa token cujo `iat` está no FUTURO em relação ao relógio
-   dele. Chamar isso de "sua sessão expirou" manda a pessoa fazer login de
-   novo -- e o login novo é recusado igual, porque o problema não é o token,
-   é a diferença de horário. Dois erros diferentes pedem duas frases.
+   dele. A sessão pode ser aceita instantes depois sem ajuste no aparelho.
    ======================================================================== */
 console.log("\nleitura de erro do servidor");
 
-eq("relógio adiantado tem frase própria",
-  /rel[óo]gio/i.test(erroLegivel({ code:"PGRST301", message:"JWT issued at future" })), true);
-eq("e não manda entrar de novo",
-  /entre de novo/i.test(erroLegivel({ code:"PGRST301", message:"JWT issued at future" })), false);
-eq("a outra forma da mesma coisa também",
-  /rel[óo]gio/i.test(erroLegivel({ message:"token used before issued" })), true);
+eq("token recém-criado tem frase própria",
+  /sessão recém-criada/i.test(erroLegivel({ code:"PGRST303", message:"JWT issued at future" })), true);
+eq("não culpa o aparelho",
+  /rel[óo]gio|aparelho/i.test(erroLegivel({ code:"PGRST303", message:"JWT issued at future" })), false);
+eq("a outra forma da mesma falha também",
+  tokenAindaNaoValido({ message:"token used before issued" }), true);
+eq("iat em outra palavra não indica problema no token",
+  tokenAindaNaoValido({ message:"association could not be loaded" }), false);
 eq("sessão vencida de verdade continua mandando entrar de novo",
   erroLegivel({ code:"PGRST301", message:"JWT expired" }), "Sua sessão expirou. Entre de novo.");
 /* E NADA DISSO VAI PARA A TELA EM INGLÊS: toda frase daqui é em português */
 eq("nenhuma mensagem do servidor vaza crua",
-  /JWT|issued|token/i.test(erroLegivel({ code:"PGRST301", message:"JWT issued at future" })), false);
+  /JWT|issued|token/i.test(erroLegivel({ code:"PGRST303", message:"JWT issued at future" })), false);
+
+const chamadas = new Map();
+ligaSupabase({ from(tabela){
+  const montar = () => ({
+    select(){ return montar(); }, order(){ return responder(); }, maybeSingle(){ return responder(); },
+    then(resolve, reject){ return responder().then(resolve, reject); },
+  });
+  const responder = async () => {
+    const n = (chamadas.get(tabela) || 0) + 1;
+    chamadas.set(tabela, n);
+    if (tabela === "fixas" && n === 1)
+      return { data:null, error:{ code:"PGRST303", message:"JWT issued at future" } };
+    return { data: tabela === "config" ? { renda:0 } : [], error:null };
+  };
+  return montar();
+} });
+const cargaAposEspera = await carregaTudoV1();
+eq("carga se recupera de token recém-criado", cargaAposEspera.fatal, false);
+eq("só a consulta recusada é repetida", chamadas.get("fixas"), 2);
+eq("consultas aceitas não são repetidas", chamadas.get("dividas"), 1);
 
 console.log(`\n${ok} passaram, ${bad} falharam`);
 process.exit(bad ? 1 : 0);
