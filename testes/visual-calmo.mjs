@@ -44,6 +44,10 @@ for (const largura of [1440, 900, 600, 390, 320]){
         falhas.push(`${largura}px calendário: ${JSON.stringify(grade)}`);
     }
   }
+  await p.evaluate(() => document.getElementById('nav-painel').click());
+  await p.locator('[data-atalho="metas"]').click();
+  if (await p.evaluate(() => document.getElementById('p-metas').hidden))
+    falhas.push(`${largura}px: atalho de Metas não abriu a tela`);
   if (largura === 390){
     await p.locator("#navm-mais").click();
     await p.waitForTimeout(400);

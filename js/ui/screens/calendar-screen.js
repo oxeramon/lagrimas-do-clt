@@ -35,6 +35,7 @@ const ehCelular = () => window.matchMedia("(max-width: 700px)").matches;
 const visaoAtual = () => visaoEscolhida || (ehCelular() ? "agenda" : "mes");
 
 let diaAberto = null;
+let semDiaAberto = false;
 
 export function renderCalendario(){
   const card = $("calendarioCard");
@@ -159,13 +160,25 @@ function desenhaSemDia(eventos){
   const soltos = semDiaCerto(eventos);
   alvo.hidden = soltos.length === 0;
   if (!soltos.length){ alvo.innerHTML = ""; return; }
-  alvo.innerHTML = '<h3 class="sub-titulo">No mês, sem dia certo</h3>'
-    + '<p class="hint">Dívidas, contas fixas e receitas são registradas por mês, '
-    + 'não por dia. Elas aparecem aqui em vez de num dia inventado.</p>'
-    + soltos.map(linhaDeEvento).join("");
+  alvo.innerHTML = '<button type="button" class="cal-soltos-toggle" aria-expanded="'
+    + String(semDiaAberto) + '" aria-controls="calSoltosLista">'
+    + '<span>Sem dia definido <small>' + soltos.length + ' no mês</small></span>'
+    + '<span aria-hidden="true">' + (semDiaAberto ? '−' : '+') + '</span></button>'
+    + '<div id="calSoltosLista"' + (semDiaAberto ? '' : ' hidden') + '>'
+    + '<p class="hint">Compromissos registrados somente por mês.</p>'
+    + soltos.map(linhaDeEvento).join("") + '</div>';
 }
 
 export function ligaCalendario(){
+  $("calSemDia")?.addEventListener("click", (e) => {
+    if (!e.target.closest(".cal-soltos-toggle")) return;
+    semDiaAberto = !semDiaAberto;
+    const lista = $("calSoltosLista");
+    lista.hidden = !semDiaAberto;
+    const botao = e.target.closest(".cal-soltos-toggle");
+    botao.setAttribute("aria-expanded", String(semDiaAberto));
+    botao.lastElementChild.textContent = semDiaAberto ? '−' : '+';
+  });
   $("btnVisaoMes")?.addEventListener("click", () => {
     visaoEscolhida = "mes"; renderCalendario();
   });
