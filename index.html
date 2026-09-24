@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" id="metaTema" content="#f7f5f1">
+<meta name="theme-color" id="metaTema" content="#f5f8f5">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Lágrimas do CLT">
 <meta name="robots" content="noindex, nofollow">
@@ -28,7 +28,7 @@
   var escuro = p === "escuro"
     || (p !== "claro" && matchMedia("(prefers-color-scheme: dark)").matches);
   document.documentElement.dataset.tema = escuro ? "escuro" : "claro";
-  document.getElementById("metaTema").content = escuro ? "#151c1b" : "#f7f5f1";
+  document.getElementById("metaTema").content = escuro ? "#101b17" : "#f5f8f5";
 })();
 </script>
 
@@ -36,6 +36,7 @@
 <link rel="stylesheet" href="./css/base.css">
 <link rel="stylesheet" href="./css/views-v2.css">
 <link rel="stylesheet" href="./css/visual-calmo.css">
+<link rel="stylesheet" href="./css/visual-vivo.css">
 </head>
 <body>
 
@@ -101,7 +102,12 @@
     <div id="erroBanner" class="notice" hidden></div>
 
     <section class="panel" id="p-painel" role="tabpanel" aria-labelledby="nav-painel">
-      <header class="page-intro"><p class="eyebrow">Visão geral</p><h2>Seu mês, sem ruído.</h2><p>O que aconteceu, o que ainda vem e quanto fica livre.</p></header>
+      <header class="page-intro"><p class="eyebrow">Visão geral</p><h2>Seu dinheiro em movimento.</h2></header>
+      <nav class="atalhos-painel" aria-label="Atalhos do painel">
+        <button type="button" data-atalho="transacoes">Movimentações <span aria-hidden="true">↗</span></button>
+        <button type="button" data-atalho="mes">Calendário <span aria-hidden="true">↗</span></button>
+        <button type="button" data-atalho="metas">Metas <span aria-hidden="true">↗</span></button>
+      </nav>
       <!-- A V2 entra no Painel como bloco SEPARADO e rotulado. Misturar com os
            números da V1 contaria o mesmo dinheiro duas vezes: lá são
            compromissos e previsão, aqui é o que está na conta hoje. -->
@@ -145,8 +151,10 @@
         <div class="pr-rodape">
           <div class="prog" id="pnAderenciaBarra" hidden><i style="width:0%"></i></div>
           <p class="hint" id="pnAderencia" hidden></p>
-          <p class="hint" id="pnSemMovimento" hidden></p>
-          <p class="hint" id="pnNota"></p>
+          <details class="resumo-explica"><summary>Entenda os números</summary>
+            <p class="hint" id="pnSemMovimento" hidden></p>
+            <p class="hint" id="pnNota"></p>
+          </details>
         </div>
       </div>
       <!-- OBRIGAÇÕES, ROTINAS e COMPARTILHADO. Três blocos separados, e a
@@ -649,7 +657,7 @@
       <div class="hero">
         <div>
           <h2>Metas</h2>
-          <p class="hint">Sonhos com centro de custo.</p>
+          <p class="hint">Acompanhe seu progresso.</p>
         </div>
         <span style="flex:1"></span>
         <button class="btn primary" id="btnNovaMeta">Nova meta</button>
@@ -3353,6 +3361,8 @@ async function carregaAgora(){
 /* A navegação virou registro em js/ui/navigation.js: acrescentar uma tela é
    acrescentar uma linha lá, e não mexer aqui. */
 ligaNavegacao();
+document.querySelectorAll("[data-atalho]").forEach((botao) =>
+  botao.addEventListener("click", () => vaiParaAba(botao.dataset.atalho)));
 /* `aposRecarregar` é o caminho de volta: a V2 se recarregou, e o Painel --
    que é tela da V1 e lê os dois lados -- precisa refazer os números. */
 ligaTelasV2({ toast, erro, pontemudou, mudouDeMes, aposRecarregar: renderPainel });
@@ -3456,7 +3466,7 @@ function aplicaTema(p){
   const escuro = escuroCom(p);
   /* a mesma conta que o script do <head> faz antes da primeira pintura */
   document.documentElement.dataset.tema = escuro ? "escuro" : "claro";
-  $("metaTema").content = escuro ? "#151c1b" : "#f7f5f1";
+  $("metaTema").content = escuro ? "#101b17" : "#f5f8f5";
   $("icoTema").innerHTML = ICO_TEMA[p];
   $("icoTemaM").innerHTML = ICO_TEMA[p];
   $("rotTema").textContent = ROT_TEMA[p];
