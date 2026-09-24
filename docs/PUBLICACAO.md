@@ -11,7 +11,7 @@ abria. `docs/`, `supabase/migrations/`, `testes/`, `.claude/`, os hooks: tudo no
 ar, tudo indexável.
 
 Agora o Pages publica um **artefato** construído por
-`ferramentas/artefato.mjs`: 29 arquivos, `index.html` mais `css/*.css` mais
+`ferramentas/artefato.mjs`: `index.html` mais `css/*.css` mais
 `js/**/*.js`. Nada mais.
 
 | | repositório | artefato |
@@ -19,7 +19,7 @@ Agora o Pages publica um **artefato** construído por
 | o que é | a fonte interna do projeto | o frontend mínimo |
 | quem lê | quem clona, quem revisa | o navegador de quem abre o site |
 | contém | docs, migrações, testes, hooks, ferramentas | HTML, CSS e JS, só |
-| hoje | 200+ arquivos | 29 arquivos, 466 KiB |
+| hoje | fonte e histórico | apenas arquivos alcançados pelo HTML |
 
 ## Por que whitelist, e não lista de exclusão
 
@@ -82,8 +82,9 @@ já não depende disso: depende de RLS.
 
 ```bash
 node ferramentas/artefato.mjs        # constrói _site/ (fora do git)
-node testes/artefato.mjs             # 92 conferências sobre o artefato
-SERVIR_ARTEFATO=1 node testes/fluxos.mjs   # os 204 fluxos contra o artefato
+node testes/artefato.mjs             # confere o artefato e os caminhos publicados
+node testes/backup.mjs               # formato, paginação e chamada da restauração
+SERVIR_ARTEFATO=1 node testes/fluxos.mjs   # fluxos contra o artefato (Playwright/Chromium)
 ```
 
 O artefato é construído **do zero** a cada execução. Reaproveitar um `_site`
