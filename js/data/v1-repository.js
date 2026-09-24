@@ -9,7 +9,7 @@
  * `{ dados, erro }`, com `erro` já em português e curto. Quem decide se isso
  * vira toast, caixa vermelha ou silêncio é a tela.
  */
-import { conexao, executa, erroLegivel } from "./client.js";
+import { conexao, executa, erroLegivel, tokenAindaNaoValido } from "./client.js";
 
 /* nome privado e distinto por arquivo: a prévia achata todos os módulos
    num escopo só, e dois `const sb` colidiriam. */
@@ -27,20 +27,26 @@ const bancoV1 = () => conexao.sb;
      o app mentiria em vez de saber menos. */
 export async function carregaTudoV1(){
   const c = bancoV1();
-  const [dv, fx, cr, rc, pg, fm, cf] = await Promise.all([
-    c.from("dividas").select("*").order("ordem"),
-    c.from("fixas").select("*").order("ordem"),
-    c.from("credores").select("*").order("ordem"),
-    c.from("receitas").select("*").order("ordem"),
-    c.from("pagamentos").select("mes,item_id"),
-    c.from("fixas_mes").select("mes,fixa_id,valor"),
-    c.from("config").select("renda").maybeSingle(),
-  ]);
+  const consultas = [
+    () => c.from("dividas").select("*").order("ordem"),
+    () => c.from("fixas").select("*").order("ordem"),
+    () => c.from("credores").select("*").order("ordem"),
+    () => c.from("receitas").select("*").order("ordem"),
+    () => c.from("pagamentos").select("mes,item_id"),
+    () => c.from("fixas_mes").select("mes,fixa_id,valor"),
+    () => c.from("config").select("renda").maybeSingle(),
+  ];
+  const resultados = await Promise.all(consultas.map((consulta) => consulta()));
+  const pendentes = resultados.map((r, i) => tokenAindaNaoValido(r.error) ? i : -1)
+    .filter((i) => i >= 0);
+  if (pendentes.length){
+    await new Promise((resolve) => setTimeout(resolve, 1200));
+    const repetidos = await Promise.all(pendentes.map((i) => consultas[i]()));
+    pendentes.forEach((i, n) => { resultados[i] = repetidos[n]; });
+  }
+  const [dv, fx, cr, rc, pg, fm, cf] = resultados;
 
-  /* PELA TRADUÇÃO, e não cru. O cabeçalho deste arquivo promete `erro` em
-     português e curto, e esta linha era a única que não cumpria: ela repassava
-     a mensagem do PostgREST direto para a tela. Quem estava sem carregar via
-     "JWT issued at future" num app inteiro em português. */
+  /* As respostas continuam traduzidas antes de chegar à tela. */
   const falha = [dv, fx, cr, rc, pg, cf].find((r) => r.error);
   if (falha) return { dados: null, erro: erroLegivel(falha.error), fatal: true };
 

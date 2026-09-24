@@ -725,7 +725,7 @@ export async function abreApp(largura){
     /* a rede do contêiner não alcança CDN nem fonte; isso não é defeito do app */
     if (!/ERR_|Failed to load resource|net::/.test(t)) erros.push(t.slice(0, 180));
   } });
-  await p.route("**/supabase-js@2/+esm", (r) =>
+  await p.route("**/supabase-js@2*/+esm", (r) =>
     r.fulfill({ status:200, contentType:"text/javascript", body: DUBLE }));
   await p.route("**/fonts.googleapis.com/**", (r) =>
     r.fulfill({ status:200, contentType:"text/css", body:"" }));
