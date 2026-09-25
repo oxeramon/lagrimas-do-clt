@@ -41,6 +41,7 @@ import { renderAssinaturas, ligaAssinaturas } from "./screens/subscriptions-scre
 import { renderGrupos, ligaGrupos } from "./screens/groups-screen.js";
 import { renderMetas, ligaMetas } from "./screens/goals-screen.js";
 import { renderCalendario, ligaCalendario } from "./screens/calendar-screen.js";
+import { ligaPerfil } from "./screens/profile-screen.js";
 
 /* O que o `index.html` conhece. Mantido nome por nome, de propósito: a
    modularização não pode custar uma edição no HTML. */
@@ -80,6 +81,7 @@ export function ligaTelasV2(deps){
   ligaGrupos();
   ligaMetas();
   ligaCalendario();
+  ligaPerfil();
 
   /* o botão flutuante só faz sentido onde há o que lançar */
   quandoTrocarDeAba((destino) => {
