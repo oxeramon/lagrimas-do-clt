@@ -25,6 +25,22 @@ export async function alteraEmail(email){
   return resultado(conexao.sb.auth.updateUser({ email }), "e-mail");
 }
 
+export async function alteraSenha(senhaAtual, novaSenha){
+  try {
+    const { data, error } = await conexao.sb.auth.updateUser({
+      current_password: senhaAtual,
+      password: novaSenha,
+    });
+    if (!error) return { dados:data || null, erro:null };
+    const texto = String(error.message || "");
+    if (/current password|password.*incorrect|invalid password/i.test(texto))
+      return { dados:null, erro:"A senha atual não confere." };
+    if (/weak password|password.*strength|password.*characters/i.test(texto))
+      return { dados:null, erro:"A nova senha não atende aos requisitos de segurança." };
+    return { dados:null, erro:erroLegivel(error, "senha") };
+  } catch (erro){ return { dados:null, erro:erroLegivel(erro, "senha") }; }
+}
+
 export async function baixaFoto(id){
   try {
     const { data, error } = await conexao.sb.storage.from(FOTO_BUCKET).download(caminhoFoto(id));
