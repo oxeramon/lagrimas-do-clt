@@ -93,6 +93,7 @@ export const quandoTrocarDeAba = (fn) => { aoTrocar.push(fn); };
 /* os quatro lugares de onde uma aba pode ser acionada ou marcada */
 const alvosDe = (id) => [$("nav-" + id), $("navm-" + id), $("navs-" + id), $("nav-" + id + "M")];
 const relogiosDaLente = new WeakMap();
+const arrastesDaLente = new WeakMap();
 
 /* A lente é uma única peça que acompanha a aba escolhida. A posição vem do
    botão real, inclusive quando a largura do celular ou o texto muda. */
@@ -100,16 +101,35 @@ function posicionaLente(nav, ativo){
   if (!nav || !ativo || !nav.getClientRects().length) return;
   const origem = nav.getBoundingClientRect();
   const alvo = ativo.getBoundingClientRect();
-  nav.style.setProperty("--lens-left", `${alvo.left - origem.left + nav.scrollLeft}px`);
-  nav.style.setProperty("--lens-top", `${alvo.top - origem.top + nav.scrollTop}px`);
-  nav.style.setProperty("--lens-width", `${alvo.width}px`);
-  nav.style.setProperty("--lens-height", `${alvo.height}px`);
+  const movel = nav.classList.contains("rodapenav");
+  const folga = movel ? 5 : 0;
+  nav.style.setProperty("--lens-left", `${alvo.left - origem.left + nav.scrollLeft + folga}px`);
+  nav.style.setProperty("--lens-top", `${(movel ? folga : alvo.top - origem.top + nav.scrollTop)}px`);
+  nav.style.setProperty("--lens-width", `${alvo.width - folga * 2}px`);
+  nav.style.setProperty("--lens-height", `${movel ? origem.height - folga * 2 : alvo.height}px`);
   nav.style.setProperty("--lens-opacity", "1");
   nav.querySelector(".glass-focused")?.classList.remove("glass-focused");
   ativo.classList.add("glass-focused");
   nav.classList.add("lens-moving");
   clearTimeout(relogiosDaLente.get(nav));
   relogiosDaLente.set(nav, setTimeout(() => nav.classList.remove("lens-moving"), 560));
+}
+
+function arrastaLente(nav, evento){
+  const estado = arrastesDaLente.get(nav);
+  if (!estado || estado.id !== evento.pointerId) return;
+  const caixa = nav.getBoundingClientRect();
+  const largura = parseFloat(nav.style.getPropertyValue("--lens-width"));
+  const centro = Math.max(5 + largura / 2, Math.min(caixa.width - 5 - largura / 2, evento.clientX - caixa.left));
+  nav.style.setProperty("--lens-left", `${centro - largura / 2}px`);
+  nav.style.setProperty("--lens-glint-x", `${Math.round(50 + Math.max(-25, Math.min(25, (evento.clientX - estado.ultimoX) * 2)))}%`);
+  estado.ultimoX = evento.clientX;
+  estado.alvo = [...nav.querySelectorAll(".navitem")].reduce((maisProximo, item) =>
+    Math.abs(item.getBoundingClientRect().left + item.getBoundingClientRect().width / 2 - evento.clientX)
+      < Math.abs(maisProximo.getBoundingClientRect().left + maisProximo.getBoundingClientRect().width / 2 - evento.clientX)
+      ? item : maisProximo);
+  nav.querySelector(".glass-focused")?.classList.remove("glass-focused");
+  estado.alvo.classList.add("glass-focused");
 }
 
 function atualizaLentes(){
@@ -181,7 +201,7 @@ export function ligaNavegacao(){
   montaRodapeMovel();
   for (const nav of [document.querySelector(".lateral nav[role='tablist']"), document.querySelector("nav.rodapenav")]){
     nav?.addEventListener("pointerover", (e) => {
-      if (e.pointerType === "touch") return;
+      if (e.pointerType === "touch" || arrastesDaLente.has(nav)) return;
       const item = e.target.closest(".navitem");
       if (item && nav.contains(item)) posicionaLente(nav, item);
     });
@@ -190,17 +210,58 @@ export function ligaNavegacao(){
       if (item && nav.contains(item)) posicionaLente(nav, item);
     });
     nav?.addEventListener("pointermove", (e) => {
+      const arraste = arrastesDaLente.get(nav);
+      if (arraste && arraste.id === e.pointerId){
+        if (Math.abs(e.clientX - arraste.inicioX) > 4){
+          arraste.moveu = true;
+          nav.classList.add("lens-dragging");
+          arrastaLente(nav, e);
+        }
+        return;
+      }
       const vidro = nav.closest(".lateral") || nav;
       const caixa = vidro.getBoundingClientRect();
       vidro.style.setProperty("--glx", `${e.clientX - caixa.left}px`);
       vidro.style.setProperty("--gly", `${e.clientY - caixa.top}px`);
     });
     nav?.addEventListener("pointerleave", () => {
+      if (arrastesDaLente.has(nav)) return;
       const vidro = nav.closest(".lateral") || nav;
       vidro.style.removeProperty("--glx");
       vidro.style.removeProperty("--gly");
       posicionaLente(nav, nav.querySelector('.navitem[aria-selected="true"]'));
     });
+    if (nav?.classList.contains("rodapenav")){
+      nav.addEventListener("pointerdown", (e) => {
+        if (!e.isPrimary || (e.pointerType === "mouse" && e.button !== 0)) return;
+        const item = e.target.closest(".navitem");
+        if (!item || !nav.contains(item)) return;
+        arrastesDaLente.set(nav, {id:e.pointerId,inicioX:e.clientX,ultimoX:e.clientX,alvo:item,moveu:false});
+        nav.setPointerCapture(e.pointerId);
+      });
+      nav.addEventListener("pointerup", (e) => {
+        const estado = arrastesDaLente.get(nav);
+        if (!estado || estado.id !== e.pointerId) return;
+        arrastesDaLente.delete(nav);
+        nav.classList.remove("lens-dragging");
+        // Com pointer capture, o clique nativo pode cair na barra em vez do
+        // botão; acionamos o alvo do toque ou o escolhido ao arrastar.
+        nav.dataset.suprimirClique = "1";
+        estado.alvo.click();
+        setTimeout(() => delete nav.dataset.suprimirClique, 0);
+      });
+      nav.addEventListener("pointercancel", () => {
+        arrastesDaLente.delete(nav);
+        nav.classList.remove("lens-dragging");
+        posicionaLente(nav, nav.querySelector('.navitem[aria-selected="true"]'));
+      });
+      nav.addEventListener("click", (e) => {
+        if (nav.dataset.suprimirClique && e.isTrusted){
+          e.preventDefault();
+          e.stopImmediatePropagation();
+        }
+      }, true);
+    }
     nav?.addEventListener("focusout", (e) => {
       if (!nav.contains(e.relatedTarget))
         posicionaLente(nav, nav.querySelector('.navitem[aria-selected="true"]'));
