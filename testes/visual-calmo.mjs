@@ -25,7 +25,9 @@ for (const largura of [1440, 900, 600, 390, 320]){
       return {
         painel: !painel.hidden,
         largura: document.documentElement.scrollWidth - document.documentElement.clientWidth,
-        lente: !ativo || (lente.opacity === "1" && Math.abs(x - (alvo.left - caixa.left + (movel ? 5 : 0))) < 2),
+        lente: !ativo || (lente.opacity === "1" && Math.abs(x - (movel
+          ? ativo.querySelector("svg").getBoundingClientRect().left + ativo.querySelector("svg").getBoundingClientRect().width / 2 - caixa.left - 15
+          : alvo.left - caixa.left)) < 2),
       };
     }, aba.id);
     if (!resultado.painel || resultado.largura > 1 || !resultado.lente)
