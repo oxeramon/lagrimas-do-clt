@@ -838,7 +838,7 @@
       <!-- As quatro abas de rodapé são montadas por js/ui/navigation.js, a
            partir do mesmo registro da lateral. "Mais" fica aqui: ele não é
            uma aba, é uma folha. -->
-      <button class="navitem" id="navm-mais" aria-selected="false" aria-haspopup="dialog" aria-label="Mais seções"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/></svg><span>Mais</span></button>
+      <button class="navitem" id="navm-mais" aria-selected="false" aria-haspopup="dialog" aria-controls="folhaMais" aria-expanded="false" aria-label="Mais seções"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/></svg><span>Mais</span></button>
     </nav>
 </div>
 
@@ -1496,7 +1496,7 @@
 
 <dialog id="folhaMais" class="folha" aria-label="Mais seções">
   <div class="corpo">
-    <div class="puxador" aria-hidden="true"></div>
+    <div class="pasta-cabecalho"><h2>Mais</h2><button type="button" id="fecharFolhaMais" aria-label="Fechar mais seções">×</button></div>
     <div class="opcoes" id="folhaOpcoes"></div>
   </div>
 </dialog>

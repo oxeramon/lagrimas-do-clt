@@ -19,14 +19,18 @@ for (const largura of [1440, 390, 320]){
       selecionado:item.getAttribute("aria-selected"),
       alinhado:Math.abs(parseFloat(barra.style.getPropertyValue("--lens-left"))
         - (barra.classList.contains("rodapenav")
-          ? item.querySelector("svg").getBoundingClientRect().left + item.querySelector("svg").getBoundingClientRect().width / 2 - barra.getBoundingClientRect().left - 15
+          ? item.getBoundingClientRect().left - barra.getBoundingClientRect().left + 5
           : item.getBoundingClientRect().left - barra.getBoundingClientRect().left)) < 2,
       contida:parseFloat(barra.style.getPropertyValue("--lens-left")) >= 0
         && parseFloat(barra.style.getPropertyValue("--lens-left")) + parseFloat(barra.style.getPropertyValue("--lens-width")) <= barra.clientWidth
         && parseFloat(barra.style.getPropertyValue("--lens-top")) + parseFloat(barra.style.getPropertyValue("--lens-height")) <= barra.clientHeight,
       proporcional:!barra.classList.contains("rodapenav")
-        || (parseFloat(barra.style.getPropertyValue("--lens-width")) === 30
-          && parseFloat(barra.style.getPropertyValue("--lens-height")) === 30),
+        || (Math.abs(parseFloat(barra.style.getPropertyValue("--lens-width")) - item.getBoundingClientRect().width + 10) < 1
+          && Math.abs(parseFloat(barra.style.getPropertyValue("--lens-height")) - barra.getBoundingClientRect().height + 10) < 1),
+      soIcones:!barra.classList.contains("rodapenav") || [...barra.querySelectorAll(".navitem")].every((botao) => {
+        const rotulo = botao.querySelector("span"), estilo = getComputedStyle(rotulo);
+        return estilo.width === "1px" && estilo.position === "absolute" && botao.querySelector("svg")?.getBoundingClientRect().width >= 24;
+      }),
       clara:!barra.classList.contains("rodapenav") || Number(getComputedStyle(barra).backgroundColor.match(/[\d.]+/g)[0]) > 200,
       transparente:!barra.classList.contains("rodapenav") || Number(getComputedStyle(barra).backgroundColor.match(/[\d.]+/g)[3]) <= .2,
       vidro:vidro.backdropFilter !== "none" || vidro.webkitBackdropFilter !== "none",
@@ -35,7 +39,7 @@ for (const largura of [1440, 390, 320]){
       overflow:document.documentElement.scrollWidth - document.documentElement.clientWidth,
     };
   }, { nav, alvo });
-  if (visual.selecionado !== "true" || !visual.alinhado || !visual.contida || !visual.proporcional || !visual.clara || !visual.transparente || !visual.vidro
+  if (visual.selecionado !== "true" || !visual.alinhado || !visual.contida || !visual.proporcional || !visual.soIcones || !visual.clara || !visual.transparente || !visual.vidro
       || visual.brilho !== "1" || visual.overflow > 1)
     falhas.push(`${largura}px: ${JSON.stringify(visual)}`);
 
@@ -101,9 +105,9 @@ for (const largura of [1440, 390, 320]){
       const escuro = await p.locator("nav.rodapenav").evaluate((barra) => ({
         alpha:Number(getComputedStyle(barra).backgroundColor.match(/[\d.]+/g)[3]),
         tinta:getComputedStyle(barra.querySelector('.navitem[aria-selected="true"]')).color,
-        lente:getComputedStyle(barra,"::before").backgroundImage,
+        lente:getComputedStyle(barra,"::before").backgroundColor,
       }));
-      if (escuro.alpha > .2 || escuro.tinta !== "rgb(255, 255, 255)" || !escuro.lente.includes("rgba(8, 27, 20, 0.8)"))
+      if (escuro.alpha > .2 || escuro.tinta !== "rgb(255, 255, 255)" || !escuro.lente.includes("rgba(224, 245, 233, 0.13)"))
         falhas.push(`390px: vidro escuro sem transparência ou contraste (${JSON.stringify(escuro)})`);
     }
   }

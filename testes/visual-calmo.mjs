@@ -19,14 +19,14 @@ for (const largura of [1440, 900, 600, 390, 320]){
         ? document.querySelector('.rodapenav .navitem[aria-selected="true"]')
         : nav.querySelector('.navitem[aria-selected="true"]');
       const lente = getComputedStyle(nav, "::before");
-      const x = parseFloat(nav.style.getPropertyValue("--lens-left"));
+      const x = parseFloat(nav.style.getPropertyValue(movel ? "--lens-target" : "--lens-left"));
       const alvo = ativo?.getBoundingClientRect();
       const caixa = nav.getBoundingClientRect();
       return {
         painel: !painel.hidden,
         largura: document.documentElement.scrollWidth - document.documentElement.clientWidth,
         lente: !ativo || (lente.opacity === "1" && Math.abs(x - (movel
-          ? ativo.querySelector("svg").getBoundingClientRect().left + ativo.querySelector("svg").getBoundingClientRect().width / 2 - caixa.left - 15
+          ? alvo.left - caixa.left + 5
           : alvo.left - caixa.left)) < 2),
       };
     }, aba.id);
@@ -56,10 +56,23 @@ for (const largura of [1440, 900, 600, 390, 320]){
     const folha = await p.evaluate(() => {
       const corpo = document.querySelector(".folha .corpo");
       const r = corpo.getBoundingClientRect();
-      return { aberta:corpo.closest("dialog").open, topo:r.top, base:r.bottom, altura:innerHeight };
+      return { aberta:corpo.closest("dialog").open, topo:r.top, base:r.bottom, altura:innerHeight,
+        colunas:getComputedStyle(document.getElementById("folhaOpcoes")).gridTemplateColumns.split(" ").length,
+        opcoes:document.getElementById("folhaOpcoes").children.length,
+        expandido:document.getElementById("navm-mais").getAttribute("aria-expanded") };
     });
-    if (!folha.aberta || folha.topo < 0 || folha.base > folha.altura)
-      falhas.push(`${largura}px folha Mais: ${JSON.stringify(folha)}`);
+    if (!folha.aberta || folha.topo < 0 || folha.base > folha.altura || folha.colunas !== 3 || folha.opcoes !== 8 || folha.expandido !== "true")
+      falhas.push(`${largura}px pasta Mais: ${JSON.stringify(folha)}`);
+    await p.locator("#navs-assinaturas").click();
+    await p.waitForTimeout(220);
+    if (await p.locator("#folhaMais").evaluate((el) => el.open) || await p.locator("#navm-mais").getAttribute("aria-expanded") !== "false"
+      || await p.locator("#navm-mais").getAttribute("aria-selected") !== "true")
+      falhas.push(`${largura}px: selecionar Assinaturas na pasta não fechou ou marcou a aba`);
+    await p.locator("#navm-mais").click();
+    await p.keyboard.press("Escape");
+    await p.waitForTimeout(220);
+    if (await p.locator("#folhaMais").evaluate((el) => el.open))
+      falhas.push(`${largura}px: Escape não fechou a pasta Mais`);
   }
   if (erros.length) falhas.push(`${largura}px: erros JS ${erros.join("; ")}`);
   await p.close();
