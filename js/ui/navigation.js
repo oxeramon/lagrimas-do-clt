@@ -166,7 +166,7 @@ function posicionaLente(nav, ativo){
   const origem = nav.getBoundingClientRect();
   const alvo = ativo.getBoundingClientRect();
   const movel = nav.classList.contains("rodapenav");
-  const margem = movel ? 5 : 0;
+  const margem = movel ? 7 : 0;
   const esquerda = alvo.left - origem.left + nav.scrollLeft + margem;
   nav.style.setProperty("--lens-target", `${esquerda}px`);
   if (movel) moveLenteMovel(nav, esquerda);
@@ -188,7 +188,7 @@ function arrastaLente(nav, evento){
   if (!estado || estado.id !== evento.pointerId) return;
   const caixa = nav.getBoundingClientRect();
   const largura = parseFloat(nav.style.getPropertyValue("--lens-width"));
-  const centro = Math.max(5 + largura / 2, Math.min(caixa.width - 5 - largura / 2, evento.clientX - caixa.left));
+  const centro = Math.max(7 + largura / 2, Math.min(caixa.width - 7 - largura / 2, evento.clientX - caixa.left));
   const anterior = molasDaLente.get(nav);
   if (anterior?.frame) cancelAnimationFrame(anterior.frame);
   const esquerda = centro - largura / 2;
