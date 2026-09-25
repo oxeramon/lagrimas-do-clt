@@ -793,6 +793,17 @@
             <button class="btn" type="submit" id="perfilSalvarEmail">Alterar e-mail</button>
             <p class="perfil-mensagem" id="perfilEmailMensagem" role="status" aria-live="polite"></p>
           </form>
+          <form id="perfilSenhaForm">
+            <h3>Senha</h3>
+            <div class="field"><label for="perfilSenhaAtual">Senha atual</label><input id="perfilSenhaAtual" name="senha-atual" type="password" autocomplete="current-password" required></div>
+            <div class="perfil-campos">
+              <div class="field"><label for="perfilNovaSenha">Nova senha</label><input id="perfilNovaSenha" name="nova-senha" type="password" autocomplete="new-password" minlength="8" required></div>
+              <div class="field"><label for="perfilConfirmaSenha">Confirmar nova senha</label><input id="perfilConfirmaSenha" name="confirma-senha" type="password" autocomplete="new-password" minlength="8" required></div>
+            </div>
+            <button class="btn" type="submit" id="perfilSalvarSenha">Trocar senha</button>
+            <p class="perfil-ajuda">Use pelo menos 8 caracteres.</p>
+            <p class="perfil-mensagem" id="perfilSenhaMensagem" role="status" aria-live="polite"></p>
+          </form>
         </div>
       </div>
     </section>
