@@ -11,7 +11,11 @@ function confere(rotulo, condicao){
 
 for (const largura of [1440, 390]){
   const { p, erros } = await abreApp(largura);
-  await p.evaluate(() => document.getElementById("nav-perfil").click());
+  if (largura < 600){
+    await p.locator("#navm-mais").click();
+    await p.locator("#navs-perfil").click();
+    await p.waitForFunction(() => !document.getElementById("folhaMais").open);
+  } else await p.locator("#nav-perfil").click();
   await p.waitForFunction(() => document.getElementById("perfilEmail").value.length > 0);
   confere(`${largura}px: perfil abriu`, await p.locator("#p-perfil").isVisible());
   confere(`${largura}px: e-mail exibido`, await p.locator("#perfilEmail").inputValue() === "teste@example.com");
