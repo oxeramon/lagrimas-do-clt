@@ -1,6 +1,6 @@
 import { $ } from "../../core/dom.js";
 import { quandoTrocarDeAba } from "../navigation.js";
-import { carregaPerfil, salvaPerfil, alteraEmail, baixaFoto, enviaFoto, apagaFoto } from "../../data/profile.js";
+import { carregaPerfil, salvaPerfil, alteraEmail, alteraSenha, baixaFoto, enviaFoto, apagaFoto } from "../../data/profile.js";
 
 let usuario = null;
 let urlFoto = null;
@@ -98,6 +98,27 @@ export function ligaPerfil(){
     const { erro } = await alteraEmail(email);
     botao.disabled = false;
     mensagem("perfilEmailMensagem", erro || "Confira sua caixa de entrada para confirmar a alteração. Até lá, seu e-mail atual continua válido.", !!erro);
+  });
+
+  $("perfilSenhaForm").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    if (!usuario) return;
+    const atual = $("perfilSenhaAtual").value;
+    const nova = $("perfilNovaSenha").value;
+    const confirma = $("perfilConfirmaSenha").value;
+    if (nova.length < 8){ mensagem("perfilSenhaMensagem", "A nova senha precisa ter pelo menos 8 caracteres.", true); return; }
+    if (nova !== confirma){ mensagem("perfilSenhaMensagem", "As novas senhas não conferem.", true); return; }
+    if (atual === nova){ mensagem("perfilSenhaMensagem", "Escolha uma senha diferente da atual.", true); return; }
+    const botao = $("perfilSalvarSenha");
+    botao.disabled = true;
+    mensagem("perfilSenhaMensagem", "Alterando senha…");
+    const { erro } = await alteraSenha(atual, nova);
+    botao.disabled = false;
+    if (erro) mensagem("perfilSenhaMensagem", erro, true);
+    else {
+      $("perfilSenhaForm").reset();
+      mensagem("perfilSenhaMensagem", "Senha alterada.");
+    }
   });
 
   $("perfilArquivo").addEventListener("change", async (e) => {
