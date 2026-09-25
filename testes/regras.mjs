@@ -538,9 +538,10 @@ console.log("\nnavegação");
 
 eq("toda aba do registro tem grupo", ABAS.every(a => !!a.grupo), true);
 eq("o rodapé do celular para em cinco", abasDoRodape().length <= 5, true);
-eq("nenhuma aba fica fora do rodapé e do Mais ao mesmo tempo",
-  idsDasAbas().every(id => abasDoRodape().some(a => a.id === id)
-                        || abasDoMais().some(a => a.id === id)), true);
+eq("toda aba sem acesso próprio fica no rodapé ou no Mais",
+  idsDasAbas().filter(id => id !== "perfil")
+    .every(id => abasDoRodape().some(a => a.id === id)
+              || abasDoMais().some(a => a.id === id)), true);
 eq("rodapé e Mais não repetem a mesma aba",
   abasDoRodape().some(a => abasDoMais().some(b => b.id === a.id)), false);
 eq("o grupo de uma aba conhecida", grupoDaAba("contas"), "MEU DINHEIRO");
