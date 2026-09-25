@@ -256,6 +256,23 @@ main{max-width:1360px}
   transform:scale(1.05);filter:drop-shadow(0 1px 2px rgba(27,91,65,.14));
 }
 .rodapenav .navitem.glass-focused span{transform:none}
+/* Na lateral, a seleção acompanha a linha de texto sem reflexo opaco sobre
+   o ícone. A própria placa já fornece o vidro; a lente só indica a aba. */
+@media(min-width:901px){
+  .lateral{scrollbar-width:none}
+  .lateral::-webkit-scrollbar{display:none}
+  .lateral nav::before,.lateral nav.lens-moving::before{
+    border:1px solid color-mix(in srgb,var(--brand) 22%,transparent);
+    border-radius:12px;
+    background:color-mix(in srgb,var(--brand) 10%,transparent);
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.15);
+    backdrop-filter:none;-webkit-backdrop-filter:none;
+    animation:none;
+    transition:left 260ms cubic-bezier(.2,.8,.2,1),top 260ms cubic-bezier(.2,.8,.2,1),width 260ms cubic-bezier(.2,.8,.2,1),height 260ms cubic-bezier(.2,.8,.2,1),opacity 150ms;
+  }
+  .lateral nav::after{display:none}
+  .lateral nav .navitem.glass-focused svg{transform:none;filter:none}
+}
 @media(max-width:900px){
   .rodapenav{border-radius:999px;background:linear-gradient(165deg,rgba(255,255,255,.15),rgba(255,255,255,.035) 46%,rgba(255,255,255,.08));
     border-color:rgba(255,255,255,.62);backdrop-filter:blur(7px) saturate(1.45);

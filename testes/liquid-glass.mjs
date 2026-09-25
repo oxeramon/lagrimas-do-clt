@@ -20,7 +20,7 @@ for (const largura of [1440, 390, 320]){
       alinhado:Math.abs(parseFloat(barra.style.getPropertyValue("--lens-left"))
         - (barra.classList.contains("rodapenav")
           ? item.getBoundingClientRect().left - barra.getBoundingClientRect().left + 7
-          : item.getBoundingClientRect().left - barra.getBoundingClientRect().left)) < 2,
+          : item.getBoundingClientRect().left - barra.getBoundingClientRect().left + 4)) < 2,
       contida:parseFloat(barra.style.getPropertyValue("--lens-left")) >= 0
         && parseFloat(barra.style.getPropertyValue("--lens-left")) + parseFloat(barra.style.getPropertyValue("--lens-width")) <= barra.clientWidth
         && parseFloat(barra.style.getPropertyValue("--lens-top")) + parseFloat(barra.style.getPropertyValue("--lens-height")) <= barra.clientHeight,
@@ -52,6 +52,22 @@ for (const largura of [1440, 390, 320]){
     await p.locator("#nav-contas").hover();
     const focado = await p.locator("#nav-contas").evaluate((el) => el.classList.contains("glass-focused"));
     if (!focado) falhas.push("desktop: a lente não acompanha o ponteiro");
+    for (const tema of ["claro","escuro"]){
+      await p.evaluate((tema) => { document.documentElement.dataset.tema = tema; document.getElementById("nav-grupos").click(); }, tema);
+      await p.waitForTimeout(370);
+      const lateral = await p.evaluate(() => {
+        const painel = document.querySelector(".lateral"), barra = painel.querySelector("nav"), item = document.getElementById("nav-grupos");
+        const caixa = barra.getBoundingClientRect(), alvo = item.getBoundingClientRect(), lente = getComputedStyle(barra,"::before");
+        return { ativo:item.getAttribute("aria-selected"), alinhada:Math.abs(caixa.top + parseFloat(barra.style.getPropertyValue("--lens-top")) - alvo.top - 2) < 2,
+          largura:parseFloat(barra.style.getPropertyValue("--lens-width")), esperada:alvo.width - 8,
+          altura:parseFloat(barra.style.getPropertyValue("--lens-height")), alturaEsperada:alvo.height - 4,
+          semGlare:getComputedStyle(barra,"::after").display === "none" && lente.backdropFilter === "none" && lente.boxShadow.split(",").length === 4,
+          semTrilho:getComputedStyle(painel).scrollbarWidth === "none" };
+      });
+      if (lateral.ativo !== "true" || !lateral.alinhada || Math.abs(lateral.largura-lateral.esperada) > 1
+        || Math.abs(lateral.altura-lateral.alturaEsperada) > 1 || !lateral.semGlare || !lateral.semTrilho)
+        falhas.push(`desktop ${tema}: ${JSON.stringify(lateral)}`);
+    }
   }
   if (movel){
     const de = await p.locator("#navm-mes").boundingBox();
