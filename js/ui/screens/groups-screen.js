@@ -308,13 +308,65 @@ export function ligaGrupos(){
     await recarrega();
   });
   const gpEx = $("gpExcluir");
-  if (gpEx) confirmaEmDoisCliques(gpEx, "Excluir", async () => {
-    const r = await v2.removeGrupo(grupoEditando);
-    if (r.erro) return mostraErro($("gpErro"), r.erro);
+  const aviso = $("dlgExcluirGrupo"), confirmar = $("gpExConfirmar");
+  let grupoParaExcluir = null, etapa = 1, armado = false, prazo = null;
+  const desarma = () => {
+    clearTimeout(prazo);
+    armado = false;
+    gpEx.textContent = "Excluir";
+    gpEx.classList.remove("perigo");
+  };
+  const excluiGrupo = async (id) => {
+    confirmar.disabled = true;
+    const r = await v2.removeGrupo(id);
+    confirmar.disabled = false;
+    if (r.erro){
+      if (aviso.open) aviso.close();
+      return mostraErro($("gpErro"), r.erro);
+    }
+    if (aviso.open) aviso.close();
     $("dlgGrupo").close(); grupoAtual = null;
     dep.toast("Grupo excluído.");
     await recarrega();
+  };
+  const mostraEtapa = () => {
+    const g = V2.grupos.find((x) => x.id === grupoParaExcluir);
+    if (!g) return;
+    const pessoas = membrosDe(g.id).length;
+    const despesas = despesasDe(g.id).length;
+    $("gpExEtapa").textContent = `Confirmação ${etapa} de 2`;
+    $("gpExTitulo").textContent = etapa === 1 ? `Excluir ${g.nome}?` : "Confirmar exclusão";
+    $("gpExDescricao").textContent = etapa === 1
+      ? `${pessoas} ${pessoas === 1 ? "pessoa" : "pessoas"} e ${despesas} ${despesas === 1 ? "despesa dividida" : "despesas divididas"} serão apagadas com o grupo. Acertos vinculados também serão removidos.`
+      : `Excluir definitivamente ${g.nome} e seus dados vinculados? Esta ação não pode ser desfeita.`;
+    confirmar.textContent = etapa === 1 ? "Sim, continuar" : "Excluir grupo e dados";
+  };
+  gpEx?.addEventListener("click", async () => {
+    const id = grupoEditando;
+    if (!id) return;
+    /* Uma despesa de grupo sempre tem rateio: o banco recusa soma vazia. */
+    if (membrosDe(id).length && despesasDe(id).length){
+      desarma();
+      grupoParaExcluir = id; etapa = 1;
+      mostraEtapa(); aviso.showModal();
+      return;
+    }
+    if (!armado){
+      armado = true; gpEx.textContent = "Confirmar exclusão";
+      gpEx.classList.add("perigo");
+      prazo = setTimeout(desarma, 4000);
+      return;
+    }
+    desarma();
+    await excluiGrupo(id);
   });
+  confirmar?.addEventListener("click", async () => {
+    if (!grupoParaExcluir) return;
+    if (etapa === 1){ etapa = 2; mostraEtapa(); return; }
+    await excluiGrupo(grupoParaExcluir);
+  });
+  aviso?.addEventListener("close", () => { grupoParaExcluir = null; etapa = 1; });
+
 
   $("formMembro")?.addEventListener("submit", async (e) => {
     e.preventDefault();
