@@ -82,7 +82,7 @@ export function ligaPerfil(){
   observaSessao((uid) => { if (uid) recarregaPerfil(); });
   quandoTrocarDeAba((destino) => {
     if (destino === "perfil") recarregaPerfil();
-    else { carga++; trocaImagem(null); }
+    else carga++;
   });
 
   $("perfilDadosForm").addEventListener("submit", async (e) => {
