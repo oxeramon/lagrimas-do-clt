@@ -244,6 +244,11 @@ main{max-width:1360px}
 .lateral nav.lens-moving::before,.rodapenav.lens-moving::before{
   box-shadow:inset 0 1px 1px rgba(255,255,255,.80),inset 0 -2px 5px rgba(14,77,56,.12),0 14px 28px rgba(9,35,25,.19),2px 0 8px rgba(73,220,207,.16),-2px 0 8px rgba(174,118,237,.13);
 }
+@keyframes lente-liquida{0%{transform:scale(.97)}46%{transform:scale(1.09)}100%{transform:scale(1)}}
+.lateral nav.lens-moving::before,.lateral nav.lens-moving::after,
+.rodapenav.lens-moving::before,.rodapenav.lens-moving::after{
+  animation:lente-liquida 560ms cubic-bezier(.18,.75,.22,1) both;
+}
 .lateral nav .navitem svg,.rodapenav .navitem svg,.rodapenav .navitem span{
   transition:transform 360ms cubic-bezier(.2,.8,.2,1),filter 360ms;
 }
@@ -267,6 +272,7 @@ main{max-width:1360px}
 @media(prefers-reduced-motion:reduce){
   .lateral nav::before,.lateral nav::after,.rodapenav::before,.rodapenav::after,
   .lateral nav .navitem svg,.rodapenav .navitem svg,.rodapenav .navitem span{transition:none!important}
+  .lateral nav::before,.lateral nav::after,.rodapenav::before,.rodapenav::after{animation:none!important}
 }
 @media(prefers-contrast:more){
   .lateral nav::before,.rodapenav::before{background:var(--brand-soft);border-color:var(--brand);backdrop-filter:none;-webkit-backdrop-filter:none;box-shadow:none}
