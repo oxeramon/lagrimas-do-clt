@@ -18,10 +18,15 @@ for (const largura of [1440, 390, 320]){
     return {
       selecionado:item.getAttribute("aria-selected"),
       alinhado:Math.abs(parseFloat(barra.style.getPropertyValue("--lens-left"))
-        - (item.getBoundingClientRect().left - barra.getBoundingClientRect().left + (barra.classList.contains("rodapenav") ? 5 : 0))) < 2,
+        - (barra.classList.contains("rodapenav")
+          ? item.querySelector("svg").getBoundingClientRect().left + item.querySelector("svg").getBoundingClientRect().width / 2 - barra.getBoundingClientRect().left - 15
+          : item.getBoundingClientRect().left - barra.getBoundingClientRect().left)) < 2,
       contida:parseFloat(barra.style.getPropertyValue("--lens-left")) >= 0
         && parseFloat(barra.style.getPropertyValue("--lens-left")) + parseFloat(barra.style.getPropertyValue("--lens-width")) <= barra.clientWidth
         && parseFloat(barra.style.getPropertyValue("--lens-top")) + parseFloat(barra.style.getPropertyValue("--lens-height")) <= barra.clientHeight,
+      proporcional:!barra.classList.contains("rodapenav")
+        || (parseFloat(barra.style.getPropertyValue("--lens-width")) === 30
+          && parseFloat(barra.style.getPropertyValue("--lens-height")) === 30),
       clara:!barra.classList.contains("rodapenav") || Number(getComputedStyle(barra).backgroundColor.match(/[\d.]+/g)[0]) > 200,
       transparente:!barra.classList.contains("rodapenav") || Number(getComputedStyle(barra).backgroundColor.match(/[\d.]+/g)[3]) <= .2,
       vidro:vidro.backdropFilter !== "none" || vidro.webkitBackdropFilter !== "none",
@@ -30,7 +35,7 @@ for (const largura of [1440, 390, 320]){
       overflow:document.documentElement.scrollWidth - document.documentElement.clientWidth,
     };
   }, { nav, alvo });
-  if (visual.selecionado !== "true" || !visual.alinhado || !visual.contida || !visual.clara || !visual.transparente || !visual.vidro
+  if (visual.selecionado !== "true" || !visual.alinhado || !visual.contida || !visual.proporcional || !visual.clara || !visual.transparente || !visual.vidro
       || visual.brilho !== "1" || visual.overflow > 1)
     falhas.push(`${largura}px: ${JSON.stringify(visual)}`);
 
@@ -73,6 +78,24 @@ for (const largura of [1440, 390, 320]){
       if (await p.locator("#navm-transacoes").getAttribute("aria-selected") !== "true")
         falhas.push("390px: gesto de toque não selecionou Transações");
       await cdp.detach();
+      await p.locator("#navm-painel").click();
+      await p.evaluate(() => {
+        const hero = document.querySelector("#painelV2");
+        hero.hidden = false;
+        hero.style.marginTop = "180px";
+      });
+      await p.waitForTimeout(120);
+      const sobreEscuro = await p.locator("nav.rodapenav").evaluate((barra) => ({
+        itens:[...barra.querySelectorAll(".navitem")].every((item) => item.classList.contains("sobre-escuro") && getComputedStyle(item).color === "rgb(244, 255, 248)"),
+        lente:barra.classList.contains("lente-sobre-escuro"),
+      }));
+      if (!sobreEscuro.itens || !sobreEscuro.lente)
+        falhas.push(`390px: ícones não clarearam sobre o cartão escuro (${JSON.stringify(sobreEscuro)})`);
+      await p.evaluate(() => document.querySelector("#painelV2").hidden = true);
+      await p.waitForTimeout(120);
+      if (await p.locator("nav.rodapenav").evaluate((barra) => barra.classList.contains("lente-sobre-escuro")
+          || [...barra.querySelectorAll(".navitem")].some((item) => item.classList.contains("sobre-escuro"))))
+        falhas.push("390px: a barra não voltou às cores de fundo claro");
       await p.evaluate(() => document.documentElement.dataset.tema = "escuro");
       await p.waitForTimeout(380);
       const escuro = await p.locator("nav.rodapenav").evaluate((barra) => ({
