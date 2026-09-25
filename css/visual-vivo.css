@@ -212,3 +212,6 @@ main{max-width:1360px}
 }
 @media(prefers-reduced-motion:reduce){.atalhos-painel button,.cal-cel,.conta-card,.dcard,.lanc,.fatura-linha,.assinatura-linha{transition:none}}
 @media(prefers-contrast:more){.tile,.lente,.hero,.kpi,#calendarioCard,#painelBlocos{box-shadow:none;border-color:var(--ink-2)}}
+.confirmacao-grupo-corpo{padding:22px 20px 24px;line-height:1.5}
+.confirmacao-grupo-corpo .meta{display:block;margin-bottom:12px;color:var(--critical);font-size:11px;letter-spacing:.08em;text-transform:uppercase}
+.confirmacao-grupo-corpo p{margin:0;font-size:15px}
