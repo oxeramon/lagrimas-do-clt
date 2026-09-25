@@ -1,4 +1,16 @@
 #p-perfil{max-width:1050px;margin-inline:auto}
+.perfil-resumo{appearance:none;border:0;background:none;color:var(--ink);font:inherit;cursor:pointer;display:flex;align-items:center;min-width:0;text-align:left;border-radius:var(--nav-raio)}
+.perfil-resumo:focus-visible{outline:2px solid var(--brand);outline-offset:2px}
+.perfil-resumo-avatar{width:38px;height:38px;flex:none;display:grid;place-items:center;overflow:hidden;border-radius:50%;background:linear-gradient(145deg,var(--brand-soft),var(--surface));border:1px solid var(--line-strong);color:var(--brand);font-size:15px;font-weight:var(--peso-forte);line-height:1}
+.perfil-resumo-avatar img{width:100%;height:100%;object-fit:cover}
+.perfil-resumo-avatar img[hidden],.perfil-resumo-avatar span[hidden]{display:none}
+.perfil-resumo-texto{display:flex;flex-direction:column;min-width:0}
+.perfil-resumo-texto strong{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:13.5px;font-weight:var(--peso-forte)}
+.perfil-resumo-legenda{font-size:10px;line-height:1.2;color:var(--ink-3);text-transform:uppercase;letter-spacing:.08em}
+.perfil-resumo-lateral{gap:11px;width:100%;padding:4px var(--e-2) var(--e-4)}
+.perfil-resumo-lateral:hover{color:var(--brand)}
+.perfil-resumo-movel{gap:8px;max-width:min(42vw,180px);padding:2px}
+.perfil-resumo-movel .perfil-resumo-avatar{width:32px;height:32px;font-size:13px}
 .perfil-layout{display:grid;grid-template-columns:minmax(230px,300px) minmax(0,1fr);gap:clamp(28px,5vw,70px);margin-top:32px}
 .perfil-foto-area{display:flex;flex-direction:column;align-items:flex-start;gap:11px}
 .perfil-avatar{width:144px;height:144px;display:grid;place-items:center;overflow:hidden;border-radius:50%;background:linear-gradient(145deg,var(--brand-soft),var(--surface));border:1px solid var(--line-strong);color:var(--brand);font-size:62px;font-weight:500;line-height:1}
@@ -27,4 +39,7 @@
   .perfil-foto-area .perfil-ajuda,.perfil-foto-area .perfil-mensagem{grid-column:1 / -1}
   .perfil-campos{grid-template-columns:1fr;gap:0}
 }
-
+@media(max-width:390px){
+  .perfil-resumo-movel{max-width:84px}
+  .perfil-resumo-movel .perfil-resumo-avatar{width:30px;height:30px}
+}
