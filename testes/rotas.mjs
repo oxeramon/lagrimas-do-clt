@@ -78,12 +78,11 @@ console.log("1. lateral do desktop: uma entrada por aba");
       return repetidos.sort();
     }), []);
 
-  /* O rodapé da lateral é AÇÃO e CONFIGURAÇÃO. Aba é destino e vive no <nav>.
-     Ajustes é a exceção declarada: `montaLateral()` filtra CONFIGURAÇÕES de
-     propósito, então o botão dele mora aqui e em nenhum outro lugar. */
-  eq("o rodapé da lateral contém somente Usuário e Ajustes",
+  /* Perfil é aberto pelo bloco com foto e nome. No rodapé sobra somente Ajustes:
+     repetir Usuário aqui criaria dois caminhos vizinhos para o mesmo destino. */
+  eq("o rodapé da lateral contém somente Ajustes",
     await p.evaluate(() => [...document.querySelectorAll(".lateral .rodape [id^='nav-']")]
-      .map((b) => b.id).sort()), ["nav-ajustes", "nav-perfil"]);
+      .map((b) => b.id).sort()), ["nav-ajustes"]);
 
   /* E o <nav> tem exatamente as abas do registro que não são CONFIGURAÇÕES,
      na ordem do registro: a lateral é o registro desenhado, ou não é nada. */
@@ -107,8 +106,10 @@ console.log("\n2. cada aba do registro abre");
   for (const a of ABAS){
     const antes = erros.length;
     const estado = await p.evaluate((id) => {
-      const botao = document.getElementById("nav-" + id);
-      if (!botao) return { faltou: "botão nav-" + id };
+      const botao = id === "perfil"
+        ? document.getElementById("perfilResumoLateral")
+        : document.getElementById("nav-" + id);
+      if (!botao) return { faltou: "acesso para " + id };
       botao.click();
       const painel = document.getElementById("p-" + id);
       if (!painel) return { faltou: "painel p-" + id };
@@ -124,7 +125,7 @@ console.log("\n2. cada aba do registro abre");
 
     eq(`${a.id}: painel e botão existem`, estado.faltou || null, null);
     eq(`${a.id}: o painel fica visível`, estado.visivel, true);
-    eq(`${a.id}: o botão fica marcado`, estado.marcado, "true");
+    eq(`${a.id}: o acesso reflete a seleção`, estado.marcado, a.id === "perfil" ? null : "true");
     eq(`${a.id}: nenhum outro painel fica aberto junto`, estado.outrosAbertos, []);
     /* ReferenceError e TypeError de escopo aparecem AQUI, ao abrir a tela --
        não no carregamento, porque o módulo importa sem erro. */
