@@ -81,9 +81,9 @@ console.log("1. lateral do desktop: uma entrada por aba");
   /* O rodapé da lateral é AÇÃO e CONFIGURAÇÃO. Aba é destino e vive no <nav>.
      Ajustes é a exceção declarada: `montaLateral()` filtra CONFIGURAÇÕES de
      propósito, então o botão dele mora aqui e em nenhum outro lugar. */
-  eq("o rodapé da lateral não tem nenhuma aba além de Ajustes",
+  eq("o rodapé da lateral contém somente Usuário e Ajustes",
     await p.evaluate(() => [...document.querySelectorAll(".lateral .rodape [id^='nav-']")]
-      .map((b) => b.id).sort()), ["nav-ajustes"]);
+      .map((b) => b.id).sort()), ["nav-ajustes", "nav-perfil"]);
 
   /* E o <nav> tem exatamente as abas do registro que não são CONFIGURAÇÕES,
      na ordem do registro: a lateral é o registro desenhado, ou não é nada. */
@@ -158,11 +158,11 @@ console.log("\n3. celular: rodapé e folha Mais");
   const alvo = abasDoMais()[0];
   const depois = await p.evaluate((id) => {
     document.getElementById("navs-" + id).click();
-    return { aberta: !document.getElementById("p-" + id).hidden,
-             folhaFechada: !document.getElementById("folhaMais").open };
+    return { aberta: !document.getElementById("p-" + id).hidden };
   }, alvo.id);
   eq(`abrir "${alvo.rotulo}" pela folha leva à aba`, depois.aberta, true);
-  eq("e a folha se fecha ao escolher", depois.folhaFechada, true);
+  await p.waitForFunction(() => !document.getElementById("folhaMais").open);
+  eq("e a folha se fecha ao escolher", await p.evaluate(() => !document.getElementById("folhaMais").open), true);
 
   semErros("navegar pelo celular", erros);
   await p.close();
