@@ -46,6 +46,12 @@ for (const largura of [1440, 390]){
   });
   await p.getByText("Foto atualizada.").waitFor();
   confere(`${largura}px: foto exibida`, await p.locator("#perfilImagem").isVisible());
+  const resumo = largura < 600 ? "#perfilResumoMovel" : "#perfilResumoLateral";
+  await p.locator(largura < 600 ? "#navm-painel" : "#nav-painel").click();
+  confere(`${largura}px: foto permanece ao navegar`,
+    await p.locator(resumo + " [data-perfil-imagem]").isVisible());
+  await p.locator(resumo).click();
+  await p.locator("#p-perfil").waitFor();
   await p.locator("#perfilRemoverFoto").click();
   await p.getByText("Foto removida.").waitFor();
   confere(`${largura}px: foto removida`, await p.locator("#perfilImagem").isHidden());
