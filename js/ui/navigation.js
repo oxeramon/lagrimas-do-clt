@@ -62,6 +62,8 @@ export const ABAS = [
     icone: '<path d="M4 12a8 8 0 0 1 13.6-5.7M20 12a8 8 0 0 1-13.6 5.7"/><path d="M17 3v4h-4M7 21v-4h4"/>' },
   { id: "grupos",      rotulo: "Grupos",      grupo: "ROTINAS",        rodape: false,
     icone: '<circle cx="9" cy="8" r="3"/><path d="M3 19a6 6 0 0 1 12 0"/><path d="M16 6.5a2.8 2.8 0 0 1 0 5.4M17 19a6 6 0 0 0-1.5-4"/>' },
+  { id: "perfil",      rotulo: "Usuário",     grupo: "CONFIGURAÇÕES", rodape: false,
+    icone: '<circle cx="12" cy="8" r="3.5"/><path d="M4.5 20a7.5 7.5 0 0 1 15 0"/>' },
   { id: "ajustes",     rotulo: "Ajustes",     grupo: "CONFIGURAÇÕES",  rodape: false,
     icone: '<path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2.2"/><circle cx="10" cy="17" r="2.2"/>' },
 ];
