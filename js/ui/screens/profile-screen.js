@@ -1,6 +1,7 @@
 import { $ } from "../../core/dom.js";
-import { quandoTrocarDeAba } from "../navigation.js";
+import { quandoTrocarDeAba, vaiParaAba } from "../navigation.js";
 import { carregaPerfil, salvaPerfil, alteraEmail, alteraSenha, baixaFoto, enviaFoto, apagaFoto } from "../../data/profile.js";
+import { observaSessao } from "../../data/session.js";
 
 let usuario = null;
 let urlFoto = null;
@@ -20,6 +21,13 @@ function trocaImagem(blob){
   if (urlFoto) $("perfilImagem").src = urlFoto;
   $("perfilIniciais").hidden = !!urlFoto;
   $("perfilRemoverFoto").hidden = !urlFoto;
+  for (const imagem of document.querySelectorAll("[data-perfil-imagem]")){
+    imagem.hidden = !urlFoto;
+    imagem.removeAttribute("src");
+    if (urlFoto) imagem.src = urlFoto;
+  }
+  for (const iniciais of document.querySelectorAll("[data-perfil-iniciais]"))
+    iniciais.hidden = !!urlFoto;
 }
 
 function mostraUsuario(user){
@@ -31,6 +39,10 @@ function mostraUsuario(user){
   $("perfilNomeExibido").textContent = nome || "Seu perfil";
   $("perfilEmailExibido").textContent = user.email || "";
   $("perfilIniciais").textContent = (nome || user.email || "U").trim().charAt(0).toLocaleUpperCase("pt-BR");
+  const nomeCurto = nome || String(user.email || "Usuário").split("@")[0] || "Usuário";
+  const inicial = nomeCurto.trim().charAt(0).toLocaleUpperCase("pt-BR") || "U";
+  for (const alvo of document.querySelectorAll("[data-perfil-nome]")) alvo.textContent = nomeCurto;
+  for (const alvo of document.querySelectorAll("[data-perfil-iniciais]")) alvo.textContent = inicial;
 }
 
 async function recarregaPerfil(){
@@ -65,6 +77,9 @@ async function validaImagem(arquivo){
 }
 
 export function ligaPerfil(){
+  $("perfilResumoLateral")?.addEventListener("click", () => vaiParaAba("perfil"));
+  $("perfilResumoMovel")?.addEventListener("click", () => vaiParaAba("perfil"));
+  observaSessao((uid) => { if (uid) recarregaPerfil(); });
   quandoTrocarDeAba((destino) => {
     if (destino === "perfil") recarregaPerfil();
     else { carga++; trocaImagem(null); }
