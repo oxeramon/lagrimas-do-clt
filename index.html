@@ -1362,6 +1362,20 @@
   </form>
 </dialog>
 
+<dialog id="dlgExcluirGrupo" aria-labelledby="gpExTitulo" aria-describedby="gpExDescricao">
+  <div class="dlg-h"><h2 id="gpExTitulo">Excluir grupo?</h2><button type="button" class="btn ghost" data-fechar="dlgExcluirGrupo" aria-label="Fechar">×</button></div>
+  <div class="confirmacao-grupo-corpo">
+    <span class="meta" id="gpExEtapa">Confirmação 1 de 2</span>
+    <p id="gpExDescricao"></p>
+  </div>
+  <div class="dlg-f">
+    <button type="button" class="btn" data-fechar="dlgExcluirGrupo">Cancelar</button>
+    <span style="flex:1"></span>
+    <button type="button" class="btn danger" id="gpExConfirmar">Sim, continuar</button>
+  </div>
+</dialog>
+
+
 <dialog id="dlgMembro">
   <form id="formMembro">
     <div class="dlg-h"><h2 id="mbTitulo">Adicionar pessoa</h2><button type="button" class="btn ghost" data-fechar="dlgMembro" aria-label="Fechar"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M18 6L6 18M6 6l12 12"/></svg></button></div>
