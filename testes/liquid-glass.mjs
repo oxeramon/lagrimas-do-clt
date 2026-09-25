@@ -50,8 +50,14 @@ for (const largura of [1440, 390, 320]){
 
   if (!movel){
     await p.locator("#nav-contas").hover();
-    const focado = await p.locator("#nav-contas").evaluate((el) => el.classList.contains("glass-focused"));
-    if (!focado) falhas.push("desktop: a lente não acompanha o ponteiro");
+    await p.locator("#nav-contas").focus();
+    const focoEstavel = await p.evaluate(() => {
+      const barra=document.querySelector(".lateral nav");
+      return document.getElementById("nav-mes").classList.contains("glass-focused")
+        && !document.getElementById("nav-contas").classList.contains("glass-focused")
+        && barra.style.getPropertyValue("--lens-opacity") === "1";
+    });
+    if (!focoEstavel) falhas.push("desktop: passar o mouse ou focar outra aba tirou o destaque da selecionada");
     for (const tema of ["claro","escuro"]){
       await p.evaluate((tema) => { document.documentElement.dataset.tema = tema; document.getElementById("nav-grupos").click(); }, tema);
       await p.waitForTimeout(370);
@@ -68,6 +74,46 @@ for (const largura of [1440, 390, 320]){
         || Math.abs(lateral.altura-lateral.alturaEsperada) > 1 || !lateral.semGlare || !lateral.semTrilho)
         falhas.push(`desktop ${tema}: ${JSON.stringify(lateral)}`);
     }
+    await p.setViewportSize({width:largura,height:620});
+    await p.locator("#btnTema").hover();
+    const rolagem = await p.evaluate(() => document.querySelector(".lateral").scrollTop);
+    await p.locator("#btnAtualizar").hover();
+    const fundoEstavel = await p.evaluate(() => ({
+      rolagem:document.querySelector(".lateral").scrollTop,
+      ativo:document.getElementById("nav-grupos").classList.contains("glass-focused"),
+      lente:document.querySelector(".lateral nav").style.getPropertyValue("--lens-opacity"),
+    }));
+    if (rolagem < 20 || fundoEstavel.rolagem < 20 || !fundoEstavel.ativo || fundoEstavel.lente !== "1")
+      falhas.push(`desktop: hover no rodapé alterou a seleção ou a rolagem (${JSON.stringify(fundoEstavel)})`);
+    await p.locator("#nav-ajustes").click();
+    await p.waitForTimeout(60);
+    const ajustes = await p.evaluate(() => ({
+      selecionado:document.getElementById("nav-ajustes").getAttribute("aria-selected"),
+      lente:document.querySelector(".lateral nav").style.getPropertyValue("--lens-opacity"),
+      foco:!!document.querySelector(".lateral nav .glass-focused"),
+    }));
+    if (ajustes.selecionado !== "true" || ajustes.lente !== "0" || ajustes.foco)
+      falhas.push(`desktop: Ajustes deixou lente antiga na lista (${JSON.stringify(ajustes)})`);
+    await p.locator("#btnTema").hover();
+    if (await p.locator(".lateral nav").evaluate((nav) => nav.style.getPropertyValue("--lens-opacity")) !== "0")
+      falhas.push("desktop: hover no rodapé ressuscitou lente da lista");
+    await p.locator("#nav-painel").click();
+    await p.waitForTimeout(60);
+    if (await p.locator(".lateral nav").evaluate((nav) => nav.style.getPropertyValue("--lens-opacity")) !== "1")
+      falhas.push("desktop: voltar à lista não restaurou a lente");
+    await p.locator("#btnTema").hover();
+    await p.waitForTimeout(60);
+    const foraDaVista = await p.evaluate(() => ({
+      rolagem:document.querySelector(".lateral").scrollTop,
+      ativo:document.getElementById("nav-painel").getAttribute("aria-selected"),
+      lente:document.querySelector(".lateral nav").style.getPropertyValue("--lens-opacity"),
+    }));
+    if (foraDaVista.rolagem < 20 || foraDaVista.ativo !== "true" || foraDaVista.lente !== "0")
+      falhas.push(`desktop: lente recortada quando a aba ativa saiu da vista (${JSON.stringify(foraDaVista)})`);
+    await p.locator("#nav-painel").hover();
+    await p.waitForTimeout(60);
+    if (await p.locator(".lateral nav").evaluate((nav) => nav.style.getPropertyValue("--lens-opacity")) !== "1")
+      falhas.push("desktop: lente não reapareceu ao voltar à aba ativa");
   }
   if (movel){
     const de = await p.locator("#navm-mes").boundingBox();
