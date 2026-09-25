@@ -94,6 +94,41 @@ export const quandoTrocarDeAba = (fn) => { aoTrocar.push(fn); };
 const alvosDe = (id) => [$("nav-" + id), $("navm-" + id), $("navs-" + id), $("nav-" + id + "M")];
 const relogiosDaLente = new WeakMap();
 const arrastesDaLente = new WeakMap();
+let quadroDeContraste = 0;
+
+/* A barra flutua sobre cartões claros e sobre o resumo verde. Cada botão
+   usa a superfície que está exatamente atrás dele, inclusive após rolar. */
+function sobreFundoEscuro(nav, item){
+  const r = item.getBoundingClientRect();
+  for (const el of document.elementsFromPoint(r.left + r.width / 2, r.top + r.height / 2)){
+    if (nav.contains(el) || el === nav) continue;
+    const partes = getComputedStyle(el).backgroundColor.match(/[\d.]+/g)?.map(Number);
+    if (!partes || (partes[3] ?? 1) < .85) continue;
+    const linear = partes.slice(0,3).map((c) => {
+      const v = c / 255;
+      return v <= .04045 ? v / 12.92 : ((v + .055) / 1.055) ** 2.4;
+    });
+    return .2126 * linear[0] + .7152 * linear[1] + .0722 * linear[2] < .30;
+  }
+  return false;
+}
+
+function atualizaContrasteRodape(){
+  const nav = document.querySelector("nav.rodapenav");
+  if (!nav || !nav.getClientRects().length) return;
+  for (const item of nav.querySelectorAll(".navitem"))
+    item.classList.toggle("sobre-escuro", sobreFundoEscuro(nav, item));
+  const focado = nav.querySelector(".glass-focused") || nav.querySelector('.navitem[aria-selected="true"]');
+  nav.classList.toggle("lente-sobre-escuro", Boolean(focado?.classList.contains("sobre-escuro")));
+}
+
+function agendaContrasteRodape(){
+  if (quadroDeContraste) return;
+  quadroDeContraste = requestAnimationFrame(() => {
+    quadroDeContraste = 0;
+    atualizaContrasteRodape();
+  });
+}
 
 /* A lente é uma única peça que acompanha a aba escolhida. A posição vem do
    botão real, inclusive quando a largura do celular ou o texto muda. */
@@ -102,14 +137,20 @@ function posicionaLente(nav, ativo){
   const origem = nav.getBoundingClientRect();
   const alvo = ativo.getBoundingClientRect();
   const movel = nav.classList.contains("rodapenav");
-  const folga = movel ? 5 : 0;
-  nav.style.setProperty("--lens-left", `${alvo.left - origem.left + nav.scrollLeft + folga}px`);
-  nav.style.setProperty("--lens-top", `${(movel ? folga : alvo.top - origem.top + nav.scrollTop)}px`);
-  nav.style.setProperty("--lens-width", `${alvo.width - folga * 2}px`);
-  nav.style.setProperty("--lens-height", `${movel ? origem.height - folga * 2 : alvo.height}px`);
+  const icone = movel ? ativo.querySelector("svg")?.getBoundingClientRect() : null;
+  const diametro = 30;
+  nav.style.setProperty("--lens-left", `${movel
+    ? icone.left + icone.width / 2 - origem.left - diametro / 2
+    : alvo.left - origem.left + nav.scrollLeft}px`);
+  nav.style.setProperty("--lens-top", `${movel
+    ? Math.max(3, icone.top - origem.top - 7)
+    : alvo.top - origem.top + nav.scrollTop}px`);
+  nav.style.setProperty("--lens-width", `${movel ? diametro : alvo.width}px`);
+  nav.style.setProperty("--lens-height", `${movel ? diametro : alvo.height}px`);
   nav.style.setProperty("--lens-opacity", "1");
   nav.querySelector(".glass-focused")?.classList.remove("glass-focused");
   ativo.classList.add("glass-focused");
+  if (movel) nav.classList.toggle("lente-sobre-escuro", ativo.classList.contains("sobre-escuro"));
   nav.classList.add("lens-moving");
   clearTimeout(relogiosDaLente.get(nav));
   relogiosDaLente.set(nav, setTimeout(() => nav.classList.remove("lens-moving"), 560));
@@ -130,6 +171,7 @@ function arrastaLente(nav, evento){
       ? item : maisProximo);
   nav.querySelector(".glass-focused")?.classList.remove("glass-focused");
   estado.alvo.classList.add("glass-focused");
+  nav.classList.toggle("lente-sobre-escuro", estado.alvo.classList.contains("sobre-escuro"));
 }
 
 function atualizaLentes(){
@@ -153,6 +195,7 @@ export function vaiParaAba(destino){
   const noMais = abasDoMais().some((a) => a.id === destino);
   $("navm-mais")?.setAttribute("aria-selected", String(noMais));
   requestAnimationFrame(atualizaLentes);
+  agendaContrasteRodape();
 
   /* re-dispara a animação de entrada do painel que acabou de aparecer */
   const p = $("p-" + destino);
@@ -268,6 +311,11 @@ export function ligaNavegacao(){
     });
   }
   window.addEventListener("resize", atualizaLentes);
+  window.addEventListener("resize", agendaContrasteRodape);
+  document.addEventListener("scroll", agendaContrasteRodape, { passive:true, capture:true });
+  const conteudo = document.querySelector("main");
+  if (conteudo) new MutationObserver(agendaContrasteRodape)
+    .observe(conteudo, { subtree:true, childList:true, attributes:true, attributeFilter:["hidden","style"] });
   for (const { id } of ABAS)
     for (const el of alvosDe(id))
       el?.addEventListener("click", () => vaiParaAba(id));
