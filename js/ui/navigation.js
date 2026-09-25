@@ -74,7 +74,7 @@ export const grupoDaAba = (id) => (abaPorId(id) || {}).grupo || null;
 
 /* No máximo quatro: o quinto lugar do rodapé é o botão "Mais". */
 export const abasDoRodape = () => ABAS.filter((a) => a.rodape).slice(0, 4);
-export const abasDoMais   = () => ABAS.filter((a) => !a.rodape);
+export const abasDoMais   = () => ABAS.filter((a) => !a.rodape && a.id !== "perfil");
 
 /* Os grupos da lateral, na ordem em que aparecem, sem repetir. */
 export function gruposDaLateral(){
