@@ -28,6 +28,13 @@ for (const largura of [1440, 390]){
   await p.locator("#perfilSalvarEmail").click();
   await p.getByText(/Confira sua caixa de entrada/).waitFor();
   confere(`${largura}px: alteração de e-mail pede confirmação`, await p.locator("#perfilEmailMensagem").isVisible());
+  await p.locator("#perfilSenhaAtual").fill("SenhaAtual#123");
+  await p.locator("#perfilNovaSenha").fill("NovaSenha#456");
+  await p.locator("#perfilConfirmaSenha").fill("NovaSenha#456");
+  await p.locator("#perfilSalvarSenha").click();
+  await p.getByText("Senha alterada.").waitFor();
+  confere(`${largura}px: senha alterada e campos limpos`,
+    await p.locator("#perfilNovaSenha").inputValue() === "");
   const png = await p.evaluate(() => {
     const canvas = document.createElement("canvas");
     canvas.width = canvas.height = 2;
