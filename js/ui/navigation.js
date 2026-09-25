@@ -92,6 +92,7 @@ export const quandoTrocarDeAba = (fn) => { aoTrocar.push(fn); };
 
 /* os quatro lugares de onde uma aba pode ser acionada ou marcada */
 const alvosDe = (id) => [$("nav-" + id), $("navm-" + id), $("navs-" + id), $("nav-" + id + "M")];
+const relogiosDaLente = new WeakMap();
 
 /* A lente é uma única peça que acompanha a aba escolhida. A posição vem do
    botão real, inclusive quando a largura do celular ou o texto muda. */
@@ -104,6 +105,11 @@ function posicionaLente(nav, ativo){
   nav.style.setProperty("--lens-width", `${alvo.width}px`);
   nav.style.setProperty("--lens-height", `${alvo.height}px`);
   nav.style.setProperty("--lens-opacity", "1");
+  nav.querySelector(".glass-focused")?.classList.remove("glass-focused");
+  ativo.classList.add("glass-focused");
+  nav.classList.add("lens-moving");
+  clearTimeout(relogiosDaLente.get(nav));
+  relogiosDaLente.set(nav, setTimeout(() => nav.classList.remove("lens-moving"), 560));
 }
 
 function atualizaLentes(){
@@ -174,6 +180,15 @@ export function ligaNavegacao(){
   montaLateral();
   montaRodapeMovel();
   for (const nav of [document.querySelector(".lateral nav[role='tablist']"), document.querySelector("nav.rodapenav")]){
+    nav?.addEventListener("pointerover", (e) => {
+      if (e.pointerType === "touch") return;
+      const item = e.target.closest(".navitem");
+      if (item && nav.contains(item)) posicionaLente(nav, item);
+    });
+    nav?.addEventListener("focusin", (e) => {
+      const item = e.target.closest(".navitem");
+      if (item && nav.contains(item)) posicionaLente(nav, item);
+    });
     nav?.addEventListener("pointermove", (e) => {
       const vidro = nav.closest(".lateral") || nav;
       const caixa = vidro.getBoundingClientRect();
@@ -184,6 +199,11 @@ export function ligaNavegacao(){
       const vidro = nav.closest(".lateral") || nav;
       vidro.style.removeProperty("--glx");
       vidro.style.removeProperty("--gly");
+      posicionaLente(nav, nav.querySelector('.navitem[aria-selected="true"]'));
+    });
+    nav?.addEventListener("focusout", (e) => {
+      if (!nav.contains(e.relatedTarget))
+        posicionaLente(nav, nav.querySelector('.navitem[aria-selected="true"]'));
     });
   }
   window.addEventListener("resize", atualizaLentes);
