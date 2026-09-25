@@ -257,18 +257,28 @@ main{max-width:1360px}
 }
 .rodapenav .navitem.glass-focused span{transform:scale(1.04)}
 @media(max-width:900px){
-  .rodapenav{background:rgba(246,255,251,.63);border-color:rgba(255,255,255,.92);
-    backdrop-filter:blur(20px) saturate(1.65);-webkit-backdrop-filter:blur(20px) saturate(1.65);
-    box-shadow:inset 0 1px 0 rgba(255,255,255,.9),0 12px 32px rgba(22,55,41,.17);touch-action:pan-y}
+  .rodapenav{background:rgba(255,255,255,.10);border-color:rgba(255,255,255,.58);
+    backdrop-filter:blur(9px) saturate(1.2);-webkit-backdrop-filter:blur(9px) saturate(1.2);
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.68),0 10px 26px rgba(22,55,41,.12);touch-action:pan-y}
   .rodapenav .navitem{color:#254737;touch-action:pan-y}
   .rodapenav .navitem[aria-selected="true"]{color:#075d3a}
   .rodapenav::before,.rodapenav::after{border-radius:18px}
   .rodapenav.lens-dragging::before,.rodapenav.lens-dragging::after{transition:none;animation:none}
   .rodapenav.lens-dragging .navitem{user-select:none;-webkit-user-select:none}
 }
-:root[data-tema="escuro"] .rodapenav{background:rgba(25,43,35,.69);border-color:rgba(255,255,255,.24)}
-:root[data-tema="escuro"] .rodapenav .navitem{color:#d8efe3}
-:root[data-tema="escuro"] .rodapenav .navitem[aria-selected="true"]{color:#a4ffd0}
+:root[data-tema="escuro"] .rodapenav{background:rgba(5,17,13,.13);border-color:rgba(230,255,244,.28);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.15),0 10px 28px rgba(0,0,0,.18)}
+:root[data-tema="escuro"] .rodapenav .navitem{color:#e2f1e9;text-shadow:0 1px 2px rgba(0,0,0,.35)}
+:root[data-tema="escuro"] .rodapenav .navitem[aria-selected="true"]{color:#ffffff}
+:root[data-tema="escuro"] .rodapenav::before{background:
+  radial-gradient(ellipse at var(--lens-glint-x,32%) -20%,rgba(255,255,255,.12),transparent 58%) padding-box,
+  linear-gradient(155deg,rgba(8,27,20,.80),rgba(17,45,32,.72)) padding-box,
+  conic-gradient(from 195deg,rgba(75,214,155,.25),rgba(245,255,251,.68),rgba(78,155,230,.36),rgba(177,129,221,.34),rgba(245,255,251,.57),rgba(75,214,155,.25)) border-box;
+  box-shadow:inset 0 1px 1px rgba(255,255,255,.27),inset 0 -2px 5px rgba(0,0,0,.12),0 3px 12px rgba(0,0,0,.15);
+  backdrop-filter:blur(3px) saturate(1.35);-webkit-backdrop-filter:blur(3px) saturate(1.35)}
+:root[data-tema="escuro"] .rodapenav::after{background:radial-gradient(ellipse at var(--lens-glint-x,42%) -10%,rgba(255,255,255,.20),transparent 58%);
+  box-shadow:inset 0 1px 1px rgba(255,255,255,.24),inset 1px 0 2px rgba(67,220,183,.13)}
+:root[data-tema="escuro"] .rodapenav .navitem.glass-focused svg{filter:drop-shadow(0 1px 3px rgba(0,0,0,.35))}
 @media(prefers-reduced-motion:reduce){
   .lateral nav::before,.lateral nav::after,.rodapenav::before,.rodapenav::after,
   .lateral nav .navitem svg,.rodapenav .navitem svg,.rodapenav .navitem span{transition:none!important}

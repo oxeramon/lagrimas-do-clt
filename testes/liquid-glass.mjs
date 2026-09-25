@@ -23,13 +23,14 @@ for (const largura of [1440, 390, 320]){
         && parseFloat(barra.style.getPropertyValue("--lens-left")) + parseFloat(barra.style.getPropertyValue("--lens-width")) <= barra.clientWidth
         && parseFloat(barra.style.getPropertyValue("--lens-top")) + parseFloat(barra.style.getPropertyValue("--lens-height")) <= barra.clientHeight,
       clara:!barra.classList.contains("rodapenav") || Number(getComputedStyle(barra).backgroundColor.match(/[\d.]+/g)[0]) > 200,
+      transparente:!barra.classList.contains("rodapenav") || Number(getComputedStyle(barra).backgroundColor.match(/[\d.]+/g)[3]) <= .2,
       vidro:vidro.backdropFilter !== "none" || vidro.webkitBackdropFilter !== "none",
       brilho:brilho.opacity,
       transicao:vidro.transitionDuration,
       overflow:document.documentElement.scrollWidth - document.documentElement.clientWidth,
     };
   }, { nav, alvo });
-  if (visual.selecionado !== "true" || !visual.alinhado || !visual.contida || !visual.clara || !visual.vidro
+  if (visual.selecionado !== "true" || !visual.alinhado || !visual.contida || !visual.clara || !visual.transparente || !visual.vidro
       || visual.brilho !== "1" || visual.overflow > 1)
     falhas.push(`${largura}px: ${JSON.stringify(visual)}`);
 
@@ -72,6 +73,15 @@ for (const largura of [1440, 390, 320]){
       if (await p.locator("#navm-transacoes").getAttribute("aria-selected") !== "true")
         falhas.push("390px: gesto de toque não selecionou Transações");
       await cdp.detach();
+      await p.evaluate(() => document.documentElement.dataset.tema = "escuro");
+      await p.waitForTimeout(380);
+      const escuro = await p.locator("nav.rodapenav").evaluate((barra) => ({
+        alpha:Number(getComputedStyle(barra).backgroundColor.match(/[\d.]+/g)[3]),
+        tinta:getComputedStyle(barra.querySelector('.navitem[aria-selected="true"]')).color,
+        lente:getComputedStyle(barra,"::before").backgroundImage,
+      }));
+      if (escuro.alpha > .2 || escuro.tinta !== "rgb(255, 255, 255)" || !escuro.lente.includes("rgba(8, 27, 20, 0.8)"))
+        falhas.push(`390px: vidro escuro sem transparência ou contraste (${JSON.stringify(escuro)})`);
     }
   }
   await p.emulateMedia({ reducedMotion:"reduce" });
