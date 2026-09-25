@@ -184,6 +184,23 @@ function posicionaLente(nav, ativo){
   relogiosDaLente.set(nav, setTimeout(() => nav.classList.remove("lens-moving"), 560));
 }
 
+function sincronizaLente(nav){
+  if (!nav) return;
+  const ativo = nav.querySelector('.navitem[aria-selected="true"]');
+  if (ativo){
+    posicionaLente(nav, ativo);
+    if (!nav.classList.contains("rodapenav")){
+      const painel = nav.closest(".lateral")?.getBoundingClientRect();
+      const item = ativo.getBoundingClientRect();
+      nav.style.setProperty("--lens-opacity", painel && item.top >= painel.top + 6 && item.bottom <= painel.bottom - 6 ? "1" : "0");
+    }
+  }
+  else {
+    nav.style.setProperty("--lens-opacity", "0");
+    nav.querySelector(".glass-focused")?.classList.remove("glass-focused");
+  }
+}
+
 function arrastaLente(nav, evento){
   const estado = arrastesDaLente.get(nav);
   if (!estado || estado.id !== evento.pointerId) return;
@@ -209,8 +226,8 @@ function arrastaLente(nav, evento){
 function atualizaLentes(){
   const lateral = document.querySelector(".lateral nav[role='tablist']");
   const movel = document.querySelector("nav.rodapenav");
-  posicionaLente(lateral, lateral?.querySelector('.navitem[aria-selected="true"]'));
-  posicionaLente(movel, movel?.querySelector('.navitem[aria-selected="true"]'));
+  sincronizaLente(lateral);
+  sincronizaLente(movel);
 }
 
 /* o mesmo estado alimenta a lateral, o rodapé, a pasta "Mais" e o atalho do
@@ -276,11 +293,13 @@ export function ligaNavegacao(){
   montaRodapeMovel();
   for (const nav of [document.querySelector(".lateral nav[role='tablist']"), document.querySelector("nav.rodapenav")]){
     nav?.addEventListener("pointerover", (e) => {
+      if (!nav.classList.contains("rodapenav")) return;
       if (e.pointerType === "touch" || arrastesDaLente.has(nav)) return;
       const item = e.target.closest(".navitem");
       if (item && nav.contains(item)) posicionaLente(nav, item);
     });
     nav?.addEventListener("focusin", (e) => {
+      if (!nav.classList.contains("rodapenav")) return;
       const item = e.target.closest(".navitem");
       if (item && nav.contains(item)) posicionaLente(nav, item);
     });
@@ -304,7 +323,7 @@ export function ligaNavegacao(){
       const vidro = nav.closest(".lateral") || nav;
       vidro.style.removeProperty("--glx");
       vidro.style.removeProperty("--gly");
-      posicionaLente(nav, nav.querySelector('.navitem[aria-selected="true"]'));
+      sincronizaLente(nav);
     });
     if (nav?.classList.contains("rodapenav")){
       nav.addEventListener("pointerdown", (e) => {
@@ -330,7 +349,7 @@ export function ligaNavegacao(){
       nav.addEventListener("pointercancel", () => {
         arrastesDaLente.delete(nav);
         nav.classList.remove("lens-dragging");
-        posicionaLente(nav, nav.querySelector('.navitem[aria-selected="true"]'));
+        sincronizaLente(nav);
       });
       nav.addEventListener("click", (e) => {
         if (nav.dataset.suprimirClique && e.isTrusted){
@@ -341,11 +360,13 @@ export function ligaNavegacao(){
     }
     nav?.addEventListener("focusout", (e) => {
       if (!nav.contains(e.relatedTarget))
-        posicionaLente(nav, nav.querySelector('.navitem[aria-selected="true"]'));
+        sincronizaLente(nav);
     });
   }
   window.addEventListener("resize", atualizaLentes);
   window.addEventListener("resize", agendaContrasteRodape);
+  const lateral = document.querySelector(".lateral");
+  lateral?.addEventListener("scroll", () => sincronizaLente(lateral.querySelector("nav")), {passive:true});
   document.addEventListener("scroll", agendaContrasteRodape, { passive:true, capture:true });
   const conteudo = document.querySelector("main");
   if (conteudo) new MutationObserver(agendaContrasteRodape)
