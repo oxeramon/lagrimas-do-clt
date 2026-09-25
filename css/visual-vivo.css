@@ -253,29 +253,39 @@ main{max-width:1360px}
   transition:transform 360ms cubic-bezier(.2,.8,.2,1),filter 360ms;
 }
 .lateral nav .navitem.glass-focused svg,.rodapenav .navitem.glass-focused svg{
-  transform:scale(1.16);filter:drop-shadow(0 2px 4px rgba(27,91,65,.20));
+  transform:scale(1.05);filter:drop-shadow(0 1px 2px rgba(27,91,65,.14));
 }
-.rodapenav .navitem.glass-focused span{transform:scale(1.04)}
+.rodapenav .navitem.glass-focused span{transform:none}
 @media(max-width:900px){
   .rodapenav{background:rgba(255,255,255,.10);border-color:rgba(255,255,255,.58);
     backdrop-filter:blur(9px) saturate(1.2);-webkit-backdrop-filter:blur(9px) saturate(1.2);
     box-shadow:inset 0 1px 0 rgba(255,255,255,.68),0 10px 26px rgba(22,55,41,.12);touch-action:pan-y}
-  .rodapenav .navitem{color:#254737;touch-action:pan-y}
+  .rodapenav .navitem{color:#254737;touch-action:pan-y;transition:transform var(--t-medio) var(--curva)}
   .rodapenav .navitem[aria-selected="true"]{color:#075d3a}
-  .rodapenav::before,.rodapenav::after{border-radius:18px}
+  .rodapenav::before,.rodapenav::after{border-radius:50%}
+  .rodapenav::before{background:
+    linear-gradient(145deg,rgba(255,255,255,.32),rgba(218,247,235,.15)) padding-box,
+    linear-gradient(145deg,rgba(255,255,255,.9),rgba(67,155,123,.27),rgba(255,255,255,.72)) border-box;
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.62),0 3px 10px rgba(9,35,25,.10)}
+  .rodapenav::after{background:radial-gradient(ellipse at var(--lens-glint-x,42%) 0%,rgba(255,255,255,.28),transparent 65%);
+    box-shadow:none}
   .rodapenav.lens-dragging::before,.rodapenav.lens-dragging::after{transition:none;animation:none}
   .rodapenav.lens-dragging .navitem{user-select:none;-webkit-user-select:none}
 }
+:root:not([data-tema="escuro"]) .rodapenav .navitem.sobre-escuro{color:#f4fff8;text-shadow:0 1px 3px rgba(0,0,0,.50)}
+:root:not([data-tema="escuro"]) .rodapenav.lente-sobre-escuro{background:rgba(5,18,12,.14);border-color:rgba(255,255,255,.32)}
 :root[data-tema="escuro"] .rodapenav{background:rgba(5,17,13,.13);border-color:rgba(230,255,244,.28);
   box-shadow:inset 0 1px 0 rgba(255,255,255,.15),0 10px 28px rgba(0,0,0,.18)}
 :root[data-tema="escuro"] .rodapenav .navitem{color:#e2f1e9;text-shadow:0 1px 2px rgba(0,0,0,.35)}
 :root[data-tema="escuro"] .rodapenav .navitem[aria-selected="true"]{color:#ffffff}
+:root:not([data-tema="escuro"]) .rodapenav.lente-sobre-escuro::before,
 :root[data-tema="escuro"] .rodapenav::before{background:
   radial-gradient(ellipse at var(--lens-glint-x,32%) -20%,rgba(255,255,255,.12),transparent 58%) padding-box,
   linear-gradient(155deg,rgba(8,27,20,.80),rgba(17,45,32,.72)) padding-box,
   conic-gradient(from 195deg,rgba(75,214,155,.25),rgba(245,255,251,.68),rgba(78,155,230,.36),rgba(177,129,221,.34),rgba(245,255,251,.57),rgba(75,214,155,.25)) border-box;
   box-shadow:inset 0 1px 1px rgba(255,255,255,.27),inset 0 -2px 5px rgba(0,0,0,.12),0 3px 12px rgba(0,0,0,.15);
   backdrop-filter:blur(3px) saturate(1.35);-webkit-backdrop-filter:blur(3px) saturate(1.35)}
+:root:not([data-tema="escuro"]) .rodapenav.lente-sobre-escuro::after,
 :root[data-tema="escuro"] .rodapenav::after{background:radial-gradient(ellipse at var(--lens-glint-x,42%) -10%,rgba(255,255,255,.20),transparent 58%);
   box-shadow:inset 0 1px 1px rgba(255,255,255,.24),inset 1px 0 2px rgba(67,220,183,.13)}
 :root[data-tema="escuro"] .rodapenav .navitem.glass-focused svg{filter:drop-shadow(0 1px 3px rgba(0,0,0,.35))}
@@ -290,4 +300,8 @@ main{max-width:1360px}
   .rodapenav{background:var(--surface);border-color:var(--ink-2)}
   .rodapenav .navitem{color:var(--ink)}
   .rodapenav .navitem[aria-selected="true"]{color:var(--brand)}
+  :root:not([data-tema="escuro"]) .rodapenav.lente-sobre-escuro{background:var(--surface);border-color:var(--ink-2)}
+  :root:not([data-tema="escuro"]) .rodapenav .navitem.sobre-escuro{color:var(--ink);text-shadow:none}
+  :root:not([data-tema="escuro"]) .rodapenav.lente-sobre-escuro::before,
+  :root[data-tema="escuro"] .rodapenav::before{background:var(--brand-soft);border-color:var(--brand);backdrop-filter:none;-webkit-backdrop-filter:none;box-shadow:none}
 }
