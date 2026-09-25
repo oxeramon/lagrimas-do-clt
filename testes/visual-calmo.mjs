@@ -26,7 +26,7 @@ for (const largura of [1440, 900, 600, 390, 320]){
         painel: !painel.hidden,
         largura: document.documentElement.scrollWidth - document.documentElement.clientWidth,
         lente: !ativo || (lente.opacity === "1" && Math.abs(x - (movel
-          ? alvo.left - caixa.left + 5
+          ? alvo.left - caixa.left + 7
           : alvo.left - caixa.left)) < 2),
       };
     }, aba.id);
@@ -59,9 +59,13 @@ for (const largura of [1440, 900, 600, 390, 320]){
       return { aberta:corpo.closest("dialog").open, topo:r.top, base:r.bottom, altura:innerHeight,
         colunas:getComputedStyle(document.getElementById("folhaOpcoes")).gridTemplateColumns.split(" ").length,
         opcoes:document.getElementById("folhaOpcoes").children.length,
-        expandido:document.getElementById("navm-mais").getAttribute("aria-expanded") };
+        expandido:document.getElementById("navm-mais").getAttribute("aria-expanded"),
+        vidro:getComputedStyle(corpo).backgroundColor === "rgba(0, 0, 0, 0)"
+          && getComputedStyle(corpo).backgroundImage.includes("rgba(255, 255, 255, 0.58)")
+          && parseFloat(getComputedStyle(corpo).backdropFilter.match(/blur\(([\d.]+)px\)/)?.[1]) <= 8,
+        fundo:parseFloat(getComputedStyle(corpo.closest("dialog"),"::backdrop").backdropFilter.match(/blur\(([\d.]+)px\)/)?.[1]) <= 6 };
     });
-    if (!folha.aberta || folha.topo < 0 || folha.base > folha.altura || folha.colunas !== 3 || folha.opcoes !== 8 || folha.expandido !== "true")
+    if (!folha.aberta || folha.topo < 0 || folha.base > folha.altura || folha.colunas !== 3 || folha.opcoes !== 8 || folha.expandido !== "true" || !folha.vidro || !folha.fundo)
       falhas.push(`${largura}px pasta Mais: ${JSON.stringify(folha)}`);
     await p.locator("#navs-assinaturas").click();
     await p.waitForTimeout(220);
