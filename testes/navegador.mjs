@@ -702,8 +702,15 @@ export function createClient(){
       onAuthStateChange:(cb)=>{ cb("SIGNED_IN",{user:{id:"u1"}});
         return { data:{ subscription:{ unsubscribe(){} } } }; },
       getSession:()=>Promise.resolve({ data:{ session:{ user:{ id:"u1" } } } }),
+      getUser:()=>Promise.resolve({ data:{ user:{ id:"u1", email:"teste@example.com", user_metadata:{} } }, error:null }),
+      updateUser:(mudancas)=>Promise.resolve({ data:{ user:{ id:"u1", email:mudancas.email || "teste@example.com", user_metadata:mudancas.data || {} } }, error:null }),
       signInWithPassword:()=>Promise.resolve({ error:null }),
-      signOut:()=>Promise.resolve({}) } };
+      signOut:()=>Promise.resolve({}) },
+    storage:{ from:()=>({
+      download:()=>Promise.resolve({data:null,error:{statusCode:404,message:"Object not found"}}),
+      upload:()=>Promise.resolve({data:{path:"u1/avatar"},error:null}),
+      remove:()=>Promise.resolve({data:[],error:null})
+    }) } };
 }
 
 globalThis.__SB = createClient();`;
