@@ -24,7 +24,7 @@
  *   painel      <section id="p-<id>">
  *   lateral     <button id="nav-<id>">        (desktop)
  *   rodapé      <button id="navm-<id>">       (celular)
- *   folha Mais  <button id="navs-<id>">       (celular, dentro do sheet)
+ *   pasta Mais  <button id="navs-<id>">       (celular, dentro da pasta)
  *   atalho      <button id="nav-<id>M">       (topo do celular, opcional)
  * Qualquer um pode faltar: quem não existe é ignorado.
  */
@@ -38,7 +38,7 @@ import { $ } from "../core/dom.js";
    dizia uma coisa e o markup dizia outra. Agora só existe uma verdade. */
 export const ABAS = [
   { id: "painel",      rotulo: "Início",      grupo: "VISÃO",          rodape: true,
-    icone: '<path d="M3 3h7v8H3zM14 3h7v5h-7zM14 12h7v9h-7zM3 15h7v6H3z"/>' },
+    icone: '<path d="m3 10 9-7 9 7v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1z"/><path d="M9 21v-7h6v7"/>' },
   /* O id continua `mes`: ele é conhecido pelo index.html, pelos testes e pela
      navegação, e renomear um id para trocar um RÓTULO é pagar caro por nada.
      O que a pessoa lê mudou; o que o código chama, não. */
@@ -94,6 +94,7 @@ export const quandoTrocarDeAba = (fn) => { aoTrocar.push(fn); };
 const alvosDe = (id) => [$("nav-" + id), $("navm-" + id), $("navs-" + id), $("nav-" + id + "M")];
 const relogiosDaLente = new WeakMap();
 const arrastesDaLente = new WeakMap();
+const molasDaLente = new WeakMap();
 let quadroDeContraste = 0;
 
 /* A barra flutua sobre cartões claros e sobre o resumo verde. Cada botão
@@ -130,6 +131,34 @@ function agendaContrasteRodape(){
   });
 }
 
+/* O indicador do rodapé se move por uma mola real em JavaScript. Durante o
+   arraste ele segue o dedo sem atraso; ao soltar, assenta na aba escolhida. */
+function moveLenteMovel(nav, destino){
+  const anterior = molasDaLente.get(nav);
+  if (anterior?.frame) cancelAnimationFrame(anterior.frame);
+  const atual = parseFloat(nav.style.getPropertyValue("--lens-left"));
+  const instantaneo = !Number.isFinite(atual) || !nav.style.getPropertyValue("--lens-opacity")
+    || matchMedia("(prefers-reduced-motion: reduce)").matches;
+  if (instantaneo){
+    nav.style.setProperty("--lens-left", `${destino}px`);
+    molasDaLente.set(nav, { x:destino, velocidade:0, frame:0 });
+    return;
+  }
+  const mola = { x:atual, velocidade:anterior?.velocidade || 0, frame:0 };
+  molasDaLente.set(nav, mola);
+  const passo = () => {
+    mola.velocidade = (mola.velocidade + (destino - mola.x) * .19) * .76;
+    mola.x += mola.velocidade;
+    if (Math.abs(destino - mola.x) < .2 && Math.abs(mola.velocidade) < .2){
+      mola.x = destino;
+      mola.velocidade = 0;
+      mola.frame = 0;
+    } else mola.frame = requestAnimationFrame(passo);
+    nav.style.setProperty("--lens-left", `${mola.x}px`);
+  };
+  mola.frame = requestAnimationFrame(passo);
+}
+
 /* A lente é uma única peça que acompanha a aba escolhida. A posição vem do
    botão real, inclusive quando a largura do celular ou o texto muda. */
 function posicionaLente(nav, ativo){
@@ -137,16 +166,14 @@ function posicionaLente(nav, ativo){
   const origem = nav.getBoundingClientRect();
   const alvo = ativo.getBoundingClientRect();
   const movel = nav.classList.contains("rodapenav");
-  const icone = movel ? ativo.querySelector("svg")?.getBoundingClientRect() : null;
-  const diametro = 30;
-  nav.style.setProperty("--lens-left", `${movel
-    ? icone.left + icone.width / 2 - origem.left - diametro / 2
-    : alvo.left - origem.left + nav.scrollLeft}px`);
-  nav.style.setProperty("--lens-top", `${movel
-    ? Math.max(3, icone.top - origem.top - 7)
-    : alvo.top - origem.top + nav.scrollTop}px`);
-  nav.style.setProperty("--lens-width", `${movel ? diametro : alvo.width}px`);
-  nav.style.setProperty("--lens-height", `${movel ? diametro : alvo.height}px`);
+  const margem = movel ? 5 : 0;
+  const esquerda = alvo.left - origem.left + nav.scrollLeft + margem;
+  nav.style.setProperty("--lens-target", `${esquerda}px`);
+  if (movel) moveLenteMovel(nav, esquerda);
+  else nav.style.setProperty("--lens-left", `${esquerda}px`);
+  nav.style.setProperty("--lens-top", `${movel ? margem : alvo.top - origem.top + nav.scrollTop}px`);
+  nav.style.setProperty("--lens-width", `${alvo.width - margem * 2}px`);
+  nav.style.setProperty("--lens-height", `${movel ? origem.height - margem * 2 : alvo.height}px`);
   nav.style.setProperty("--lens-opacity", "1");
   nav.querySelector(".glass-focused")?.classList.remove("glass-focused");
   ativo.classList.add("glass-focused");
@@ -162,7 +189,11 @@ function arrastaLente(nav, evento){
   const caixa = nav.getBoundingClientRect();
   const largura = parseFloat(nav.style.getPropertyValue("--lens-width"));
   const centro = Math.max(5 + largura / 2, Math.min(caixa.width - 5 - largura / 2, evento.clientX - caixa.left));
-  nav.style.setProperty("--lens-left", `${centro - largura / 2}px`);
+  const anterior = molasDaLente.get(nav);
+  if (anterior?.frame) cancelAnimationFrame(anterior.frame);
+  const esquerda = centro - largura / 2;
+  molasDaLente.set(nav, { x:esquerda, velocidade:Math.max(-14,Math.min(14,esquerda - (anterior?.x ?? esquerda))), frame:0 });
+  nav.style.setProperty("--lens-left", `${esquerda}px`);
   nav.style.setProperty("--lens-glint-x", `${Math.round(50 + Math.max(-25, Math.min(25, (evento.clientX - estado.ultimoX) * 2)))}%`);
   estado.ultimoX = evento.clientX;
   estado.alvo = [...nav.querySelectorAll(".navitem")].reduce((maisProximo, item) =>
@@ -181,7 +212,7 @@ function atualizaLentes(){
   posicionaLente(movel, movel?.querySelector('.navitem[aria-selected="true"]'));
 }
 
-/* o mesmo estado alimenta a lateral, o rodapé, a folha "Mais" e o atalho do
+/* o mesmo estado alimenta a lateral, o rodapé, a pasta "Mais" e o atalho do
    topo; um só lugar decide quem está selecionado */
 export function vaiParaAba(destino){
   for (const { id } of ABAS){
@@ -218,7 +249,7 @@ export function montaLateral(){
 }
 
 /* O rodapé do celular: as quatro do registro, e o "Mais" que já está no HTML
-   porque ele não é uma aba -- é uma folha. */
+   porque ele não é uma aba -- abre a pasta de seções. */
 export function montaRodapeMovel(){
   const nav = document.querySelector("nav.rodapenav");
   const mais = nav && nav.querySelector("#navm-mais");
@@ -279,6 +310,8 @@ export function ligaNavegacao(){
         if (!e.isPrimary || (e.pointerType === "mouse" && e.button !== 0)) return;
         const item = e.target.closest(".navitem");
         if (!item || !nav.contains(item)) return;
+        const mola = molasDaLente.get(nav);
+        if (mola?.frame) cancelAnimationFrame(mola.frame);
         arrastesDaLente.set(nav, {id:e.pointerId,inicioX:e.clientX,ultimoX:e.clientX,alvo:item,moveu:false});
         nav.setPointerCapture(e.pointerId);
       });
