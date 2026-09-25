@@ -257,9 +257,10 @@ main{max-width:1360px}
 }
 .rodapenav .navitem.glass-focused span{transform:none}
 @media(max-width:900px){
-  .rodapenav{border-radius:999px;background:rgba(255,255,255,.13);border-color:rgba(255,255,255,.48);
-    backdrop-filter:blur(16px) saturate(1.3);-webkit-backdrop-filter:blur(16px) saturate(1.3);
-    box-shadow:inset 0 1px 0 rgba(255,255,255,.55),0 10px 26px rgba(22,55,41,.12);touch-action:pan-y}
+  .rodapenav{border-radius:999px;background:linear-gradient(165deg,rgba(255,255,255,.15),rgba(255,255,255,.035) 46%,rgba(255,255,255,.08));
+    border-color:rgba(255,255,255,.62);backdrop-filter:blur(7px) saturate(1.45);
+    -webkit-backdrop-filter:blur(7px) saturate(1.45);
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.73),inset 0 -1px 0 rgba(255,255,255,.19),0 8px 24px rgba(22,55,41,.11);touch-action:pan-y}
   .rodapenav .navitem,.rodapenav .navitem:hover{display:flex;align-items:center;justify-content:center;
     flex-direction:row;gap:0;padding:0;background:transparent;color:#1a3025;touch-action:pan-y;
     transition:transform var(--t-medio) var(--curva)}
@@ -268,27 +269,28 @@ main{max-width:1360px}
   .rodapenav .navitem span{position:absolute;width:1px;height:1px;padding:0;margin:-1px;
     overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
   .rodapenav::before,.rodapenav::after{border-radius:999px;animation:none}
-  .rodapenav::before{border:1px solid rgba(255,255,255,.38);background:rgba(29,50,40,.085);
-    box-shadow:inset 0 1px 0 rgba(255,255,255,.34),0 2px 8px rgba(12,33,22,.08);
-    backdrop-filter:blur(5px) saturate(1.2);-webkit-backdrop-filter:blur(5px) saturate(1.2);
+  .rodapenav::before{border:1px solid rgba(255,255,255,.52);
+    background:linear-gradient(155deg,rgba(255,255,255,.22),rgba(255,255,255,.045) 52%,rgba(255,255,255,.11));
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.61),inset 0 -1px 0 rgba(255,255,255,.13);
+    backdrop-filter:blur(2px) saturate(1.65) contrast(1.08);-webkit-backdrop-filter:blur(2px) saturate(1.65) contrast(1.08);
     transition:opacity 180ms ease,background 180ms ease}
-  .rodapenav::after{background:linear-gradient(165deg,rgba(255,255,255,.18),transparent 55%);
+  .rodapenav::after{background:linear-gradient(160deg,rgba(255,255,255,.20),transparent 37%);
     box-shadow:none;transition:opacity 180ms ease}
   .rodapenav.lens-moving::before,.rodapenav.lens-moving::after{animation:none;
-    box-shadow:inset 0 1px 0 rgba(255,255,255,.34),0 3px 11px rgba(12,33,22,.10)}
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.61),inset 0 -1px 0 rgba(255,255,255,.13)}
   .rodapenav.lens-dragging::before,.rodapenav.lens-dragging::after{transition:none;animation:none}
   .rodapenav.lens-dragging .navitem{user-select:none;-webkit-user-select:none}
 }
 :root:not([data-tema="escuro"]) .rodapenav .navitem.sobre-escuro{color:#f4fff8;text-shadow:0 1px 3px rgba(0,0,0,.50)}
-:root:not([data-tema="escuro"]) .rodapenav.lente-sobre-escuro{background:rgba(5,18,12,.18);border-color:rgba(255,255,255,.30)}
-:root[data-tema="escuro"] .rodapenav{background:rgba(5,17,13,.13);border-color:rgba(230,255,244,.28);
-  box-shadow:inset 0 1px 0 rgba(255,255,255,.15),0 10px 28px rgba(0,0,0,.18)}
+:root:not([data-tema="escuro"]) .rodapenav.lente-sobre-escuro{background:linear-gradient(165deg,rgba(255,255,255,.16),rgba(255,255,255,.035) 46%,rgba(255,255,255,.09));border-color:rgba(255,255,255,.46)}
+:root[data-tema="escuro"] .rodapenav{background:linear-gradient(165deg,rgba(255,255,255,.12),rgba(255,255,255,.025) 46%,rgba(255,255,255,.055));border-color:rgba(230,255,244,.38);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.31),inset 0 -1px 0 rgba(255,255,255,.10),0 10px 28px rgba(0,0,0,.15)}
 :root[data-tema="escuro"] .rodapenav .navitem{color:#e2f1e9;text-shadow:0 1px 2px rgba(0,0,0,.35)}
 :root[data-tema="escuro"] .rodapenav .navitem[aria-selected="true"]{color:#ffffff}
 :root:not([data-tema="escuro"]) .rodapenav.lente-sobre-escuro::before,
-:root[data-tema="escuro"] .rodapenav::before{background:rgba(224,245,233,.13);border-color:rgba(255,255,255,.13);
-  box-shadow:inset 0 1px 0 rgba(255,255,255,.12),0 2px 9px rgba(0,0,0,.11);
-  backdrop-filter:blur(5px) saturate(1.2);-webkit-backdrop-filter:blur(5px) saturate(1.2)}
+:root[data-tema="escuro"] .rodapenav::before{background:linear-gradient(155deg,rgba(255,255,255,.17),rgba(255,255,255,.035) 52%,rgba(255,255,255,.09));border-color:rgba(255,255,255,.30);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.34),inset 0 -1px 0 rgba(255,255,255,.09);
+  backdrop-filter:blur(2px) saturate(1.6) contrast(1.08);-webkit-backdrop-filter:blur(2px) saturate(1.6) contrast(1.08)}
 :root:not([data-tema="escuro"]) .rodapenav.lente-sobre-escuro::after,
 :root[data-tema="escuro"] .rodapenav::after{background:linear-gradient(165deg,rgba(255,255,255,.11),transparent 55%);box-shadow:none}
 :root[data-tema="escuro"] .rodapenav .navitem.glass-focused svg{filter:drop-shadow(0 1px 3px rgba(0,0,0,.35))}
@@ -296,14 +298,15 @@ main{max-width:1360px}
 /* O menu Mais se abre como uma pasta de vidro no centro da tela. */
 .folha{position:fixed;inset:0;width:100vw;height:100dvh;max-width:none;max-height:100dvh;margin:0;overflow:hidden}
 .folha[open]{display:grid;place-items:center}
-.folha::backdrop{background:rgba(9,29,19,.25);backdrop-filter:blur(15px) saturate(.85);
-  -webkit-backdrop-filter:blur(15px) saturate(.85)}
+.folha::backdrop{background:rgba(9,29,19,.12);backdrop-filter:blur(6px) saturate(1.05);
+  -webkit-backdrop-filter:blur(6px) saturate(1.05)}
 .folha .corpo{width:min(420px,calc(100vw - 32px));max-height:calc(100dvh - 42px);overflow-y:auto;
-  margin:0;padding:20px 18px 22px;border:1px solid rgba(255,255,255,.72);border-radius:32px;
-  background:rgba(248,255,250,.48);backdrop-filter:blur(28px) saturate(1.45);
-  -webkit-backdrop-filter:blur(28px) saturate(1.45);
-  box-shadow:inset 0 1px 0 rgba(255,255,255,.62),0 25px 75px rgba(10,35,22,.20);
+  margin:0;padding:20px 18px 22px;border:1px solid rgba(255,255,255,.78);border-radius:32px;
+  background:linear-gradient(145deg,rgba(255,255,255,.58),rgba(245,255,249,.42) 48%,rgba(235,250,244,.58));
+  backdrop-filter:blur(7px) saturate(1.6);-webkit-backdrop-filter:blur(7px) saturate(1.6);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.82),inset 1px 0 0 rgba(255,255,255,.28),0 25px 75px rgba(10,35,22,.16);
   transform-origin:80% 90%;animation:pasta-abre 390ms cubic-bezier(.2,.9,.2,1) both}
+.folha .corpo::after{background:radial-gradient(15rem 10rem at 8% 0%,rgba(255,255,255,.28),transparent 80%),radial-gradient(13rem 14rem at 97% 85%,rgba(130,226,194,.10),transparent 80%)}
 @keyframes pasta-abre{from{opacity:0;transform:translateY(24px) scale(.86);filter:blur(7px)}
   to{opacity:1;transform:none;filter:none}}
 @keyframes pasta-fecha{from{opacity:1;transform:none}to{opacity:0;transform:translateY(16px) scale(.91)}}
@@ -327,9 +330,9 @@ main{max-width:1360px}
   background:color-mix(in srgb,var(--brand-soft) 58%,transparent)}
 .folha .opcoes svg{width:25px;height:25px;stroke-width:1.7}
 .folha .opcoes .pasta-rotulo{font-size:11.5px;line-height:1.2;white-space:nowrap;color:var(--ink)}
-:root[data-tema="escuro"] .folha::backdrop{background:rgba(0,0,0,.37)}
-:root[data-tema="escuro"] .folha .corpo{background:rgba(25,41,32,.63);border-color:rgba(255,255,255,.21);
-  box-shadow:inset 0 1px 0 rgba(255,255,255,.15),0 25px 75px rgba(0,0,0,.38)}
+:root[data-tema="escuro"] .folha::backdrop{background:rgba(0,0,0,.18)}
+:root[data-tema="escuro"] .folha .corpo{background:linear-gradient(145deg,rgba(120,145,130,.34),rgba(35,54,43,.31) 52%,rgba(76,102,87,.28));border-color:rgba(255,255,255,.32);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.38),inset 1px 0 0 rgba(255,255,255,.12),0 25px 75px rgba(0,0,0,.25)}
 :root[data-tema="escuro"] .pasta-cabecalho button{background:rgba(255,255,255,.10);border-color:rgba(255,255,255,.18)}
 :root[data-tema="escuro"] .folha .opcoes .pasta-icone{background:rgba(255,255,255,.12);border-color:rgba(255,255,255,.18);
   box-shadow:inset 0 1px 0 rgba(255,255,255,.14),0 4px 11px rgba(0,0,0,.17)}
