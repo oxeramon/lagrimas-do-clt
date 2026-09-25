@@ -24,6 +24,20 @@ for (const largura of [1440, 390]){
   await p.locator("#perfilSalvarEmail").click();
   await p.getByText(/Confira sua caixa de entrada/).waitFor();
   confere(`${largura}px: alteração de e-mail pede confirmação`, await p.locator("#perfilEmailMensagem").isVisible());
+  const png = await p.evaluate(() => {
+    const canvas = document.createElement("canvas");
+    canvas.width = canvas.height = 2;
+    canvas.getContext("2d").fillRect(0, 0, 2, 2);
+    return canvas.toDataURL("image/png").split(",")[1];
+  });
+  await p.locator("#perfilArquivo").setInputFiles({
+    name: "foto.png", mimeType: "image/png", buffer: Buffer.from(png, "base64"),
+  });
+  await p.getByText("Foto atualizada.").waitFor();
+  confere(`${largura}px: foto exibida`, await p.locator("#perfilImagem").isVisible());
+  await p.locator("#perfilRemoverFoto").click();
+  await p.getByText("Foto removida.").waitFor();
+  confere(`${largura}px: foto removida`, await p.locator("#perfilImagem").isHidden());
   confere(`${largura}px: sem erro de página`, erros.length === 0);
   await p.close();
 }
