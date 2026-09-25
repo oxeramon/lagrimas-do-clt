@@ -19,27 +19,32 @@ for (const largura of [1440, 390, 320]){
       selecionado:item.getAttribute("aria-selected"),
       alinhado:Math.abs(parseFloat(barra.style.getPropertyValue("--lens-left"))
         - (barra.classList.contains("rodapenav")
-          ? item.getBoundingClientRect().left - barra.getBoundingClientRect().left + 5
+          ? item.getBoundingClientRect().left - barra.getBoundingClientRect().left + 7
           : item.getBoundingClientRect().left - barra.getBoundingClientRect().left)) < 2,
       contida:parseFloat(barra.style.getPropertyValue("--lens-left")) >= 0
         && parseFloat(barra.style.getPropertyValue("--lens-left")) + parseFloat(barra.style.getPropertyValue("--lens-width")) <= barra.clientWidth
         && parseFloat(barra.style.getPropertyValue("--lens-top")) + parseFloat(barra.style.getPropertyValue("--lens-height")) <= barra.clientHeight,
       proporcional:!barra.classList.contains("rodapenav")
-        || (Math.abs(parseFloat(barra.style.getPropertyValue("--lens-width")) - item.getBoundingClientRect().width + 10) < 1
-          && Math.abs(parseFloat(barra.style.getPropertyValue("--lens-height")) - barra.getBoundingClientRect().height + 10) < 1),
+        || (Math.abs(parseFloat(barra.style.getPropertyValue("--lens-width")) - item.getBoundingClientRect().width + 14) < 1
+          && Math.abs(parseFloat(barra.style.getPropertyValue("--lens-height")) - barra.getBoundingClientRect().height + 14) < 1
+          && Math.abs(parseFloat(barra.style.getPropertyValue("--lens-top")) - 7) < 1),
       soIcones:!barra.classList.contains("rodapenav") || [...barra.querySelectorAll(".navitem")].every((botao) => {
         const rotulo = botao.querySelector("span"), estilo = getComputedStyle(rotulo);
         return estilo.width === "1px" && estilo.position === "absolute" && botao.querySelector("svg")?.getBoundingClientRect().width >= 24;
       }),
-      clara:!barra.classList.contains("rodapenav") || Number(getComputedStyle(barra).backgroundColor.match(/[\d.]+/g)[0]) > 200,
+      clara:!barra.classList.contains("rodapenav") || getComputedStyle(barra).backgroundImage.includes("rgba(255, 255, 255"),
       transparente:!barra.classList.contains("rodapenav") || Number(getComputedStyle(barra).backgroundColor.match(/[\d.]+/g)[3]) <= .2,
+      bordasIguais:!barra.classList.contains("rodapenav") || Math.abs(parseFloat(barra.style.getPropertyValue("--lens-top"))
+        - (barra.getBoundingClientRect().height - parseFloat(barra.style.getPropertyValue("--lens-top"))
+          - parseFloat(barra.style.getPropertyValue("--lens-height")))) < 1,
+      vidroLeve:!barra.classList.contains("rodapenav") || parseFloat(getComputedStyle(barra).backdropFilter.match(/blur\(([\d.]+)px\)/)?.[1]) <= 8,
       vidro:vidro.backdropFilter !== "none" || vidro.webkitBackdropFilter !== "none",
       brilho:brilho.opacity,
       transicao:vidro.transitionDuration,
       overflow:document.documentElement.scrollWidth - document.documentElement.clientWidth,
     };
   }, { nav, alvo });
-  if (visual.selecionado !== "true" || !visual.alinhado || !visual.contida || !visual.proporcional || !visual.soIcones || !visual.clara || !visual.transparente || !visual.vidro
+  if (visual.selecionado !== "true" || !visual.alinhado || !visual.contida || !visual.proporcional || !visual.soIcones || !visual.clara || !visual.transparente || !visual.bordasIguais || !visual.vidroLeve || !visual.vidro
       || visual.brilho !== "1" || visual.overflow > 1)
     falhas.push(`${largura}px: ${JSON.stringify(visual)}`);
 
@@ -107,7 +112,7 @@ for (const largura of [1440, 390, 320]){
         tinta:getComputedStyle(barra.querySelector('.navitem[aria-selected="true"]')).color,
         lente:getComputedStyle(barra,"::before").backgroundColor,
       }));
-      if (escuro.alpha > .2 || escuro.tinta !== "rgb(255, 255, 255)" || !escuro.lente.includes("rgba(224, 245, 233, 0.13)"))
+      if (escuro.alpha > .2 || escuro.tinta !== "rgb(255, 255, 255)" || escuro.lente !== "rgba(0, 0, 0, 0)")
         falhas.push(`390px: vidro escuro sem transparência ou contraste (${JSON.stringify(escuro)})`);
     }
   }
