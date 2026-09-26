@@ -37,14 +37,14 @@ for (const largura of [1440, 390, 320]){
       bordasIguais:!barra.classList.contains("rodapenav") || Math.abs(parseFloat(barra.style.getPropertyValue("--lens-top"))
         - (barra.getBoundingClientRect().height - parseFloat(barra.style.getPropertyValue("--lens-top"))
           - parseFloat(barra.style.getPropertyValue("--lens-height")))) < 1,
-      vidroLeve:!barra.classList.contains("rodapenav") || parseFloat(getComputedStyle(barra).backdropFilter.match(/blur\(([\d.]+)px\)/)?.[1]) <= 8,
+      vidroForte:!barra.classList.contains("rodapenav") || parseFloat(getComputedStyle(barra).backdropFilter.match(/blur\(([\d.]+)px\)/)?.[1]) >= 20,
       vidro:vidro.backdropFilter !== "none" || vidro.webkitBackdropFilter !== "none",
       brilho:brilho.opacity,
       transicao:vidro.transitionDuration,
       overflow:document.documentElement.scrollWidth - document.documentElement.clientWidth,
     };
   }, { nav, alvo });
-  if (visual.selecionado !== "true" || !visual.alinhado || !visual.contida || !visual.proporcional || !visual.soIcones || !visual.clara || !visual.transparente || !visual.bordasIguais || !visual.vidroLeve || !visual.vidro
+  if (visual.selecionado !== "true" || !visual.alinhado || !visual.contida || !visual.proporcional || !visual.soIcones || !visual.clara || !visual.transparente || !visual.bordasIguais || !visual.vidroForte || !visual.vidro
       || visual.brilho !== "1" || visual.overflow > 1)
     falhas.push(`${largura}px: ${JSON.stringify(visual)}`);
 
