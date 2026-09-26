@@ -181,14 +181,15 @@ main{max-width:1280px; margin:0 auto; padding:var(--e-6) var(--e-6) var(--e-12);
   /* a luz existe para o vidro da lateral; sem ela, seria uma mancha verde no
      canto de um app que não tem mais nada ali */
   .app::before{display:none}
-  /* Igual ao topo móvel: uma superfície contínua separa a navegação do
-     conteúdo que rola. Ela começa no topo da barra e termina no fim da tela;
-     a barra de vidro fica por cima, mas cartões e números nunca participam do
-     fundo dela nem aparecem na safe area. */
+  /* Espelho do espaço acima do topo móvel: a barra continua flutuante e só
+     a área entre sua borda inferior e o fim da tela desfoca o que passa atrás.
+     Sem superfície opaca, não nasce um bloco branco; com blur forte, textos e
+     números deixam de ser legíveis nessa faixa. */
   .app::after{content:"";position:fixed;z-index:39;pointer-events:none;
-    inset:auto 0 0;
-    height:calc(var(--rodape-alt) + var(--lateral-solta) + env(safe-area-inset-bottom));
-    background:var(--surface);border-top:1px solid var(--line)}
+    inset:auto 0 0;height:calc(var(--lateral-solta) + env(safe-area-inset-bottom));
+    background:color-mix(in srgb,var(--surface) 26%,transparent);
+    backdrop-filter:blur(30px) saturate(1.15);
+    -webkit-backdrop-filter:blur(30px) saturate(1.15)}
   /* o mesmo respiro da marca na lateral. Com quatro botões de ação a 12px a
      barra passava 3px da tela num aparelho de 360px, e a página inteira ganhava
      rolagem lateral por causa do topo. */
