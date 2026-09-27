@@ -17,7 +17,7 @@ import { esc } from "../js/core/escape.js";
 import {
   restantesDe, ultimoMes, parcelaEm, pagoId, dividasDoMes, totalDividas,
   saldoAberto, abertoDe, totalQuitado, agrupaAberto, parcelasAVencer,
-  fimGeral, saldoAposMes, escolheMesInicial, progressoDe, temJuros, meuDe,
+  fimGeral, saldoAposMes, escolheMesInicial, progressoDe, temJuros, meuDe, rateioDe,
 } from "../js/domain/debts.js";
 import { valorFixa, informado, fixasEstimadas, totalFixas } from "../js/domain/fixed.js";
 import {
@@ -337,6 +337,10 @@ eq("financiamento e empréstimo são meios com juros",
 /* rateio: o que é seu é o que sobra depois do que a outra pessoa devolve */
 eq("meuDe desconta a parte do terceiro", meuDe(S.dividas[0]), 60);
 eq("sem terceiro, tudo é seu", meuDe({ valor: 100 }), 100);
+eq("rateio preserva cobrança e separa as duas responsabilidades",
+  rateioDe(480.14, 240.07), { total:480.14, meu:240.07, terceiro:240.07 });
+eq("rateio nunca deixa a parte pessoal negativa",
+  rateioDe(100, 140), { total:100, meu:0, terceiro:100 });
 S.dividas = [];
 
 /* ==================================================================
