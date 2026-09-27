@@ -157,5 +157,14 @@ export const temJuros  = d => COM_JUROS.includes(d.meio);
 /* Quanto de uma dívida é seu, depois do que outra pessoa devolve. O rateio é
    por parcela, igual a `valor`: numa compra de 4x R$ 88 rachada ao meio, são
    R$ 44 por mês que voltam. `valor` não muda -- você deve a parcela cheia ao
-   credor, e o acerto é com a pessoa. */
-export const meuDe = d => d.valor - (d.valorTerceiro || 0);
+   credor, e o acerto é com a pessoa.
+
+   A normalização fica aqui para todas as telas responderem à mesma pergunta.
+   Dados antigos ou digitados fora da interface nunca podem produzir parcela
+   pessoal negativa nem parte de terceiro maior que a cobrança. */
+export function rateioDe(valor, valorTerceiro = 0){
+  const total = Math.max(0, Number(valor) || 0);
+  const terceiro = Math.min(total, Math.max(0, Number(valorTerceiro) || 0));
+  return { total, meu: total - terceiro, terceiro };
+}
+export const meuDe = d => rateioDe(d.valor, d.valorTerceiro).meu;
