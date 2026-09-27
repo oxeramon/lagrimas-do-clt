@@ -137,6 +137,7 @@
             <span class="eyebrow">Ainda falta</span>
             <div class="pr-linha"><span>A receber</span><strong id="pnAReceber">—</strong></div>
             <div class="pr-linha"><span>A pagar</span><strong id="pnAPagar">—</strong></div>
+            <div class="pr-linha" id="pnTerceirosLinha" hidden><span>De terceiros</span><strong id="pnTerceiros">—</strong></div>
             <div class="pr-linha total"><span>Sobra prevista</span><strong id="pnSobraPrevista">—</strong></div>
           </div>
           <!-- SOBRA É FLUXO, SALDO É ESTOQUE, e as duas linhas desta coluna são
@@ -160,6 +161,7 @@
         <div class="pr-rodape">
           <div class="prog" id="pnAderenciaBarra" hidden><i style="width:0%"></i></div>
           <p class="hint" id="pnAderencia" hidden></p>
+          <p class="hint" id="pnTerceirosDetalhe" hidden></p>
           <details class="resumo-explica"><summary>Entenda os números</summary>
             <p class="hint" id="pnSemMovimento" hidden></p>
             <p class="hint" id="pnNota"></p>
@@ -327,6 +329,7 @@
             <div class="fatia"><b id="calAReceber">—</b><span>a receber</span></div>
             <div class="fatia"><b id="calRecebido">—</b><span>já recebido</span></div>
           </div>
+          <p class="hint" id="calTerceiros" hidden></p>
           <p class="hint" id="calAtraso" hidden></p>
         </div>
 
@@ -353,6 +356,7 @@
       <div class="kpis">
         <div class="kpi"><div class="eyebrow">Parcelas</div><div class="v" id="kDiv">—</div></div>
         <div class="kpi"><div class="eyebrow">Contas fixas</div><div class="v" id="kFix">—</div></div>
+        <div class="kpi"><div class="eyebrow">De terceiros</div><div class="v" id="kTerceiros">—</div></div>
         <div class="kpi"><div class="eyebrow">Entra no mês</div><div class="v" id="kEntra">—</div></div>
         <div class="kpi"><div class="eyebrow">% da renda</div><div class="v" id="kPct">—</div></div>
         <div class="kpi"><div class="eyebrow" id="kSobraRot">Sobra estimada</div><div class="v" id="kSobra">—</div></div>
@@ -1705,7 +1709,7 @@ import { MESES_PT, MES_LONGO, DIA_SEM, mkey, midx, fromIdx, addM, label,
 import { restantesDe, ultimoMes, parcelaEm, pagoId, dividasDoMes, totalDividas,
          saldoAberto, abertoDe, totalQuitado, agrupaAberto, parcelasAVencer,
          fimGeral, saldoAposMes, escolheMesInicial, progressoDe, COM_JUROS,
-         temJuros, meuDe } from "./js/domain/debts.js";
+         temJuros, meuDe, rateioDe } from "./js/domain/debts.js";
 import { valorFixa, informado, fixasEstimadas, totalFixas } from "./js/domain/fixed.js";
 import { aplicaEm, receitasDoMes, totalReceitas, rendaDoMes, periodoReceita,
          janelaDe, estadoDe } from "./js/domain/income.js";
@@ -1842,6 +1846,33 @@ function itensDoMes(k){
   return itens;
 }
 
+/* O credor cobra a parcela inteira, mas os indicadores de orçamento respondem
+   somente pelo que pertence ao usuário. A parte de terceiro continua no item
+   para aparecer separadamente e para o pagamento continuar usando o bruto. */
+const rateioDoItem = it => rateioDe(it.valor, it.terceiro);
+const valorMeuDoItem = it => rateioDoItem(it).meu;
+const valorTerceiroDoItem = it => rateioDoItem(it).terceiro;
+
+function resumoTerceirosDoMes(itens){
+  const porPessoa = new Map();
+  let total = 0;
+  for (const it of itens){
+    const valor = valorTerceiroDoItem(it);
+    if (!temValor(valor)) continue;
+    total += valor;
+    const pessoa = it.pessoa || "Terceiros";
+    porPessoa.set(pessoa, (porPessoa.get(pessoa) || 0) + valor);
+  }
+  return {
+    total,
+    porPessoa: [...porPessoa].sort((a, b) => b[1] - a[1]),
+  };
+}
+const textoDosTerceiros = resumo => resumo.porPessoa
+  .map(([pessoa, valor]) => pessoa + " " + money(valor)).join(" · ");
+const totalDividasMinhas = k => dividasDoMes(k)
+  .reduce((total, item) => total + meuDe(item.d), 0);
+
 /* histórico conta como pago sem ter linha em `pagamentos`: foi pago antes de o
    app existir, e é o próprio número da parcela inicial que diz isso */
 const pagoItem = (k, it) => it.historico || pagoId(k, it.id);
@@ -1893,11 +1924,15 @@ function renderMes(){
   const doGrupo = todos.filter(it =>
     !FM.grupo || it.grupo === FM.grupo || it.banco === FM.grupo);
 
-  const tDiv = doGrupo.filter(it => it.grupo !== "Contas fixas").reduce((s,it) => s + it.valor, 0);
-  const tFix = doGrupo.filter(it => it.grupo === "Contas fixas").reduce((s,it) => s + it.valor, 0);
+  const tDiv = doGrupo.filter(it => it.grupo !== "Contas fixas")
+    .reduce((s,it) => s + valorMeuDoItem(it), 0);
+  const tFix = doGrupo.filter(it => it.grupo === "Contas fixas")
+    .reduce((s,it) => s + valorMeuDoItem(it), 0);
   const total = tDiv + tFix;
-  const pagoVal = doGrupo.filter(it => pagoItem(k, it)).reduce((s,it) => s + it.valor, 0);
-  const totalMes = todos.reduce((s,it) => s + it.valor, 0);
+  const pagoVal = doGrupo.filter(it => pagoItem(k, it))
+    .reduce((s,it) => s + valorMeuDoItem(it), 0);
+  const totalMes = todos.reduce((s,it) => s + valorMeuDoItem(it), 0);
+  const terceiros = resumoTerceirosDoMes(doGrupo);
 
   $("kTotalRot").textContent = FM.grupo ? "Compromisso com " + FM.grupo : "Compromisso do mês";
   $("kTotal").textContent = money(total);
@@ -1905,6 +1940,8 @@ function renderMes(){
   $("meterBar").style.width = (total > 0 ? pagoVal/total*100 : 0) + "%";
   $("kDiv").textContent = money(tDiv);
   $("kFix").textContent = money(tFix);
+  $("kTerceiros").textContent = money(terceiros.total);
+  $("kTerceiros").title = textoDosTerceiros(terceiros);
 
   const entra = rendaDoMes(k);
   $("kEntra").textContent = money(entra);
@@ -1938,7 +1975,7 @@ function renderMes(){
      categoria da conta fixa aparece: o aluguel costuma ser a maior linha
      do mês, e ignorá-lo tornaria o gráfico uma meia verdade. */
   const porCat = [...doGrupo.reduce((m,it) =>
-    m.set(it.categoria, (m.get(it.categoria) || 0) + it.valor), new Map()).entries()]
+    m.set(it.categoria, (m.get(it.categoria) || 0) + valorMeuDoItem(it)), new Map()).entries()]
     .sort((a,b) => b[1] - a[1]);
   $("cardGastoMes").hidden = !porCat.length;
   if (porCat.length){
@@ -2017,11 +2054,11 @@ function renderMes(){
 
   box.innerHTML = bancos.map(g => {
     const totalBanco = g.blocos.reduce((t,b) =>
-      t + b.itens.reduce((x,it) => x + it.valor, 0), 0);
+      t + b.itens.reduce((x,it) => x + valorMeuDoItem(it), 0), 0);
     return '<div class="grouphead"><span>' + esc(g.nome) + '</span>'
       + '<span class="gsum">' + money(totalBanco) + '</span></div>'
       + g.blocos.map(b => {
-    const soma = b.itens.reduce((s,it) => s + it.valor, 0);
+    const soma = b.itens.reduce((s,it) => s + valorMeuDoItem(it), 0);
     const ids = b.itens.map(it => it.id);
     const todosPagos = b.itens.every(it => pagoItem(k, it));
 
@@ -2048,8 +2085,8 @@ function renderMes(){
               + (it.variavel
                   ? '<button type="button" class="amt estimado" data-fixames="' + esc(it.fixaId) + '">'
                     + (it.estimado ? '<span class="med">média</span>' : '')
-                    + money(it.valor) + '</button>'
-                  : '<div class="amt">' + money(it.valor) + '</div>')
+                    + money(valorMeuDoItem(it)) + '</button>'
+                  : '<div class="amt">' + money(valorMeuDoItem(it)) + '</div>')
               + botaoPonte(k, it, ponte)
               + '</div>';
           }).join("");
@@ -2063,17 +2100,19 @@ function renderMes(){
     /* Parte da fatura não é gasto deste mês: é parcela de compra antiga, que
        volta no mês que vem. Separar as duas é o que mostra com quanto a
        próxima fatura já nasce, antes de qualquer compra nova. */
-    const somaParc = b.itens.filter(it => it.parcelado).reduce((s,it) => s + it.valor, 0);
-    const somaRec  = b.itens.filter(it => it.recorrente).reduce((s,it) => s + it.valor, 0);
+    const somaParc = b.itens.filter(it => it.parcelado)
+      .reduce((s,it) => s + valorMeuDoItem(it), 0);
+    const somaRec  = b.itens.filter(it => it.recorrente)
+      .reduce((s,it) => s + valorMeuDoItem(it), 0);
     const somaAvista = soma - somaParc - somaRec;
     const porCat = [...b.itens.reduce((m,it) =>
-      m.set(it.categoria, (m.get(it.categoria) || 0) + it.valor), new Map()).entries()]
+      m.set(it.categoria, (m.get(it.categoria) || 0) + valorMeuDoItem(it)), new Map()).entries()]
       .sort((a,b2) => b2[1] - a[1]);
     /* o piso da próxima fatura sai das parcelas que ainda têm mês seguinte */
     const proxMes = addM(k, 1);
     const piso = itensDoMes(proxMes)
       .filter(it => it.naFatura && it.grupo === b.grupo)
-      .reduce((s,it) => s + it.valor, 0);
+      .reduce((s,it) => s + valorMeuDoItem(it), 0);
 
     /* três naturezas diferentes dentro da mesma fatura: parcela já comprada,
        assinatura que se repete, e compra deste mês */
@@ -2106,7 +2145,7 @@ function renderMes(){
                 ? '<span class="parc">' + money(it.terceiro) + ' de ' + esc(it.pessoa) + '</span>' : '')
             + (it.parcelado ? '<span class="parc">' + it.n + '/' + it.total + '</span>'
                : it.recorrente ? '<span class="parc">todo mês</span>' : '') + '</div>'
-            + '<div class="amt">' + money(it.valor) + '</div></div>').join("")
+            + '<div class="amt">' + money(valorMeuDoItem(it)) + '</div></div>').join("")
           + (piso > 0
               ? '<div class="rodape-fat">' + esc(labelLong(proxMes))
                 + ' já começa em <b>' + money(piso) + '</b>, antes de qualquer compra nova.</div>'
@@ -2702,8 +2741,10 @@ function renderPrevistoRealizado(){
 
   const k = S.mes;
   const ind = indicadoresDeContas(V2.contas, V2.saldos);
+  const itensMes = itensDoMes(k).filter(it => !it.historico);
+  const terceirosMes = resumoTerceirosDoMes(itensMes);
   const r = resumoDoMes({
-    compromissos: itensDoMes(k).filter(it => !it.historico),
+    compromissos: itensMes.map(it => ({ ...it, valor: valorMeuDoItem(it) })),
     receitas: receitasDoMes(k),
     transacoes: V2.transacoes,
     liquidacoes: V2.liquidacoes,
@@ -2722,6 +2763,18 @@ function renderPrevistoRealizado(){
 
   $("pnAReceber").textContent = money(r.aindaEntra);
   $("pnAPagar").textContent   = money(r.aindaSai);
+
+  const linhaTerceiros = $("pnTerceirosLinha");
+  linhaTerceiros.hidden = !temValor(terceirosMes.total);
+  if (!linhaTerceiros.hidden) $("pnTerceiros").textContent = money(terceirosMes.total);
+  const detalheTerceiros = $("pnTerceirosDetalhe");
+  detalheTerceiros.hidden = !temValor(terceirosMes.total);
+  if (!detalheTerceiros.hidden){
+    detalheTerceiros.textContent = "Fora dos seus indicadores: "
+      + textoDosTerceiros(terceirosMes)
+      + ". A cobrança ao credor continua pelo valor integral.";
+  }
+
   const prevista = $("pnSobraPrevista");
   prevista.textContent = money(r.sobra.prevista);
   prevista.className = r.sobra.prevista < 0 ? "ruim" : "";
@@ -2780,46 +2833,49 @@ function renderPainel(){
   renderPrevistoRealizado();
   renderBlocosDoPainel();
 
-  const aberto = saldoAberto(null);
-  const quitado = totalQuitado();
-  const contratado = aberto + quitado;   /* por construção, sem subtração */
+  /* O credor continua cobrando o bruto. O número grande, porém, responde
+     "quanto ainda é meu"; a parcela de cada terceiro aparece logo abaixo. */
+  const abertoBruto = saldoAberto(null);
+  const deTerceiros = S.dividas.reduce((t, d) => {
+    const terceiro = rateioDe(d.valor, d.valorTerceiro).terceiro;
+    if (!temValor(terceiro)) return t;
+    let n = 0;
+    for (let i = 0; i < restantesDe(d); i++)
+      if (!pagoId(addM(d.mesInicial, i), d.id)) n++;
+    return t + n * terceiro;
+  }, 0);
+  const porPessoa = [...S.dividas.reduce((m, d) => {
+    const terceiro = rateioDe(d.valor, d.valorTerceiro).terceiro;
+    if (!temValor(terceiro)) return m;
+    let n = 0;
+    for (let i = 0; i < restantesDe(d); i++)
+      if (!pagoId(addM(d.mesInicial, i), d.id)) n++;
+    return m.set(nomePessoa(d), (m.get(nomePessoa(d)) || 0) + n * terceiro);
+  }, new Map())].sort((a, b) => b[1] - a[1]);
+
+  const terceirosContratados = S.dividas.reduce((t, d) =>
+    t + rateioDe(d.valor, d.valorTerceiro).terceiro * d.totalParcelas, 0);
+  const terceirosQuitados = Math.max(0, terceirosContratados - deTerceiros);
+  const aberto = Math.max(0, abertoBruto - deTerceiros);
+  const quitado = Math.max(0, totalQuitado() - terceirosQuitados);
+  const contratado = aberto + quitado;
   const fim = fimGeral();
 
   $("pSaldo").innerHTML = moneyRico(aberto);
   $("pSaldoSub").textContent = contratado > 0
-    ? money(quitado) + " de " + money(contratado) + " já quitados"
-    : "Nenhuma dívida cadastrada.";
+    ? money(quitado) + " de " + money(contratado) + " seus já quitados"
+    : "Nenhuma dívida sua cadastrada.";
 
-  /* Este número é a soma das parcelas que faltam, e chamá-lo de "saldo devedor"
-     era errado: em financiamento e empréstimo a parcela embute juros que ainda
-     não correram, então quitar hoje custa menos do que isso. Quanto menos, só o
-     credor sabe -- o app não guarda taxa nem CET e não tem como calcular. Dizer
-     que guarda seria inventar precisão que não existe. */
-  /* Parte do que falta pagar não é gasto seu: é de quem dividiu a conta e te
-     devolve. Você continua devendo a parcela inteira ao credor -- por isso o
-     número grande não muda -- mas o que efetivamente sai do seu bolso é menos.
-     Esconder isso faz você se achar mais endividado do que está. */
-  const deTerceiros = S.dividas.reduce((t, d) => {
-    if (!temValor(d.valorTerceiro)) return t;
-    let n = 0;
-    for (let i = 0; i < restantesDe(d); i++)
-      if (!pagoId(addM(d.mesInicial, i), d.id)) n++;
-    return t + n * d.valorTerceiro;
-  }, 0);
-  const porPessoa = [...S.dividas.reduce((m, d) => {
-    if (!temValor(d.valorTerceiro)) return m;
-    let n = 0;
-    for (let i = 0; i < restantesDe(d); i++)
-      if (!pagoId(addM(d.mesInicial, i), d.id)) n++;
-    return m.set(nomePessoa(d), (m.get(nomePessoa(d)) || 0) + n * d.valorTerceiro);
-  }, new Map())].sort((a, b) => b[1] - a[1]);
-
+  /* Este número é a soma da parte pessoal das parcelas que faltam, e chamá-lo
+     de "saldo devedor" seria errado: em financiamento e empréstimo a parcela
+     embute juros que ainda não correram. */
   const elT = $("pSaldoTerceiros");
   elT.hidden = !temValor(deTerceiros);
   if (!elT.hidden){
-    elT.textContent = "Desse total, " + money(deTerceiros) + " é de quem dividiu contas com você e volta: "
+    elT.textContent = "Além do seu saldo, " + money(deTerceiros)
+      + " pertence a terceiros: "
       + porPessoa.map(([n, v]) => n + " " + money(v)).join(", ")
-      + ". Você deve a parcela cheia ao credor; o acerto é com a pessoa.";
+      + ". Você paga o credor pelo valor cheio e acerta essa parte com a pessoa.";
   }
 
   const comJuros = saldoAberto(d => temJuros(d));
@@ -2841,7 +2897,8 @@ function renderPainel(){
 
   /* --- KPIs do mês --- */
   const entra = rendaDoMes(k), extras = totalReceitas(k);
-  const sai   = totalDividas(k) + totalFixas(k);
+  const dividasMinhas = totalDividasMinhas(k);
+  const sai   = dividasMinhas + totalFixas(k);
   const sobra = entra - sai;
 
   $("pEntra").textContent  = money(entra);
@@ -2851,7 +2908,8 @@ function renderPainel(){
   $("kpiEntra").className  = "tile" + (entra > 0 ? " is-good" : "");
 
   $("pSai").textContent  = money(sai);
-  $("pSaiD").textContent = money(totalDividas(k)) + " em parcelas + " + money(totalFixas(k)) + " fixas";
+  $("pSaiD").textContent = money(dividasMinhas) + " em parcelas suas + "
+    + money(totalFixas(k)) + " fixas";
 
   if (entra > 0){
     const p = sai / entra;
@@ -3451,9 +3509,16 @@ registraFonteDaV1(() => ({
       itemId: it.id,
       vence: null,
       titulo: it.nome,
-      valor: it.valor,
-      detalhe: [it.grupo, it.meta].filter(Boolean).join(" · "),
+      valor: valorMeuDoItem(it),
+      detalhe: [
+        it.grupo,
+        it.meta,
+        temValor(valorTerceiroDoItem(it))
+          ? money(valorTerceiroDoItem(it)) + " de " + it.pessoa
+          : "",
+      ].filter(Boolean).join(" · "),
     })),
+  terceiros: resumoTerceirosDoMes(itensDoMes(S.mes).filter((it) => !it.historico)),
   receitas: receitasDoMes(S.mes).map((r) => ({
     itemId: r.id,
     quando: null,
