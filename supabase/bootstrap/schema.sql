@@ -5,7 +5,7 @@
 -- PARA QUE SERVE
 --
 -- Recuperar o banco em um projeto Supabase novo sem depender de lembrar a
--- ordem de `supabase-setup.sql` (a V1) mais catorze migrações. Este arquivo é
+-- ordem de `supabase-setup.sql` (a V1) mais vinte e cinco migrações. Este arquivo é
 -- o RESULTADO daquela história, lido do catálogo do banco em produção e
 -- reescrito em ordem de dependência.
 --
@@ -616,9 +616,9 @@ alter table public.transacoes add constraint transferencia_tem_grupo check (((na
 -- o credor de outra pessoa. A 015 fechou as cinco. Se aparecer uma sexta,
 -- `supabase/testes/isolamento.sql` acusa.
 
-alter table public.acertos add constraint acertos_de_dono_fk foreign key (user_id, de_id) references public.membros(user_id, id) on update cascade on delete restrict;
+alter table public.acertos add constraint acertos_de_dono_fk foreign key (user_id, de_id) references public.membros(user_id, id) on update cascade on delete no action deferrable initially deferred;
 alter table public.acertos add constraint acertos_grupo_dono_fk foreign key (user_id, grupo_id) references public.grupos(user_id, id) on update cascade on delete cascade;
-alter table public.acertos add constraint acertos_para_dono_fk foreign key (user_id, para_id) references public.membros(user_id, id) on update cascade on delete restrict;
+alter table public.acertos add constraint acertos_para_dono_fk foreign key (user_id, para_id) references public.membros(user_id, id) on update cascade on delete no action deferrable initially deferred;
 alter table public.acertos add constraint acertos_transacao_dono_fk foreign key (user_id, transacao_id) references public.transacoes(user_id, id) on update cascade on delete set null (transacao_id);
 alter table public.acertos add constraint acertos_user_id_fkey foreign key (user_id) references auth.users(id) on delete cascade;
 alter table public.alocacoes_de_meta add constraint alocacao_da_meta_do_dono foreign key (user_id, meta_id) references public.metas(user_id, id) on delete cascade;
@@ -645,7 +645,7 @@ alter table public.credores add constraint credores_user_id_fkey foreign key (us
 alter table public.despesas_do_grupo add constraint despesas_categoria_dono_fk foreign key (user_id, categoria_id) references public.categorias(user_id, id) on update cascade on delete set null (categoria_id);
 alter table public.despesas_do_grupo add constraint despesas_do_grupo_user_id_fkey foreign key (user_id) references auth.users(id) on delete cascade;
 alter table public.despesas_do_grupo add constraint despesas_grupo_dono_fk foreign key (user_id, grupo_id) references public.grupos(user_id, id) on update cascade on delete cascade;
-alter table public.despesas_do_grupo add constraint despesas_pagador_dono_fk foreign key (user_id, pago_por_id) references public.membros(user_id, id) on update cascade on delete restrict;
+alter table public.despesas_do_grupo add constraint despesas_pagador_dono_fk foreign key (user_id, pago_por_id) references public.membros(user_id, id) on update cascade on delete no action deferrable initially deferred;
 alter table public.dividas add constraint dividas_credor_dono_fk foreign key (user_id, credor_id) references public.credores(user_id, id) on update cascade on delete set null (credor_id);
 alter table public.dividas add constraint dividas_pessoa_dono_fk foreign key (user_id, pessoa_id) references public.credores(user_id, id) on update cascade on delete set null (pessoa_id);
 alter table public.dividas add constraint dividas_user_id_fkey foreign key (user_id) references auth.users(id) on delete cascade;
@@ -664,7 +664,7 @@ alter table public.membros add constraint membros_user_id_fkey foreign key (user
 alter table public.metas add constraint metas_user_id_fkey foreign key (user_id) references auth.users(id) on delete cascade;
 alter table public.pagamentos add constraint pagamentos_user_id_fkey foreign key (user_id) references auth.users(id) on delete cascade;
 alter table public.rateios add constraint rateios_despesa_dono_fk foreign key (user_id, despesa_id) references public.despesas_do_grupo(user_id, id) on update cascade on delete cascade;
-alter table public.rateios add constraint rateios_membro_dono_fk foreign key (user_id, membro_id) references public.membros(user_id, id) on update cascade on delete restrict;
+alter table public.rateios add constraint rateios_membro_dono_fk foreign key (user_id, membro_id) references public.membros(user_id, id) on update cascade on delete no action deferrable initially deferred;
 alter table public.rateios add constraint rateios_user_id_fkey foreign key (user_id) references auth.users(id) on delete cascade;
 alter table public.receitas add constraint receitas_user_id_fkey foreign key (user_id) references auth.users(id) on delete cascade;
 alter table public.transacoes add constraint transacoes_assinatura_dono_fk foreign key (user_id, assinatura_id) references public.assinaturas(user_id, id) on update cascade on delete set null (assinatura_id);
@@ -2224,6 +2224,35 @@ begin
 end $$;
 
 
+
+create function public.limpa_ocorrencia_ao_desvincular_assinatura()
+returns trigger
+language plpgsql
+set search_path = ''
+as $
+begin
+  if old.assinatura_id is not null and new.assinatura_id is null then
+    new.ocorrencia_em := null;
+  end if;
+  return new;
+end;
+$;
+
+create function public.remove_ocorrencias_futuras_ao_excluir_assinatura()
+returns trigger
+language plpgsql
+set search_path = ''
+as $
+begin
+  delete from public.transacoes
+   where user_id = old.user_id
+     and assinatura_id = old.id
+     and status = 'prevista'
+     and data >= current_date;
+  return old;
+end;
+$;
+
 -- -----------------------------------------------------------------------------
 -- 9. GATILHOS
 -- -----------------------------------------------------------------------------
@@ -2248,6 +2277,8 @@ create constraint trigger confere_alocacao_de_meta after insert or update on pub
 
 create trigger assinaturas_set_user before insert on public.assinaturas
   for each row execute function public.set_user_id();
+create trigger assinaturas_remove_ocorrencias_futuras before delete on public.assinaturas
+  for each row execute function public.remove_ocorrencias_futuras_ao_excluir_assinatura();
 create trigger cartoes_set_user before insert on public.cartoes
   for each row execute function public.set_user_id();
 
@@ -2307,6 +2338,8 @@ create trigger receitas_set_user before insert on public.receitas
 
 create trigger transacoes_set_user before insert on public.transacoes
   for each row execute function public.set_user_id();
+create trigger transacoes_limpa_ocorrencia_ao_desvincular before update of assinatura_id on public.transacoes
+  for each row execute function public.limpa_ocorrencia_ao_desvincular_assinatura();
 create constraint trigger transacoes_confere_estorno after insert or update on public.transacoes
   deferrable initially deferred for each row execute function public.confere_estorno();
 create constraint trigger transacoes_transferencia_completa after insert or delete or update on public.transacoes

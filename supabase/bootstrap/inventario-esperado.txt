@@ -262,10 +262,10 @@ COL transacoes.transferencia_id uuid
 COL transacoes.user_id uuid NOT NULL
 COL transacoes.valor numeric(14,2) NOT NULL
 CON acertos.acerto_entre_dois CHECK ((de_id <> para_id))
-CON acertos.acertos_de_dono_fk FOREIGN KEY (user_id, de_id) REFERENCES membros(user_id, id) ON UPDATE CASCADE ON DELETE RESTRICT
+CON acertos.acertos_de_dono_fk FOREIGN KEY (user_id, de_id) REFERENCES membros(user_id, id) ON UPDATE CASCADE DEFERRABLE INITIALLY DEFERRED
 CON acertos.acertos_dono_id_unico UNIQUE (user_id, id)
 CON acertos.acertos_grupo_dono_fk FOREIGN KEY (user_id, grupo_id) REFERENCES grupos(user_id, id) ON UPDATE CASCADE ON DELETE CASCADE
-CON acertos.acertos_para_dono_fk FOREIGN KEY (user_id, para_id) REFERENCES membros(user_id, id) ON UPDATE CASCADE ON DELETE RESTRICT
+CON acertos.acertos_para_dono_fk FOREIGN KEY (user_id, para_id) REFERENCES membros(user_id, id) ON UPDATE CASCADE DEFERRABLE INITIALLY DEFERRED
 CON acertos.acertos_pkey PRIMARY KEY (id)
 CON acertos.acertos_transacao_dono_fk FOREIGN KEY (user_id, transacao_id) REFERENCES transacoes(user_id, id) ON UPDATE CASCADE ON DELETE SET NULL (transacao_id)
 CON acertos.acertos_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE
@@ -355,7 +355,7 @@ CON despesas_do_grupo.despesas_do_grupo_pkey PRIMARY KEY (id)
 CON despesas_do_grupo.despesas_do_grupo_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE
 CON despesas_do_grupo.despesas_do_grupo_valor_check CHECK ((valor > (0)::numeric))
 CON despesas_do_grupo.despesas_grupo_dono_fk FOREIGN KEY (user_id, grupo_id) REFERENCES grupos(user_id, id) ON UPDATE CASCADE ON DELETE CASCADE
-CON despesas_do_grupo.despesas_pagador_dono_fk FOREIGN KEY (user_id, pago_por_id) REFERENCES membros(user_id, id) ON UPDATE CASCADE ON DELETE RESTRICT
+CON despesas_do_grupo.despesas_pagador_dono_fk FOREIGN KEY (user_id, pago_por_id) REFERENCES membros(user_id, id) ON UPDATE CASCADE DEFERRABLE INITIALLY DEFERRED
 CON dividas.dividas_credor_dono_fk FOREIGN KEY (user_id, credor_id) REFERENCES credores(user_id, id) ON UPDATE CASCADE ON DELETE SET NULL (credor_id)
 CON dividas.dividas_mes_inicial_check CHECK ((mes_inicial ~ '^\d{4}-\d{2}$'::text))
 CON dividas.dividas_parcela_inicial_check CHECK ((parcela_inicial >= 1))
@@ -431,7 +431,7 @@ CON ping.ping_pkey PRIMARY KEY (id)
 CON rateios.rateio_um_por_membro UNIQUE (user_id, despesa_id, membro_id)
 CON rateios.rateios_despesa_dono_fk FOREIGN KEY (user_id, despesa_id) REFERENCES despesas_do_grupo(user_id, id) ON UPDATE CASCADE ON DELETE CASCADE
 CON rateios.rateios_dono_id_unico UNIQUE (user_id, id)
-CON rateios.rateios_membro_dono_fk FOREIGN KEY (user_id, membro_id) REFERENCES membros(user_id, id) ON UPDATE CASCADE ON DELETE RESTRICT
+CON rateios.rateios_membro_dono_fk FOREIGN KEY (user_id, membro_id) REFERENCES membros(user_id, id) ON UPDATE CASCADE DEFERRABLE INITIALLY DEFERRED
 CON rateios.rateios_pkey PRIMARY KEY (id)
 CON rateios.rateios_somam_a_despesa TRIGGER DEFERRABLE INITIALLY DEFERRED
 CON rateios.rateios_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE
@@ -501,6 +501,7 @@ FN fatura_do_cartao(p_cartao uuid, p_data date) -> uuid func invoker volatile se
 FN fatura_na_competencia(p_cartao uuid, p_competencia text) -> uuid func invoker volatile search_path=public
 FN ignora_competencia_de_regra(p_meta uuid, p_competencia text) -> boolean func invoker volatile search_path=public
 FN limpa_marca_da_liquidacao() -> trigger func invoker volatile search_path=public
+FN limpa_ocorrencia_ao_desvincular_assinatura() -> trigger func invoker volatile search_path=""
 FN liquida_compromisso(p_tipo text, p_item_id text, p_competencia text, p_conta uuid, p_valor numeric, p_data date, p_descricao text, p_categoria uuid DEFAULT NULL::uuid, p_obs text DEFAULT ''::text) -> uuid func invoker volatile search_path=public
 FN materializa_assinaturas(p_ate date DEFAULT NULL::date) -> integer func invoker volatile search_path=public
 FN metas_set_user_id() -> trigger func invoker volatile search_path=public
@@ -512,6 +513,7 @@ FN registra_acerto(p_grupo uuid, p_de uuid, p_para uuid, p_valor numeric, p_data
 FN registra_compra_de_cartao(p_cartao uuid, p_descricao text, p_valor_total numeric, p_data date, p_parcelas integer DEFAULT 1, p_categoria uuid DEFAULT NULL::uuid, p_obs text DEFAULT ''::text) -> uuid func invoker volatile search_path=public
 FN registra_despesa_do_grupo(p_grupo uuid, p_descricao text, p_valor numeric, p_data date, p_pago_por uuid, p_rateios jsonb, p_categoria uuid DEFAULT NULL::uuid, p_obs text DEFAULT ''::text) -> uuid func invoker volatile search_path=public
 FN regulariza_competencias(p_itens jsonb) -> TABLE(meta_id uuid, competencia text, alocado numeric, erro text) func invoker volatile search_path=public
+FN remove_ocorrencias_futuras_ao_excluir_assinatura() -> trigger func invoker volatile search_path=""
 FN remove_transferencia(p_transferencia uuid) -> integer func invoker volatile search_path=public
 FN restaura_backup_integral(p_backup jsonb) -> integer func invoker volatile search_path=""
 FN saldo_livre_do_usuario() -> numeric func invoker stable search_path=public
@@ -545,6 +547,7 @@ FNBODY fatura_do_cartao(p_cartao uuid, p_data date) 7a207674bd4bf7499b3bdfc16829
 FNBODY fatura_na_competencia(p_cartao uuid, p_competencia text) 427af468cc7740448478d99a61e00309
 FNBODY ignora_competencia_de_regra(p_meta uuid, p_competencia text) 635576beb515df8599ecbd2f394ac486
 FNBODY limpa_marca_da_liquidacao() 304d01b06740b702d992c2727805887b
+FNBODY limpa_ocorrencia_ao_desvincular_assinatura() ea7e12c9f3111c715da32ecbdb1fe486
 FNBODY liquida_compromisso(p_tipo text, p_item_id text, p_competencia text, p_conta uuid, p_valor numeric, p_data date, p_descricao text, p_categoria uuid, p_obs text) 051419a8f098033b5b50f4bd3fe7b44a
 FNBODY materializa_assinaturas(p_ate date) 6c24973a36d1a5ace55adf857849c0fd
 FNBODY metas_set_user_id() 0bf135911e89bf011cac69f3c9f484db
@@ -556,6 +559,7 @@ FNBODY registra_acerto(p_grupo uuid, p_de uuid, p_para uuid, p_valor numeric, p_
 FNBODY registra_compra_de_cartao(p_cartao uuid, p_descricao text, p_valor_total numeric, p_data date, p_parcelas integer, p_categoria uuid, p_obs text) c2e9672e524a86866cba40558323f66a
 FNBODY registra_despesa_do_grupo(p_grupo uuid, p_descricao text, p_valor numeric, p_data date, p_pago_por uuid, p_rateios jsonb, p_categoria uuid, p_obs text) e7079c661b7f4e2642d2ca491956005f
 FNBODY regulariza_competencias(p_itens jsonb) 732aa859ed69d25a81995554dcc6e358
+FNBODY remove_ocorrencias_futuras_ao_excluir_assinatura() 5b2dbab5a907b1bfde22876eb96c77c7
 FNBODY remove_transferencia(p_transferencia uuid) d2e3e4f457cf868bcf990e0ea613c0e6
 FNBODY restaura_backup_integral(p_backup jsonb) 89a7be242f794137863a17f66e7431f6
 FNBODY saldo_livre_do_usuario() 2414a64fb0aa90dca86c7c2914eb3e5d
@@ -639,6 +643,9 @@ GFN ignora_competencia_de_regra(p_meta uuid, p_competencia text) service_role=EX
 GFN limpa_marca_da_liquidacao() anon=nao
 GFN limpa_marca_da_liquidacao() authenticated=nao
 GFN limpa_marca_da_liquidacao() service_role=EXECUTE
+GFN limpa_ocorrencia_ao_desvincular_assinatura() anon=nao
+GFN limpa_ocorrencia_ao_desvincular_assinatura() authenticated=nao
+GFN limpa_ocorrencia_ao_desvincular_assinatura() service_role=EXECUTE
 GFN liquida_compromisso(p_tipo text, p_item_id text, p_competencia text, p_conta uuid, p_valor numeric, p_data date, p_descricao text, p_categoria uuid, p_obs text) anon=nao
 GFN liquida_compromisso(p_tipo text, p_item_id text, p_competencia text, p_conta uuid, p_valor numeric, p_data date, p_descricao text, p_categoria uuid, p_obs text) authenticated=EXECUTE
 GFN liquida_compromisso(p_tipo text, p_item_id text, p_competencia text, p_conta uuid, p_valor numeric, p_data date, p_descricao text, p_categoria uuid, p_obs text) service_role=EXECUTE
@@ -672,6 +679,9 @@ GFN registra_despesa_do_grupo(p_grupo uuid, p_descricao text, p_valor numeric, p
 GFN regulariza_competencias(p_itens jsonb) anon=nao
 GFN regulariza_competencias(p_itens jsonb) authenticated=EXECUTE
 GFN regulariza_competencias(p_itens jsonb) service_role=EXECUTE
+GFN remove_ocorrencias_futuras_ao_excluir_assinatura() anon=nao
+GFN remove_ocorrencias_futuras_ao_excluir_assinatura() authenticated=nao
+GFN remove_ocorrencias_futuras_ao_excluir_assinatura() service_role=EXECUTE
 GFN remove_transferencia(p_transferencia uuid) anon=nao
 GFN remove_transferencia(p_transferencia uuid) authenticated=EXECUTE
 GFN remove_transferencia(p_transferencia uuid) service_role=EXECUTE
@@ -1140,6 +1150,7 @@ TAB transacoes rls=on
 TRG acertos.acertos_set_user CREATE TRIGGER acertos_set_user BEFORE INSERT ON public.acertos FOR EACH ROW EXECUTE FUNCTION set_user_id() deferrable=nao initdeferred=nao
 TRG alocacoes_de_meta.a_alocacoes_set_user CREATE TRIGGER a_alocacoes_set_user BEFORE INSERT ON public.alocacoes_de_meta FOR EACH ROW EXECUTE FUNCTION alocacoes_set_user_id() deferrable=nao initdeferred=nao
 TRG alocacoes_de_meta.confere_alocacao_de_meta CREATE CONSTRAINT TRIGGER confere_alocacao_de_meta AFTER INSERT OR UPDATE ON public.alocacoes_de_meta DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION confere_alocacao_de_meta() deferrable=sim initdeferred=sim
+TRG assinaturas.assinaturas_remove_ocorrencias_futuras CREATE TRIGGER assinaturas_remove_ocorrencias_futuras BEFORE DELETE ON public.assinaturas FOR EACH ROW EXECUTE FUNCTION remove_ocorrencias_futuras_ao_excluir_assinatura() deferrable=nao initdeferred=nao
 TRG assinaturas.assinaturas_set_user CREATE TRIGGER assinaturas_set_user BEFORE INSERT ON public.assinaturas FOR EACH ROW EXECUTE FUNCTION set_user_id() deferrable=nao initdeferred=nao
 TRG cartoes.cartoes_set_user CREATE TRIGGER cartoes_set_user BEFORE INSERT ON public.cartoes FOR EACH ROW EXECUTE FUNCTION set_user_id() deferrable=nao initdeferred=nao
 TRG categorias.categorias_1_set_user CREATE TRIGGER categorias_1_set_user BEFORE INSERT ON public.categorias FOR EACH ROW EXECUTE FUNCTION set_user_id() deferrable=nao initdeferred=nao
@@ -1167,6 +1178,7 @@ TRG rateios.rateios_set_user CREATE TRIGGER rateios_set_user BEFORE INSERT ON pu
 TRG rateios.rateios_somam_a_despesa CREATE CONSTRAINT TRIGGER rateios_somam_a_despesa AFTER INSERT OR DELETE OR UPDATE ON public.rateios DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION confere_soma_do_rateio() deferrable=sim initdeferred=sim
 TRG receitas.receitas_set_user CREATE TRIGGER receitas_set_user BEFORE INSERT ON public.receitas FOR EACH ROW EXECUTE FUNCTION set_user_id() deferrable=nao initdeferred=nao
 TRG transacoes.transacoes_confere_estorno CREATE CONSTRAINT TRIGGER transacoes_confere_estorno AFTER INSERT OR UPDATE ON public.transacoes DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION confere_estorno() deferrable=sim initdeferred=sim
+TRG transacoes.transacoes_limpa_ocorrencia_ao_desvincular CREATE TRIGGER transacoes_limpa_ocorrencia_ao_desvincular BEFORE UPDATE OF assinatura_id ON public.transacoes FOR EACH ROW EXECUTE FUNCTION limpa_ocorrencia_ao_desvincular_assinatura() deferrable=nao initdeferred=nao
 TRG transacoes.transacoes_set_user CREATE TRIGGER transacoes_set_user BEFORE INSERT ON public.transacoes FOR EACH ROW EXECUTE FUNCTION set_user_id() deferrable=nao initdeferred=nao
 TRG transacoes.transacoes_transferencia_completa CREATE CONSTRAINT TRIGGER transacoes_transferencia_completa AFTER INSERT OR DELETE OR UPDATE ON public.transacoes DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION valida_transferencia() deferrable=sim initdeferred=sim
 VIEW assinaturas_resolvidas security_invoker=on

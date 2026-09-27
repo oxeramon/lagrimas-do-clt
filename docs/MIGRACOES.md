@@ -25,6 +25,12 @@ em ordem. Este arquivo é o registro; o SQL é a fonte.
 | `20260914185552` | `../supabase/migrations/017_v2_competencias_da_regra.sql` | 14/09/2026 | **aplicada** |
 | — | `../supabase/migrations/018_v2_vigencia_na_view.sql` | 14/09/2026 | **aplicada** · conserta o esquecimento da 017 |
 | — | `../supabase/migrations/019_v2_grant_do_gatilho_da_017.sql` | 14/09/2026 | **aplicada** · conserta o grant da 017 |
+| `20260924002912` | `../supabase/migrations/020_backup_integral.sql` | 24/09/2026 | **aplicada** |
+| `20260924002919` | `../supabase/migrations/021_minimo_privilegios.sql` | 24/09/2026 | **aplicada** |
+| `20260924232454` | `../supabase/migrations/022_exclusao_de_assinatura.sql` | 24/09/2026 | **aplicada** |
+| `20260924235813` | `../supabase/migrations/023_exclusao_de_grupo.sql` | 24/09/2026 | **aplicada** |
+| `20260925124827` | `../supabase/migrations/024_foto_de_perfil_privada.sql` | 25/09/2026 | **aplicada** |
+| `20260927142320` | `../supabase/migrations/025_limpa_futuras_ao_excluir_assinatura.sql` | 27/09/2026 | **aplicada** |
 
 **Migração aplicada não se edita.** Quando o arquivo e o banco discordam, some
 a única fonte confiável sobre o que rodou. Conserto vira migração nova, e é por
@@ -850,3 +856,16 @@ inteiro, e a ordem "V1 mais dezenove migrações" não estava escrita em lugar
 nenhum. `bootstrap/schema.sql` é o resultado daquela história, gerado do
 catálogo, e a conferência de que ele bate com o banco é
 `ferramentas/confere-schema.mjs`.
+
+
+## 025 · exclusão remove somente cobranças futuras previstas
+
+Ao excluir uma assinatura, o banco apaga as ocorrências com status `prevista`
+datadas de hoje em diante. Lançamentos passados e ocorrências já realizadas
+continuam preservados como histórico e são apenas desvinculados pela regra da
+022.
+
+A migração também removeu as ocorrências futuras previstas que já estavam
+órfãs antes do novo gatilho. O teste `025_exclusao_assinatura_futura.sql`
+prova a fronteira com datas relativas a `current_date`, sob o papel
+`authenticated`, e termina em `rollback`.
