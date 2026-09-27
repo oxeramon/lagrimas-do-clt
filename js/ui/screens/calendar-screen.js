@@ -60,6 +60,19 @@ export function renderCalendario(){
   $("calAReceber").textContent = money(r.aReceber);
   $("calRecebido").textContent = money(r.recebido);
 
+  /* A parte de outras pessoas não infla os quatro números pessoais, mas também
+     não some da tela: permanece explícita, com nome e valor. */
+  const terceiros = daV1.terceiros || { total: 0, porPessoa: [] };
+  const linhaTerceiros = $("calTerceiros");
+  linhaTerceiros.hidden = !(Number(terceiros.total) > 0);
+  if (!linhaTerceiros.hidden){
+    const detalhe = (terceiros.porPessoa || [])
+      .map(([pessoa, valor]) => pessoa + " " + money(valor)).join(" · ");
+    linhaTerceiros.textContent = "Fora dos seus totais: "
+      + money(terceiros.total) + " de terceiros"
+      + (detalhe ? " · " + detalhe : "") + ".";
+  }
+
   /* Atraso não tem piada: é dinheiro que já custou juros. */
   const atraso = $("calAtraso");
   atraso.hidden = r.atrasados === 0;
