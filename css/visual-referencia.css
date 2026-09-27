@@ -702,3 +702,34 @@ dialog::backdrop{
     -webkit-backdrop-filter:none;
   }
 }
+
+
+/* Contraste do painel mensal.
+ * A camada visual anterior tinha seletores específicos com texto claro para
+ * um fundo verde escuro. O redesign usa cartões claros, então este bloco
+ * redefine texto, divisórias e estados no mesmo nível de especificidade. */
+#painelV2{color:var(--ref-ink)}
+#painelV2 .card-h h2{color:var(--ref-ink)}
+#painelV2 .card-h .btn{
+  color:var(--ref-ink);
+  border-color:var(--ref-line-strong);
+  background:var(--ref-surface);
+}
+#painelV2 .card-h .btn:hover{color:var(--ref-ink);background:var(--ref-soft-2)}
+#painelV2 .eyebrow{color:var(--ref-ink-3)}
+#painelV2 .pr-linha,
+#painelV2 .pr-linha span,
+#painelV2 .hint{color:var(--ref-ink-2)}
+#painelV2 .pr-linha strong{color:var(--ref-ink)}
+#painelV2 .pr-linha.total{border-color:var(--ref-line-strong)}
+#painelV2 .pr-linha strong.bom{color:var(--ref-good) !important}
+#painelV2 .pr-linha strong.ruim{color:var(--ref-danger) !important}
+#painelV2 .pr-col:nth-child(3) .eyebrow{color:var(--ref-ink-3)}
+#painelV2 .pr-col:nth-child(3) .pr-linha:first-of-type span{color:var(--ref-ink-2)}
+#painelV2 .pr-col:nth-child(3) .pr-linha:first-of-type strong{color:var(--ref-ink)}
+#painelV2 .pr-col:nth-child(3) .pr-linha:last-child{color:var(--ref-ink-2)}
+#painelV2 .pr-col:nth-child(3) .pr-linha:last-child strong{color:var(--ref-ink)}
+#painelV2 .pr-col:nth-child(3) .pr-linha strong.bom{color:var(--ref-good) !important}
+#painelV2 .pr-col:nth-child(3) .pr-linha strong.ruim{color:var(--ref-danger) !important}
+#painelV2 .pr-rodape .prog{background:var(--ref-soft-2)}
+#painelV2 .pr-rodape .prog i{background:var(--ref-action)}
